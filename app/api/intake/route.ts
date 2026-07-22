@@ -6,6 +6,7 @@ import {
   classifyDemand,
   missingRequired,
   nextDemandId,
+  parseDemandToAnswers,
   EMPTY_ANSWERS,
   type DemandAnswers,
 } from "@/lib/demand";
@@ -38,14 +39,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
   }
 
-  let body: { action?: string; answers?: unknown; id?: string };
+  let body: { action?: string; answers?: unknown; markdown?: string; id?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
   }
 
-  const answers = coerce(body.answers);
+  // Three tools, one output: the Chat and Form tools send `answers`; the Markdown
+  // tool sends raw `markdown`, which we parse back to answers so it re-renders
+  // through the same buildDemand. Whatever the tool, the saved page is identical.
+  const answers = typeof body.markdown === "string" ? parseDemandToAnswers(body.markdown) : coerce(body.answers);
   const classification = classifyDemand(answers);
   const missing = missingRequired(answers).map((f) => f.key);
 

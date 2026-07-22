@@ -47,7 +47,7 @@ const DE: Strings = {
 
   // Tiles — title / subtitle
   "tile.intake.title": "Erfassung",
-  "tile.intake.subtitle": "Bedarf erfassen (geführt)",
+  "tile.intake.subtitle": "Bedarf erfassen — Chat, Formular oder Markdown",
   "tile.demands.title": "Bedarfe",
   "tile.demands.subtitle": "Jeder aufgenommene Bedarf",
   "tile.board.title": "Portfolio-Board",

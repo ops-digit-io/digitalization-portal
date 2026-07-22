@@ -54,7 +54,7 @@ export const LAUNCHPAD: TileGroup[] = [
   {
     category: "Demand & intake",
     tiles: [
-      { id: "intake", title: "Intake", subtitle: "Capture a demand (guided)", href: "/intake", icon: I.spark, tone: "info" },
+      { id: "intake", title: "Intake", subtitle: "Capture a demand — chat, form or markdown", href: "/intake", icon: I.spark, tone: "info" },
       { id: "demands", title: "Demands", subtitle: "Every demand taken in", href: "/demands", icon: I.chat, tone: "info" },
       { id: "board", title: "Portfolio Board", subtitle: "All demand by stage", href: "/board", icon: I.grid, tone: "info" },
       { id: "attention", title: "Needs Attention", subtitle: "Unreadable or stalled", href: "/board", icon: I.alert, tone: "warn" },

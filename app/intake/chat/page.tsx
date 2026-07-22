@@ -1,0 +1,121 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { buildDemand, classifyDemand } from "@/lib/demand";
+import { startIntake, submitAnswer, type ChatMessage, type IntakeState } from "@/lib/intake-agent";
+import { ToolHeader, SavedLinks, useIntakeSave } from "../shared";
+
+const LANE_LABEL: Record<string, string> = {
+  run: "run", regulatory: "regulatory", continuous_improvement: "continuous improvement",
+  transform: "transform", innovation: "innovation", data_ai: "data / AI", local: "local", unassigned: "unassigned",
+};
+
+function Bubble({ m }: { m: ChatMessage }) {
+  const isUser = m.role === "user";
+  return (
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+      <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm ${isUser ? "rounded-br-sm bg-primary text-primary-foreground" : "rounded-bl-sm bg-secondary text-foreground"}`}>
+        {m.text}
+      </div>
+    </div>
+  );
+}
+
+export default function ChatTool() {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [state, setState] = useState<IntakeState | null>(null);
+  const [input, setInput] = useState("");
+  const { saving, saved, error, save, reset } = useIntakeSave();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const { state: s, messages: m } = startIntake();
+    setState(s);
+    setMessages(m);
+  }, []);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages]);
+
+  const done = state?.done ?? false;
+  const classification = useMemo(() => (state ? classifyDemand(state.answers) : null), [state]);
+  const preview = useMemo(
+    () => (state && done && classification ? buildDemand({ id: "UC-YYYY-NNNN", createdOn: "YYYY-MM-DD", lane: classification.lane }, state.answers) : ""),
+    [state, done, classification],
+  );
+
+  function send() {
+    if (!state || done) return;
+    const text = input;
+    setInput("");
+    const { state: next, messages: replies } = submitAnswer(state, text);
+    setState(next);
+    setMessages((prev) => [...prev, { role: "user", text: text.trim() || "(skip)" }, ...replies]);
+  }
+
+  async function doSave() {
+    if (!state) return;
+    const data = await save({ answers: state.answers });
+    if (data) setMessages((prev) => [...prev, { role: "assistant", text: `Saved as ${data.id}. It's on the demands list now, at S1 with G1 open — a human accepts it at triage.` }]);
+  }
+
+  function restart() {
+    const { state: s, messages: m } = startIntake();
+    setState(s);
+    setMessages(m);
+    setInput("");
+    reset();
+  }
+
+  return (
+    <main className="mx-auto flex h-[calc(100vh-3.5rem)] max-w-2xl flex-col overflow-hidden px-4 py-3">
+      <ToolHeader active="chat" blurb="An AI interview — one short question at a time." />
+
+      <Card className="flex min-h-0 flex-1 flex-col p-0">
+        <div ref={scrollRef} className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-4">
+          {messages.map((m, i) => <Bubble key={i} m={m} />)}
+
+          {done && classification && (
+            <div className="pt-2">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Demand page</span>
+                <Badge variant="secondary" className="font-normal">{LANE_LABEL[classification.lane] ?? classification.lane}</Badge>
+                {classification.domain && <Badge variant="outline" className="font-normal">{classification.domain}</Badge>}
+              </div>
+              <pre className="whitespace-pre-wrap rounded-lg border bg-secondary/20 p-3 text-xs leading-relaxed">{preview}</pre>
+            </div>
+          )}
+        </div>
+
+        {!done ? (
+          <div className="flex items-end gap-2 border-t p-2">
+            <textarea
+              autoFocus rows={1} value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+              placeholder="Type your answer…  (Enter to send)"
+              className="max-h-32 min-h-[2.25rem] flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground"
+            />
+            <button onClick={send} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">Send</button>
+          </div>
+        ) : (
+          <div className="border-t px-4 py-2.5">
+            {error && <div className="mb-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-1.5 text-xs text-destructive">{error}</div>}
+            {!saved ? (
+              <div className="flex items-center justify-between">
+                <button onClick={restart} className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Start over</button>
+                <button onClick={doSave} disabled={saving} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+                  {saving ? "Saving…" : "Save demand"}
+                </button>
+              </div>
+            ) : (
+              <SavedLinks id={saved.id} host={saved.result.host} onRestart={restart} />
+            )}
+          </div>
+        )}
+      </Card>
+    </main>
+  );
+}

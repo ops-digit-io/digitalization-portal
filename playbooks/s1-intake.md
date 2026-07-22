@@ -19,18 +19,19 @@ agent and the on-script core behind any live phrasing); this playbook is its
 protocol. The interview questions, intent, and nudges live in the
 `intake-conversation` skill's [interview guide](../skills/intake-conversation/references/interview.md).
 
-## Two sides, one demand
+## Three tools, one output
 
-The intake is a split **demand studio**:
+The intake offers **three separate tools**, and the requester picks one:
 
-- **Left — the chat interview.** The agent runs the interview below, one question
-  at a time. This is the guided, AI-driven way in.
-- **Right — the demand view.** The same demand, shown as **markdown** or as an
-  editable **form**, filling in live as the interview proceeds. A requester who
-  prefers to type directly can switch to the form; a reviewer can read the markdown.
+- **Chat** — the AI interview this playbook drives, one question at a time.
+- **Form** — a plain form; the requester fills the fields directly.
+- **Markdown** — the demand page written as markdown, from the template.
 
-Both sides edit the *same captured answers*, and the markdown is always rendered by
-`buildDemand` — so the two views never disagree and the output stays deterministic.
+They are different ways in, **not** different outputs. Chat and Form collect
+`DemandAnswers`; the Markdown tool is parsed back to `DemandAnswers`
+(`parseDemandToAnswers`). All three then render through the **same** `buildDemand`,
+so the saved demand page is byte-identical regardless of the tool. This playbook
+governs the **Chat** tool; the interview it runs is below.
 
 ## Conversational protocol (how the agent must behave)
 

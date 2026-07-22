@@ -4,6 +4,8 @@ import {
   classifyDemand,
   missingRequired,
   nextDemandId,
+  parseDemandToAnswers,
+  blankDemandMarkdown,
   EMPTY_ANSWERS,
   INTAKE_FIELDS,
   type DemandAnswers,
@@ -54,6 +56,30 @@ describe("buildDemand", () => {
     expect(p.state.plant).toBe("DE-ALD");
     expect(p.state.domain).toBe("quality");
     expect(p.title).toContain("Predictive scrap alerts");
+  });
+});
+
+describe("parseDemandToAnswers (the Markdown tool's inverse)", () => {
+  it("recovers the answers from a built demand page", () => {
+    const recovered = parseDemandToAnswers(buildDemand(meta, answers));
+    expect(recovered).toEqual(answers);
+  });
+
+  it("treats stable placeholders as empty (blank template → empty answers)", () => {
+    expect(parseDemandToAnswers(blankDemandMarkdown())).toEqual(EMPTY_ANSWERS);
+  });
+
+  it("guarantees the same output across all three tools", () => {
+    // Chat/Form path: answers → page.
+    const fromAnswers = buildDemand(meta, answers);
+    // Markdown path: hand-edited markdown → parsed → same renderer.
+    const fromMarkdown = buildDemand(meta, parseDemandToAnswers(fromAnswers));
+    expect(fromMarkdown).toBe(fromAnswers);
+  });
+
+  it("never throws on malformed markdown", () => {
+    expect(() => parseDemandToAnswers("not a demand at all")).not.toThrow();
+    expect(parseDemandToAnswers("").title).toBe("");
   });
 });
 

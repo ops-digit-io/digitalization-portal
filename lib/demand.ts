@@ -16,6 +16,7 @@
  */
 
 import type { Lane } from "./types.js";
+import { parseUseCase } from "./parse.js";
 
 /** One field the intake captures. Order here is the order the playbook asks. */
 export interface DemandField {
@@ -142,6 +143,59 @@ ${sections}
 
 - ${meta.createdOn} — captured via portal intake (s1-intake playbook)
 `;
+}
+
+/**
+ * The canonical blank demand page — the template the Markdown tool starts from.
+ * It is just `buildDemand` of no answers, so every tool begins from (and returns
+ * to) exactly the same shape.
+ */
+export function blankDemandMarkdown(): string {
+  return buildDemand({ id: "UC-YYYY-NNNN", createdOn: "YYYY-MM-DD", lane: "unassigned" }, EMPTY_ANSWERS);
+}
+
+/** Split a demand's markdown into `## Heading` → body text (lowercased headings). */
+function splitSections(markdown: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  let current: string | null = null;
+  let buf: string[] = [];
+  const flush = () => { if (current) out[current] = buf.join("\n").trim(); };
+  for (const line of markdown.replace(/\r\n/g, "\n").split("\n")) {
+    const h = line.match(/^##\s+(.+?)\s*$/);
+    if (h) { flush(); current = h[1]!.toLowerCase(); buf = []; }
+    else if (current) buf.push(line);
+  }
+  flush();
+  return out;
+}
+
+/**
+ * Recover the structured answers from a demand's markdown — the inverse of
+ * `buildDemand`, used by the Markdown tool so hand-edited markdown normalises back
+ * through the same renderer and the saved output matches every other tool's.
+ * A body equal to its stable placeholder counts as empty. Never throws.
+ */
+export function parseDemandToAnswers(markdown: string): DemandAnswers {
+  const out: DemandAnswers = { ...EMPTY_ANSWERS };
+  const p = parseUseCase(markdown);
+
+  const h1 = markdown.replace(/\r\n/g, "\n").match(/^#\s+(.+?)\s*$/m)?.[1] ?? "";
+  const title = h1.replace(/^UC-[A-Z0-9]{4}-[A-Z0-9]+\s*·\s*/i, "").trim();
+  out.title = title.toLowerCase() === "untitled demand" ? "" : title;
+
+  out.plant = p.state.plant ?? "";
+  out.domain = p.state.domain ?? "";
+
+  const req = markdown.match(/\|\s*Requester\s*\|([^|\n]*)\|/i)?.[1]?.trim() ?? "";
+  out.requester = req.includes("<!--") ? "" : req;
+
+  const sections = splitSections(markdown);
+  for (const f of INTAKE_FIELDS) {
+    if (f.section === null) continue;
+    const body = (sections[f.section.toLowerCase()] ?? "").trim();
+    out[f.key] = body === "" || body === f.placeholder ? "" : body;
+  }
+  return out;
 }
 
 /** Keyword → lane rules. Deterministic; the same text always proposes the same lane. */
