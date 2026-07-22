@@ -51,16 +51,23 @@ governs the **Chat** tool; the interview it runs is below.
 
 ## The interview (asked one at a time, never listed)
 
-1. In one line, what is the demand?
-2. What is the problem you are seeing?
-3. How is it handled today, and what does that cost?
-4. What would good look like?
-5. Which process is affected, and who feels it?  *(optional)*
-6. How often does it happen, and at what scale?  *(optional)*
-7. Any systems, data, or prior attempts we should know about?  *(optional)*
-8. Which plant does this concern?
-9. Which domain?  *(optional)*
-10. Who is raising it?  *(optional)*
+The questions, their intent, and nudges are defined once in the interview guide:
+[intake-conversation/references/interview.md](../skills/intake-conversation/references/interview.md).
+In order:
+
+1. **Title** — In a sentence, what's the demand?
+2. **Problem** — What's going wrong?
+3. **Impact today** — How is it handled today, and what does it cost? *(push for a number)*
+4. **Desired outcome** — What would 'solved' look like?
+5. **Process & people** — Which process is affected, and who feels it?  *(optional)*
+6. **Frequency & scale** — How often, and at what scale?  *(optional, push for a number)*
+7. **Systems, data & history** — Any systems, data, or earlier attempts?  *(optional)*
+8. **Plant** — Which plant does this concern?
+9. **Domain** — Which area does it fall under?  *(optional)*
+10. **Requester** — Who's raising it?  *(optional)*
+
+The Form and Markdown tools render from the same field set, so they ask for exactly
+these; only the surface differs.
 
 ## Steps
 

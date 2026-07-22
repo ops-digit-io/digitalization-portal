@@ -51,7 +51,7 @@ export default function MarkdownTool() {
           {!saved ? (
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-muted-foreground">
-                {canSave ? "Ready to save." : `Still needed: ${missing.map((m) => m.key).join(", ")} — fill the matching section(s).`}
+                {canSave ? "Ready to save." : `Still needed: ${missing.map((m) => m.label).join(", ")} — fill the matching section(s).`}
               </span>
               <div className="flex gap-2">
                 <button onClick={restart} className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Reset</button>

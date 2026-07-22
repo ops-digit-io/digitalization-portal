@@ -83,8 +83,10 @@ offline and live-model paths produce the identical page.
 |---|---|
 | Demand model — fields, deterministic `buildDemand`, `classifyDemand` | `lib/demand.ts` |
 | Central store — list / read / save to `du-demands` | `lib/demands-store.ts` |
-| Intake API — preview + save | `app/api/intake/route.ts` |
-| Intake UI — guided, live preview, two checkpoints | `app/intake/page.tsx` |
+| Intake API — preview + save (answers or raw markdown) | `app/api/intake/route.ts` |
+| Intake tools — chooser + Chat / Form / Markdown | `app/intake/{page,chat,form,md}` |
+| Intake field set — one definition for all three tools | `INTAKE_FIELDS` in `lib/demand.ts` |
+| Interview guide — questions, intent, nudges | `skills/intake-conversation/references/interview.md` |
 | Demands list | `app/demands/page.tsx` |
 | Playbook (the user interaction) | `playbooks/s1-intake.md` |
 | Skills | `skills/intake-conversation/`, `skills/demand-classification/` |

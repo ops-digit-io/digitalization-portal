@@ -18,17 +18,49 @@
 import type { Lane } from "./types.js";
 import { parseUseCase } from "./parse.js";
 
-/** One field the intake captures. Order here is the order the playbook asks. */
+export type FieldInput = "text" | "textarea" | "select";
+
+/**
+ * One field the intake captures. This is the single definition the three tools
+ * share: the Chat asks `question`, the Form shows `label` + `hint` + the right
+ * `input`, and both render into `section`. The interview guide
+ * (`skills/intake-conversation/references/interview.md`) documents the intent.
+ * Order here is the order asked.
+ */
 export interface DemandField {
   key: keyof DemandAnswers;
-  /** The question the assistant asks (playbook `s1-intake`). */
+  /** Short form label, e.g. "Impact today". */
+  label: string;
+  /** Conversational phrasing the Chat tool asks. */
   question: string;
+  /** One-line helper under the form label / the interviewer's intent. */
+  hint: string;
+  /** Form grouping header. */
+  group: string;
+  /** Form control to render. */
+  input: FieldInput;
+  /** Options for a `select` input. */
+  options?: readonly string[];
   /** The `## Section` heading it renders under, or null for a State/People field. */
   section: string | null;
   /** Placeholder shown when the field is empty — kept STABLE so output is stable. */
   placeholder: string;
   required: boolean;
 }
+
+/**
+ * Sites and domains offered in the Form's dropdowns. In a live deployment these
+ * come from `registry/plants.md` and `registry/domains.md`; here they are the
+ * demo set. Free text is still accepted by the Chat and Markdown tools.
+ */
+export const PLANTS = ["DE-ALD", "SK-PUC", "CN-SUZ", "US-GRV", "ALL"] as const;
+export const DOMAINS = [
+  "quality", "maintenance", "production", "energy", "procurement", "logistics", "safety", "engineering", "other",
+] as const;
+
+const GROUP_PROBLEM = "The problem";
+const GROUP_SCOPE = "Scope & context";
+const GROUP_CLASSIFY = "Classification";
 
 /** The structured answers an intake produces. Free text; rendering is fixed. */
 export interface DemandAnswers {
@@ -51,22 +83,75 @@ export const EMPTY_ANSWERS: DemandAnswers = {
 };
 
 /**
- * The fixed intake script. The `s1-intake` playbook walks these in order; the
- * page renders one per step. Adding a question is one entry here plus one line in
- * `buildDemand` — the deterministic shape is defined in exactly these two places.
+ * The intake question set — the single definition behind all three tools and the
+ * interview guide. Adding a field is one entry here plus one line in `buildDemand`.
+ * Keys, sections, and placeholders are stable so the output format never drifts.
  */
 export const INTAKE_FIELDS: readonly DemandField[] = [
-  { key: "title", question: "In one line, what is the demand?", section: null, placeholder: "_Untitled demand._", required: true },
-  { key: "problem", question: "What is the problem you are seeing?", section: "Problem", placeholder: "_Captured at intake._", required: true },
-  { key: "currentPain", question: "How is it handled today, and what does that cost?", section: "Current pain", placeholder: "_No current-state description captured._", required: true },
-  { key: "desiredOutcome", question: "What would good look like?", section: "Desired outcome", placeholder: "_No target outcome captured._", required: true },
-  { key: "affectedProcess", question: "Which process is affected, and who feels it?", section: "Affected process", placeholder: "_No process/owner captured._", required: false },
-  { key: "frequencyScale", question: "How often does it happen, and at what scale?", section: "Frequency & scale", placeholder: "_No frequency/scale captured._", required: false },
-  { key: "constraints", question: "Any systems, data, or prior attempts we should know about?", section: "Constraints & context", placeholder: "_None captured._", required: false },
-  { key: "plant", question: "Which plant does this concern?", section: null, placeholder: "", required: true },
-  { key: "domain", question: "Which domain?", section: null, placeholder: "", required: false },
-  { key: "requester", question: "Who is raising it? (name or e-mail)", section: null, placeholder: "", required: false },
+  {
+    key: "title", label: "Title", group: GROUP_PROBLEM, input: "text", section: null, required: true,
+    question: "In a sentence, what's the demand?",
+    hint: "A short working name — you can refine it later.",
+    placeholder: "_Untitled demand._",
+  },
+  {
+    key: "problem", label: "Problem", group: GROUP_PROBLEM, input: "textarea", section: "Problem", required: true,
+    question: "What's going wrong? Describe the problem you're seeing.",
+    hint: "The symptom, concretely: what happens, where, and why it matters.",
+    placeholder: "_Captured at intake._",
+  },
+  {
+    key: "currentPain", label: "Impact today", group: GROUP_PROBLEM, input: "textarea", section: "Current pain", required: true,
+    question: "How is it handled today, and what does it cost?",
+    hint: "Time, scrap, money, or risk it causes now — put a number on it if you can.",
+    placeholder: "_No current-state description captured._",
+  },
+  {
+    key: "desiredOutcome", label: "Desired outcome", group: GROUP_PROBLEM, input: "textarea", section: "Desired outcome", required: true,
+    question: "What would 'solved' look like?",
+    hint: "What you'd see or be able to measure if it worked.",
+    placeholder: "_No target outcome captured._",
+  },
+  {
+    key: "affectedProcess", label: "Process & people", group: GROUP_SCOPE, input: "textarea", section: "Affected process", required: false,
+    question: "Which process is affected, and who feels it?",
+    hint: "The step or workflow, and the team or role impacted.",
+    placeholder: "_No process/owner captured._",
+  },
+  {
+    key: "frequencyScale", label: "Frequency & scale", group: GROUP_SCOPE, input: "textarea", section: "Frequency & scale", required: false,
+    question: "How often does it happen, and at what scale?",
+    hint: "Per shift, per week? How many units, people, or sites?",
+    placeholder: "_No frequency/scale captured._",
+  },
+  {
+    key: "constraints", label: "Systems, data & history", group: GROUP_SCOPE, input: "textarea", section: "Constraints & context", required: false,
+    question: "Any systems, data, or earlier attempts we should know about?",
+    hint: "Tools involved, data that exists, anything already tried.",
+    placeholder: "_None captured._",
+  },
+  {
+    key: "plant", label: "Plant", group: GROUP_CLASSIFY, input: "select", options: PLANTS, section: null, required: true,
+    question: "Which plant does this concern?",
+    hint: "The site this affects (ALL if group-wide).",
+    placeholder: "",
+  },
+  {
+    key: "domain", label: "Domain", group: GROUP_CLASSIFY, input: "select", options: DOMAINS, section: null, required: false,
+    question: "Which area does it fall under?",
+    hint: "The functional domain.",
+    placeholder: "",
+  },
+  {
+    key: "requester", label: "Requester", group: GROUP_CLASSIFY, input: "text", section: null, required: false,
+    question: "Who's raising it?",
+    hint: "Your name or e-mail.",
+    placeholder: "",
+  },
 ];
+
+/** Field groups in order, for the Form's fieldsets. */
+export const FIELD_GROUPS: readonly string[] = [GROUP_PROBLEM, GROUP_SCOPE, GROUP_CLASSIFY];
 
 /** Fields that render as prose sections, in fixed order. */
 const SECTION_FIELDS = INTAKE_FIELDS.filter((f) => f.section !== null);
