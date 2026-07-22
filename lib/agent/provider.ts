@@ -65,6 +65,7 @@ export interface ModelProvider {
 
 const ANTHROPIC_VERSION = "2023-06-01";
 const DEFAULT_MODEL = "claude-sonnet-5";
+const DEFAULT_OPENAI_MODEL = "gpt-4o";
 
 /** The real Anthropic Messages API, called with `fetch` (no SDK dependency). */
 export class AnthropicProvider implements ModelProvider {
@@ -125,6 +126,92 @@ export class AnthropicProvider implements ModelProvider {
   }
 }
 
+/** The OpenAI Chat Completions API, called with `fetch`. Server-side only. */
+export class OpenAIProvider implements ModelProvider {
+  readonly name = "openai";
+  readonly live = true;
+  private readonly apiKey: string;
+  private readonly baseUrl: string;
+  private readonly model: string;
+
+  constructor(opts: { apiKey: string; baseUrl?: string; model?: string }) {
+    this.apiKey = opts.apiKey;
+    this.baseUrl = (opts.baseUrl ?? "https://api.openai.com/v1").replace(/\/$/, "");
+    this.model = opts.model ?? DEFAULT_OPENAI_MODEL;
+  }
+
+  /** Convert our Anthropic-shaped messages to OpenAI's chat format. */
+  private toOpenAI(system: string, messages: ModelMessage[]): unknown[] {
+    const out: unknown[] = [{ role: "system", content: system }];
+    for (const m of messages) {
+      if (typeof m.content === "string") {
+        out.push({ role: m.role, content: m.content });
+        continue;
+      }
+      if (m.role === "assistant") {
+        const text = m.content.filter((b): b is TextBlock => b.type === "text").map((b) => b.text).join("");
+        const toolUses = m.content.filter((b): b is ToolUseBlock => b.type === "tool_use");
+        const msg: Record<string, unknown> = { role: "assistant", content: text || null };
+        if (toolUses.length > 0) {
+          msg.tool_calls = toolUses.map((tu) => ({
+            id: tu.id,
+            type: "function",
+            function: { name: tu.name, arguments: JSON.stringify(tu.input ?? {}) },
+          }));
+        }
+        out.push(msg);
+      } else {
+        // user turn — text plus any tool results (tool results become `tool` messages).
+        const texts = m.content.filter((b): b is TextBlock => b.type === "text");
+        if (texts.length > 0) out.push({ role: "user", content: texts.map((b) => b.text).join("\n") });
+        for (const tr of m.content.filter((b): b is ToolResultBlock => b.type === "tool_result")) {
+          out.push({ role: "tool", tool_call_id: tr.tool_use_id, content: tr.content });
+        }
+      }
+    }
+    return out;
+  }
+
+  async complete(req: CompletionRequest): Promise<ModelResponse> {
+    const body: Record<string, unknown> = {
+      model: this.model,
+      max_tokens: req.maxTokens ?? 2048,
+      messages: this.toOpenAI(req.system, req.messages),
+    };
+    if (req.tools && req.tools.length > 0) {
+      body.tools = req.tools.map((t) => ({
+        type: "function",
+        function: { name: t.name, description: t.description, parameters: t.input_schema },
+      }));
+      body.tool_choice = "auto";
+    }
+
+    const res = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${this.apiKey}` },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`OpenAI API ${res.status}: ${(await res.text()).slice(0, 300)}`);
+
+    const data = (await res.json()) as {
+      choices: { message: { content: string | null; tool_calls?: { id: string; function: { name: string; arguments: string } }[] }; finish_reason: string }[];
+      usage?: { prompt_tokens: number; completion_tokens: number };
+    };
+    const choice = data.choices[0];
+    const toolCalls = (choice?.message.tool_calls ?? []).map((tc) => {
+      let input: unknown = {};
+      try { input = JSON.parse(tc.function.arguments || "{}"); } catch { /* keep {} */ }
+      return { id: tc.id, name: tc.function.name, input };
+    });
+    return {
+      text: choice?.message.content ?? "",
+      toolCalls,
+      stopReason: choice?.finish_reason ?? "stop",
+      usage: { input: data.usage?.prompt_tokens ?? 0, output: data.usage?.completion_tokens ?? 0 },
+    };
+  }
+}
+
 /**
  * Deterministic offline provider. Rule-based, so the agent loop is exercised
  * end-to-end without a key:
@@ -168,7 +255,7 @@ export class OfflineProvider implements ModelProvider {
   private summariseResult(raw: string): string {
     const eur = (n: number): string =>
       new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
-    const note = "\n\n(Offline analyst — deterministic tools only. Set ANTHROPIC_API_KEY for full narrative reasoning. The assistant drafts; it never decides.)";
+    const note = "\n\n(Offline analyst — deterministic tools only. Set ANTHROPIC_API_KEY or OPENAI_API_KEY for full narrative reasoning. The assistant drafts; it never decides.)";
     try {
       const r = JSON.parse(raw) as Record<string, unknown>;
       // Portfolio implementation analysis.
@@ -229,14 +316,58 @@ export class OfflineProvider implements ModelProvider {
   }
 }
 
-/** Choose a provider from the environment. Live when a key is present. */
+export type ProviderName = "anthropic" | "openai" | "offline";
+
+export interface ProviderStatus {
+  provider: ProviderName;
+  live: boolean;
+  /** The model that would be used, when live. */
+  model?: string;
+}
+
+function has(v: string | undefined): boolean {
+  return typeof v === "string" && v.trim() !== "";
+}
+
+/**
+ * Decide which provider is active WITHOUT constructing it or touching a key —
+ * safe to call from a server component to render the status chip. Selection:
+ * `MODEL_PROVIDER` override (anthropic|openai|offline) if its key is present,
+ * else Anthropic if keyed, else OpenAI if keyed, else offline.
+ */
+export function describeProvider(env: Record<string, string | undefined> = process.env): ProviderStatus {
+  const forced = env.MODEL_PROVIDER?.trim().toLowerCase() as ProviderName | undefined;
+  const hasA = has(env.ANTHROPIC_API_KEY);
+  const hasO = has(env.OPENAI_API_KEY);
+
+  let provider: ProviderName;
+  if (forced === "offline") provider = "offline";
+  else if (forced === "anthropic" && hasA) provider = "anthropic";
+  else if (forced === "openai" && hasO) provider = "openai";
+  else if (hasA) provider = "anthropic";
+  else if (hasO) provider = "openai";
+  else provider = "offline";
+
+  if (provider === "anthropic") return { provider, live: true, model: env.ANTHROPIC_MODEL ?? DEFAULT_MODEL };
+  if (provider === "openai") return { provider, live: true, model: env.OPENAI_MODEL ?? DEFAULT_OPENAI_MODEL };
+  return { provider, live: false };
+}
+
+/** Construct the active provider from the environment. */
 export function getProvider(env: Record<string, string | undefined> = process.env): ModelProvider {
-  const key = env.ANTHROPIC_API_KEY;
-  if (key && key.trim() !== "") {
+  const status = describeProvider(env);
+  if (status.provider === "anthropic") {
     return new AnthropicProvider({
-      apiKey: key,
+      apiKey: env.ANTHROPIC_API_KEY!,
       baseUrl: env.ANTHROPIC_BASE_URL,
       model: env.ANTHROPIC_MODEL,
+    });
+  }
+  if (status.provider === "openai") {
+    return new OpenAIProvider({
+      apiKey: env.OPENAI_API_KEY!,
+      baseUrl: env.OPENAI_BASE_URL,
+      model: env.OPENAI_MODEL,
     });
   }
   return new OfflineProvider();

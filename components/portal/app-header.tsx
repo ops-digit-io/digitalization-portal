@@ -6,11 +6,58 @@ import { useI18n, useTheme } from "@/components/providers";
 import { CommandPalette } from "@/components/portal/command-palette";
 import { LOCALES, type Locale } from "@/lib/i18n";
 
+export interface ModelStatus {
+  provider: "anthropic" | "openai" | "offline";
+  live: boolean;
+  model?: string;
+}
+export interface AppStatus {
+  model: ModelStatus;
+  git: { live: boolean };
+}
+
+const PROVIDER_LABEL: Record<ModelStatus["provider"], string> = {
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  offline: "Offline",
+};
+
+function StatusChip({ status }: { status: AppStatus | null }) {
+  if (!status) return null;
+  const { model, git } = status;
+  const dot = model.live ? "hsl(var(--ok))" : "hsl(var(--muted-foreground))";
+  const title = [
+    model.live ? `Model: ${PROVIDER_LABEL[model.provider]}${model.model ? ` (${model.model})` : ""}` : "Model: offline — set ANTHROPIC_API_KEY or OPENAI_API_KEY",
+    `GitHub App: ${git.live ? "connected" : "local workspace"}`,
+  ].join("\n");
+  return (
+    <span
+      className="hidden items-center gap-1.5 rounded-md border px-2 py-1 text-xs text-muted-foreground sm:inline-flex"
+      title={title}
+    >
+      <span className="size-2 rounded-full" style={{ background: dot }} aria-hidden />
+      <span>{model.live ? PROVIDER_LABEL[model.provider] : "Offline"}</span>
+      {git.live && <span className="text-[10px] uppercase tracking-wide text-ok">· git</span>}
+    </span>
+  );
+}
+
 export function AppHeader() {
   const { theme, toggle } = useTheme();
   const { locale, setLocale, t } = useI18n();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
+  const [status, setStatus] = useState<AppStatus | null>(null);
+
+  // Fetch integration status at runtime (reflects the live environment).
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/status")
+      .then((r) => r.json())
+      .then((s) => { if (alive) setStatus(s as AppStatus); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   // ⌘K / Ctrl-K opens the tool search anywhere.
   useEffect(() => {
@@ -44,6 +91,9 @@ export function AppHeader() {
         </button>
 
         <div className="ml-auto flex items-center gap-1.5">
+          {/* Model / integration status */}
+          <StatusChip status={status} />
+
           {/* Language dropdown */}
           <div className="relative">
             <button
