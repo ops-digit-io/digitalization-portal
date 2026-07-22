@@ -31,6 +31,8 @@ export const SEED_ROWS: RegistryRow[] = [
   { id: "UC-2026-0045", title: "Shift handover digitalization", stage: "S2", lane: "continuous_improvement", status: "active", plant: "DE-ALD", domain: "production", level: "L1", heat: "medium", since: "2026-04-28" },
   { id: "UC-2026-0033", title: "Cause code harmonization", stage: "S8", lane: "transform", status: "active", plant: "DE-ALD", domain: "quality", level: "L2", heat: "low", sponsor: "s4@example.com", valueProjected: 60000, valueRealized: 71000, since: "2026-01-30" },
   { id: "UC-2026-0051", title: "Vendor onboarding workflow", stage: "S2", lane: "transform", status: "parked", plant: "SK-PUC", domain: "procurement", level: "L1", heat: "low", since: "2026-05-01" },
+  { id: "UC-2026-0052", title: "Chatbot for maintenance manuals", stage: "S3", lane: "data_ai", status: "killed", plant: "DE-ALD", domain: "maintenance", level: "L2", heat: "low", since: "2026-04-20" },
+  { id: "UC-2026-0053", title: "Paperless line clearance", stage: "S2", lane: "continuous_improvement", status: "killed", plant: "SK-PUC", domain: "production", level: "L1", heat: "low", since: "2026-04-15" },
   // A deliberately broken record: reconciler couldn't read its state.
   { id: "UC-2026-0060", title: "MES alarm triage (needs attention)", lane: "transform", status: "active", plant: "DE-ALD", needsAttention: true, since: "2026-05-14" },
 ];

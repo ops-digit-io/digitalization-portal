@@ -62,6 +62,8 @@ const DE: Strings = {
   "tile.simulate.subtitle": "P10 / P50 / P90 Bänder",
   "tile.review.title": "Wertüberprüfung",
   "tile.review.subtitle": "Abweichung zum Business Case",
+  "tile.funnel.title": "Use-Case-Funnel",
+  "tile.funnel.subtitle": "Phasenfluss, Kill-Rate je Gate",
   "tile.triage.title": "Triage",
   "tile.triage.subtitle": "Klassifizieren & zuweisen",
   "tile.backlog.title": "Backlog",

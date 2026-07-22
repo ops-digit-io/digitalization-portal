@@ -72,6 +72,7 @@ export const LAUNCHPAD: TileGroup[] = [
   {
     category: "Portfolio & steering",
     tiles: [
+      { id: "funnel", title: "Use-case Funnel", subtitle: "Stage flow, kill rate by gate", href: "/funnel", icon: I.chart, tone: "info" },
       { id: "triage", title: "Triage", subtitle: "Classify & assign lanes", href: "/triage", icon: I.route, tone: "info" },
       { id: "backlog", title: "Backlog", subtitle: "Prioritize (S2)", href: "/board", icon: I.sort, tone: "slate", disabled: true },
       { id: "roadmap", title: "Roadmap", subtitle: "Milestones & gates", href: "/board", icon: I.map, tone: "slate", disabled: true },
