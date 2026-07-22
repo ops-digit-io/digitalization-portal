@@ -36,6 +36,8 @@ export interface FunnelStage {
   dropFromPrev?: number;
   /** entered(next) / entered(this) (0..1), or undefined for S8. */
   conversionToNext?: number;
+  /** Average days active use cases have been sitting in this stage. */
+  dwellDays?: number;
 }
 
 export interface GateKill {
@@ -65,9 +67,20 @@ export interface FunnelAnalysis {
   flags: string[];
 }
 
-export function analyzeFunnel(rows: readonly RegistryRow[]): FunnelAnalysis {
+const MS_PER_DAY = 86_400_000;
+
+export function analyzeFunnel(rows: readonly RegistryRow[], opts?: { now?: string }): FunnelAnalysis {
   const withStage = rows.filter((r) => r.stage !== undefined);
   const needsAttention = rows.filter((r) => r.needsAttention || r.stage === undefined).length;
+  const nowMs = opts?.now ? Date.parse(opts.now) : NaN;
+
+  const dwellFor = (s: number): number | undefined => {
+    if (Number.isNaN(nowMs)) return undefined;
+    const active = withStage.filter((r) => r.status === "active" && stageIndex(r.stage) === s && r.since);
+    if (active.length === 0) return undefined;
+    const days = active.map((r) => Math.max(0, Math.floor((nowMs - Date.parse(r.since!)) / MS_PER_DAY)));
+    return Math.round(days.reduce((a, b) => a + b, 0) / days.length);
+  };
 
   const entered: number[] = STAGES.map((_, s) => withStage.filter((r) => stageIndex(r.stage) >= s).length);
   const at = (status: RegistryRow["status"], s: number) =>
@@ -93,6 +106,8 @@ export function analyzeFunnel(rows: readonly RegistryRow[]): FunnelAnalysis {
     if (s < STAGES.length - 1 && count > 0) {
       st.conversionToNext = Math.round(((entered[s + 1] ?? 0) / count) * 1000) / 1000;
     }
+    const dwell = dwellFor(s);
+    if (dwell !== undefined) st.dwellDays = dwell;
     return st;
   });
 
