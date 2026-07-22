@@ -1,19 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  INTAKE_FIELDS,
-  EMPTY_ANSWERS,
-  buildDemand,
-  classifyDemand,
-  missingRequired,
-  type DemandAnswers,
-} from "@/lib/demand";
-
-type Phase = "elicit" | "confirm-understanding" | "confirm-demand" | "saved";
+import { buildDemand, classifyDemand } from "@/lib/demand";
+import { startIntake, submitAnswer, type ChatMessage, type IntakeState } from "@/lib/intake-agent";
 
 interface SaveResponse {
   id: string;
@@ -26,42 +18,79 @@ const LANE_LABEL: Record<string, string> = {
   transform: "transform", innovation: "innovation", data_ai: "data / AI", local: "local", unassigned: "unassigned",
 };
 
+function Bubble({ m }: { m: ChatMessage }) {
+  const isUser = m.role === "user";
+  return (
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm ${
+          isUser ? "rounded-br-sm bg-primary text-primary-foreground" : "rounded-bl-sm bg-secondary text-foreground"
+        }`}
+      >
+        {m.text}
+      </div>
+    </div>
+  );
+}
+
 export default function Intake() {
-  const [answers, setAnswers] = useState<DemandAnswers>({ ...EMPTY_ANSWERS });
-  const [step, setStep] = useState(0);
-  const [phase, setPhase] = useState<Phase>("elicit");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [state, setState] = useState<IntakeState | null>(null);
+  const [input, setInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<SaveResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // The preview is rendered client-side from the SAME deterministic builder the
-  // server saves with — proving the output is a function of the answers, not the
-  // conversation. (Id/date are placeholders until save assigns real ones.)
-  const classification = useMemo(() => classifyDemand(answers), [answers]);
+  // Open the conversation once, on mount.
+  useEffect(() => {
+    const { state: s, messages: m } = startIntake();
+    setState(s);
+    setMessages(m);
+  }, []);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, saved]);
+
+  const done = state?.done ?? false;
+
+  // The demand + classification are computed only from captured answers — the
+  // same deterministic renderer the server saves with. Shown only once done.
+  const classification = useMemo(() => (state ? classifyDemand(state.answers) : null), [state]);
   const preview = useMemo(
-    () => buildDemand({ id: "UC-YYYY-NNNN", createdOn: "YYYY-MM-DD", lane: classification.lane }, answers),
-    [answers, classification.lane],
+    () => (state && done && classification
+      ? buildDemand({ id: "UC-YYYY-NNNN", createdOn: "YYYY-MM-DD", lane: classification.lane }, state.answers)
+      : ""),
+    [state, done, classification],
   );
-  const missing = useMemo(() => missingRequired(answers), [answers]);
 
-  const field = INTAKE_FIELDS[step]!;
-  const set = (k: keyof DemandAnswers, v: string) => setAnswers((a) => ({ ...a, [k]: v }));
+  function send() {
+    if (!state || done) return;
+    const text = input;
+    setInput("");
+    const userMsg: ChatMessage = { role: "user", text: text.trim() || "(skip)" };
+    const { state: next, messages: replies } = submitAnswer(state, text);
+    setState(next);
+    setMessages((prev) => [...prev, userMsg, ...replies]);
+  }
 
   async function save() {
+    if (!state) return;
     setSaving(true);
     setError(null);
     try {
       const res = await fetch("/api/intake", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "save", answers }),
+        body: JSON.stringify({ action: "save", answers: state.answers }),
       });
       const data = (await res.json()) as SaveResponse;
       if (!res.ok) {
         setError(data.error ?? "Save failed.");
       } else {
         setSaved(data);
-        setPhase("saved");
+        setMessages((prev) => [...prev, { role: "assistant", text: `Saved as ${data.id}. It's on the demands list now, at S1 with G1 open — a human accepts it at triage.` }]);
       }
     } catch {
       setError("Request failed.");
@@ -70,177 +99,89 @@ export default function Intake() {
     }
   }
 
+  function restart() {
+    const { state: s, messages: m } = startIntake();
+    setState(s);
+    setMessages(m);
+    setSaved(null);
+    setError(null);
+    setInput("");
+  }
+
   return (
-    <main className="mx-auto max-w-[1200px] px-6 py-6">
+    <main className="mx-auto flex min-h-[calc(100vh-3.5rem)] max-w-2xl flex-col px-4 py-6">
       <nav className="mb-2 text-sm text-muted-foreground">
         <Link href="/" className="hover:text-foreground">Home</Link>
         <span className="mx-1.5" aria-hidden>›</span>
         <span className="text-foreground">Intake</span>
       </nav>
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold">Capture a demand</h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Describe the problem in your own words. The intake follows the{" "}
-            <span className="font-mono text-xs">s1-intake</span> playbook and always produces the
-            same page from the same answers — a demand in the central intake repo. You draft; a human decides at triage.
+          <p className="text-sm text-muted-foreground">
+            A short conversation — the <span className="font-mono text-xs">s1-intake</span> agent asks, you answer.
+            The demand page appears at the end.
           </p>
         </div>
-        <Badge variant="secondary" className="font-normal text-muted-foreground">deterministic output</Badge>
+        <Badge variant="secondary" className="shrink-0 font-normal text-muted-foreground">deterministic output</Badge>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1fr]">
-        {/* Left: the guided conversation */}
-        <Card className="flex flex-col p-5">
-          {phase === "elicit" && (
-            <>
-              <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                <span>Step {step + 1} of {INTAKE_FIELDS.length}</span>
-                <span>{field.required ? "required" : "optional"}</span>
-              </div>
-              <div className="mb-3 h-1 w-full overflow-hidden rounded bg-secondary">
-                <div className="h-1 rounded bg-info" style={{ width: `${((step + 1) / INTAKE_FIELDS.length) * 100}%` }} />
-              </div>
-              <label className="text-sm font-medium">{field.question}</label>
-              {field.section !== null ? (
-                <textarea
-                  autoFocus
-                  rows={5}
-                  value={answers[field.key]}
-                  onChange={(e) => set(field.key, e.target.value)}
-                  placeholder="In your own words…"
-                  className="mt-2 w-full resize-none rounded-lg border bg-transparent px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
-                />
-              ) : (
-                <input
-                  autoFocus
-                  value={answers[field.key]}
-                  onChange={(e) => set(field.key, e.target.value)}
-                  placeholder="…"
-                  className="mt-2 w-full rounded-lg border bg-transparent px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
-                />
-              )}
-              <div className="mt-4 flex items-center justify-between">
-                <button
-                  onClick={() => setStep((s) => Math.max(0, s - 1))}
-                  disabled={step === 0}
-                  className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-40"
-                >
-                  ← Back
-                </button>
-                {step < INTAKE_FIELDS.length - 1 ? (
-                  <button
-                    onClick={() => setStep((s) => s + 1)}
-                    className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-                  >
-                    Next →
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setPhase("confirm-understanding")}
-                    className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-                  >
-                    Review →
-                  </button>
-                )}
-              </div>
-              <div className="mt-4 border-t pt-3">
-                <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Questions</div>
-                <ol className="space-y-0.5 text-xs text-muted-foreground">
-                  {INTAKE_FIELDS.map((f, i) => (
-                    <li key={f.key}>
-                      <button onClick={() => setStep(i)} className={`text-left hover:text-foreground ${i === step ? "font-medium text-foreground" : ""}`}>
-                        {i + 1}. {f.question}
-                        {f.required && answers[f.key].trim() === "" && <span className="ml-1 text-warn">•</span>}
-                      </button>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            </>
-          )}
+      {/* Conversation */}
+      <div ref={scrollRef} className="mt-4 flex-1 space-y-2.5 overflow-y-auto rounded-xl border bg-card/40 p-4">
+        {messages.map((m, i) => <Bubble key={i} m={m} />)}
 
-          {phase === "confirm-understanding" && (
-            <>
-              <h2 className="text-sm font-semibold">Checkpoint · confirm understanding</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Here is what was captured, and the lane the classifier proposes for triage. Correct anything before continuing.
-              </p>
-              <div className="mt-3 rounded-lg border bg-secondary/30 p-3 text-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs uppercase text-muted-foreground">Proposed lane</span>
-                  <Badge variant="secondary" className="font-normal">{LANE_LABEL[classification.lane] ?? classification.lane}</Badge>
-                  {classification.domain && <><span className="text-xs uppercase text-muted-foreground">domain</span><Badge variant="outline" className="font-normal">{classification.domain}</Badge></>}
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">{classification.rationale}</p>
-                <p className="mt-1 text-xs text-muted-foreground">A suggestion only — triage confirms the lane at G1/G2.</p>
+        {/* The demand page — revealed only once the conversation is done. */}
+        {done && classification && (
+          <div className="pt-2">
+            <Card className="p-4">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <h2 className="text-sm font-semibold">Demand page</h2>
+                <Badge variant="secondary" className="font-normal">{LANE_LABEL[classification.lane] ?? classification.lane}</Badge>
+                {classification.domain && <Badge variant="outline" className="font-normal">{classification.domain}</Badge>}
+                <span className="text-xs text-muted-foreground">rendered by <span className="font-mono">buildDemand</span></span>
               </div>
-              {missing.length > 0 && (
-                <div className="mt-3 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-sm">
-                  <span className="text-warn" aria-hidden>⚠ </span>
-                  Still needed: {missing.map((m) => m.question).join(" · ")}
-                </div>
-              )}
-              <div className="mt-4 flex items-center justify-between">
-                <button onClick={() => setPhase("elicit")} className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">← Edit answers</button>
-                <button
-                  onClick={() => setPhase("confirm-demand")}
-                  disabled={missing.length > 0}
-                  className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-40"
-                >
-                  Looks right →
-                </button>
-              </div>
-            </>
-          )}
+              <pre className="max-h-[46vh] overflow-auto whitespace-pre-wrap rounded-lg border bg-secondary/20 p-3 text-xs leading-relaxed">{preview}</pre>
+              <p className="mt-2 text-xs text-muted-foreground">{classification.rationale} — a suggestion; triage confirms the lane.</p>
 
-          {phase === "confirm-demand" && (
-            <>
-              <h2 className="text-sm font-semibold">Checkpoint · confirm demand</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                This is the exact page that will be saved to the central intake repo. It opens at S1 with G1 open, awaiting triage.
-              </p>
               {error && <div className="mt-3 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</div>}
-              <div className="mt-4 flex items-center justify-between">
-                <button onClick={() => setPhase("confirm-understanding")} className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">← Back</button>
-                <button onClick={save} disabled={saving} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
-                  {saving ? "Saving…" : "Save demand"}
-                </button>
-              </div>
-            </>
-          )}
 
-          {phase === "saved" && saved && (
-            <>
-              <h2 className="text-sm font-semibold text-ok">Demand captured</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Saved as <span className="font-mono">{saved.id}</span> to{" "}
-                <span className="font-mono">{saved.result.repo}</span> ({saved.result.host} · {saved.result.target}).
-                It now shows on the demands list and the board at S1, awaiting triage.
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Link href="/demands" className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground">Open demands list →</Link>
-                <Link href="/funnel" className="rounded-md border px-3 py-1.5 text-xs">See the funnel →</Link>
-                <button
-                  onClick={() => { setAnswers({ ...EMPTY_ANSWERS }); setStep(0); setSaved(null); setPhase("elicit"); }}
-                  className="rounded-md border px-3 py-1.5 text-xs"
-                >
-                  Capture another
-                </button>
-              </div>
-            </>
-          )}
-        </Card>
-
-        {/* Right: the live deterministic preview */}
-        <Card className="p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Demand page (live)</h2>
-            <span className="text-xs text-muted-foreground">rendered by <span className="font-mono">buildDemand</span></span>
+              {!saved ? (
+                <div className="mt-4 flex items-center justify-between">
+                  <button onClick={restart} className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Start over</button>
+                  <button onClick={save} disabled={saving} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+                    {saving ? "Saving…" : "Save demand"}
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Link href="/demands" className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground">Open demands list →</Link>
+                  <Link href="/funnel" className="rounded-md border px-3 py-1.5 text-xs">See the funnel →</Link>
+                  <button onClick={restart} className="rounded-md border px-3 py-1.5 text-xs">Capture another</button>
+                </div>
+              )}
+            </Card>
           </div>
-          <pre className="max-h-[70vh] overflow-auto whitespace-pre-wrap rounded-lg border bg-secondary/20 p-3 text-xs leading-relaxed">{preview}</pre>
-        </Card>
+        )}
       </div>
+
+      {/* Composer — hidden once the conversation is done. */}
+      {!done && (
+        <div className="mt-3 flex items-end gap-2 rounded-xl border bg-card p-2 shadow-sm">
+          <textarea
+            autoFocus
+            rows={1}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+            }}
+            placeholder="Type your answer…  (Enter to send · Shift+Enter for a new line)"
+            className="max-h-40 min-h-[2.25rem] flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground"
+          />
+          <button onClick={send} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">Send</button>
+        </div>
+      )}
+      <p className="mt-2 text-center text-xs text-muted-foreground">The agent drafts; a human decides at triage. Nothing here passes a gate.</p>
     </main>
   );
 }
