@@ -33,9 +33,20 @@ function Icon({ path, color }: { path: string; color: string }) {
 /**
  * A launchpad tile ("Kachel"). A pure navigation entry point — icon, title,
  * subtitle, and a chevron affordance. No metrics: tiles route to tools, they
- * don't report numbers. Whole tile is a link.
+ * don't report numbers. `title`/`subtitle` may be passed translated; otherwise
+ * the tile's English defaults are used. Whole tile is a link.
  */
-export function LaunchTile({ tile }: { tile: Tile }) {
+export function LaunchTile({
+  tile,
+  title,
+  subtitle,
+  soonLabel = "soon",
+}: {
+  tile: Tile;
+  title?: string;
+  subtitle?: string;
+  soonLabel?: string;
+}) {
   const color = `hsl(var(${TONE_VAR[tile.tone]}))`;
   const tint = `hsl(var(${TONE_VAR[tile.tone]}) / 0.12)`;
 
@@ -46,14 +57,14 @@ export function LaunchTile({ tile }: { tile: Tile }) {
       </span>
       <div className="mt-auto">
         <div className="flex items-center gap-1 font-medium leading-tight">
-          {tile.title}
+          {title ?? tile.title}
           {!tile.disabled && (
             <span className="translate-x-0 text-muted-foreground opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" aria-hidden>
               →
             </span>
           )}
         </div>
-        <div className="mt-0.5 text-xs text-muted-foreground">{tile.subtitle}</div>
+        <div className="mt-0.5 text-xs text-muted-foreground">{subtitle ?? tile.subtitle}</div>
       </div>
     </>
   );
@@ -64,7 +75,7 @@ export function LaunchTile({ tile }: { tile: Tile }) {
     return (
       <div className={cn(base, "relative opacity-55")} aria-disabled>
         {inner}
-        <span className="absolute right-3 top-3 text-[10px] uppercase tracking-wide text-muted-foreground">soon</span>
+        <span className="absolute right-3 top-3 text-[10px] uppercase tracking-wide text-muted-foreground">{soonLabel}</span>
       </div>
     );
   }

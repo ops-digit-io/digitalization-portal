@@ -1,39 +1,27 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import "./globals.css";
+import { Providers } from "@/components/providers";
+import { AppHeader } from "@/components/portal/app-header";
 
 export const metadata: Metadata = {
   title: "Digital Unit Portal",
   description: "The single front door and control plane for enterprise change demand.",
 };
 
-function TopNav() {
-  return (
-    <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-6 px-4">
-        <Link href="/" className="flex items-center gap-2 font-semibold">
-          <span className="grid size-6 place-items-center rounded bg-primary text-xs text-primary-foreground">
-            DU
-          </span>
-          Digital Unit Portal
-        </Link>
-        <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="hidden sm:inline">demo.forum@example.com</span>
-          <span className="grid size-7 place-items-center rounded-full bg-secondary text-[11px] font-medium text-secondary-foreground">
-            DF
-          </span>
-        </div>
-      </div>
-    </header>
-  );
-}
+// Set the theme class before hydration to avoid a flash of the wrong theme.
+const themeScript = `(function(){try{var t=localStorage.getItem('du-theme');if(!t){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}if(t==='dark')document.documentElement.classList.add('dark');}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className="min-h-screen">
-        <TopNav />
-        {children}
+        <Providers>
+          <AppHeader />
+          {children}
+        </Providers>
       </body>
     </html>
   );

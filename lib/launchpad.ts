@@ -2,9 +2,9 @@
  * Launchpad tile registry (SAP Fiori / Digital Manufacturing style).
  *
  * Data-driven: the home page groups these into categories and forwards each tile
- * to a dedicated portal tool. Adding a tile is one entry — same extensibility
- * ethos as the rest of the portal. KPI values are computed on the server and
- * matched to a tile by `id`.
+ * to a dedicated portal tool. Tiles are pure entry points — no metrics rendered.
+ * Adding a tile is one entry. Titles/subtitles here are the English defaults;
+ * translations live in `lib/i18n.ts` keyed by `tile.<id>.title|subtitle`.
  */
 
 export type Tone = "info" | "ok" | "violet" | "warn" | "slate";
@@ -17,6 +17,7 @@ export interface Tile {
   /** 24×24 stroke icon path(s). */
   icon: string;
   tone: Tone;
+  /** Drafted tool, not yet built — rendered muted with a "soon" marker. */
   disabled?: boolean;
 }
 
@@ -39,6 +40,13 @@ const I = {
   gauge: "M12 13l4-4 M4 18a8 8 0 1 1 16 0",
   book: "M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 0-2 2z M18 20a2 2 0 0 0 2-2",
   cog: "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z M12 3v3 M12 18v3 M3 12h3 M18 12h3 M6 6l2 2 M16 16l2 2 M18 6l-2 2 M8 16l-2 2",
+  sort: "M6 4v16 M6 4l-3 3 M6 20l-3-3 M11 6h10 M11 12h7 M11 18h4",
+  route: "M6 4v10a4 4 0 0 0 4 4h8 M18 14l3 4-3 4 M6 4a2 2 0 1 0 0 4 2 2 0 0 0 0-4z",
+  map: "M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z M9 4v14 M15 6v14",
+  users: "M16 20a4 4 0 0 0-8 0 M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M20 20a3 3 0 0 0-4-2.8",
+  shield: "M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z M9 12l2 2 4-4",
+  copy: "M9 9h11v11H9z M5 15H4V4h11v1",
+  bell: "M18 9a6 6 0 1 0-12 0c0 6-3 7-3 7h18s-3-1-3-7 M13.7 21a2 2 0 0 1-3.4 0",
 };
 
 // Tiles are pure entry points — no metrics rendered on them.
@@ -56,9 +64,18 @@ export const LAUNCHPAD: TileGroup[] = [
     category: "Analyse & value",
     tiles: [
       { id: "analysis", title: "Implementation Analysis", subtitle: "Workload vs. value", href: "/analysis", icon: I.chart, tone: "ok" },
-      { id: "value", title: "Portfolio Value", subtitle: "Pipeline · committed · realized", href: "/analysis?horizon=year", icon: I.euro, tone: "ok" },
+      { id: "value", title: "Value Cockpit", subtitle: "Pipeline · committed · realized", href: "/value", icon: I.euro, tone: "ok" },
       { id: "simulate", title: "Business Case Simulation", subtitle: "P10 / P50 / P90 bands", href: "/simulate", icon: I.bolt, tone: "ok" },
       { id: "review", title: "Value Review", subtitle: "Variance vs. business case", href: "/analysis", icon: I.gauge, tone: "ok" },
+    ],
+  },
+  {
+    category: "Portfolio & steering",
+    tiles: [
+      { id: "triage", title: "Triage", subtitle: "Classify & assign lanes", href: "/triage", icon: I.route, tone: "info" },
+      { id: "backlog", title: "Backlog", subtitle: "Prioritize (S2)", href: "/board", icon: I.sort, tone: "slate", disabled: true },
+      { id: "roadmap", title: "Roadmap", subtitle: "Milestones & gates", href: "/board", icon: I.map, tone: "slate", disabled: true },
+      { id: "champions", title: "Digital Champions", subtitle: "Plant portfolio", href: "/board", icon: I.users, tone: "slate", disabled: true },
     ],
   },
   {
@@ -71,9 +88,15 @@ export const LAUNCHPAD: TileGroup[] = [
   {
     category: "Govern & operate",
     tiles: [
+      { id: "compliance", title: "EU AI Act", subtitle: "Classification & register", href: "/compliance", icon: I.shield, tone: "slate" },
       { id: "docs", title: "Specification", subtitle: "Governance & data model", href: "/board", icon: I.book, tone: "slate" },
+      { id: "catalog", title: "Skills & Playbooks", subtitle: "Agent capabilities", href: "/board", icon: I.copy, tone: "slate", disabled: true },
       { id: "traces", title: "Agent Traces", subtitle: "Replayable AI runs", href: "/assistant", icon: I.gauge, tone: "slate" },
+      { id: "digest", title: "Review Digest", subtitle: "Due dates & staleness", href: "/board", icon: I.bell, tone: "slate", disabled: true },
       { id: "settings", title: "Administration", subtitle: "Roles, skills, playbooks", href: "/board", icon: I.cog, tone: "slate", disabled: true },
     ],
   },
 ];
+
+/** Flat list of all tiles, for the search palette. */
+export const ALL_TILES: Tile[] = LAUNCHPAD.flatMap((g) => g.tiles);
