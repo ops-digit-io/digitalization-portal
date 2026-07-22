@@ -47,8 +47,8 @@ export default async function Catalog() {
         <div>
           <h1 className="text-lg font-semibold">Skills &amp; Playbooks registry</h1>
           <p className="text-sm text-muted-foreground">
-            Git-backed agent capabilities. Editing here opens a pull request — changes require a
-            second approver at merge (§4.5). The portal never merges.
+            Git-backed agent capabilities. Edit a skill or playbook and it saves straight to the
+            registry repo — changes are live for the agent.
           </p>
         </div>
         <div className="ml-auto flex gap-2">

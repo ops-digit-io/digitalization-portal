@@ -14,10 +14,10 @@
  * Live GitHub when the App + REGISTRY_REPO are set; local workspace fallback.
  */
 
-import { readdir, readFile, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { loadPlaybook, loadSkill } from "./agent/skills.js";
-import { getGitHost, type PullRequestRef, type RepoRef } from "./git/index.js";
+import { getGitHost, type RepoRef } from "./git/index.js";
 import { LocalHost } from "./git/local-host.js";
 import { slugify } from "./poc/scaffold.js";
 
@@ -149,35 +149,25 @@ export function newFileTemplate(type: EntryType, name: string, relPath: string):
   return `# ${title}\n\nReference material for the ${name} skill.\n`;
 }
 
-export interface ProposeFile {
+export interface RegistryFile {
   /** Path relative to the entry (e.g. "SKILL.md", "references/metrics.md"). */
   path: string;
   content: string;
 }
 
-export interface ProposeResult {
+export interface SaveResult {
   host: "github" | "local";
+  /** Where it was written: "main" for github, "working tree" for local. */
+  target: string;
   repo: string;
-  branch: string;
   paths: string[];
-  pullRequest: PullRequestRef;
 }
 
 function registryRepoName(env = process.env): string {
   return env.REGISTRY_REPO ?? "du-agent-registry";
 }
 
-async function resolveRepo(): Promise<RepoRef> {
-  const host = getGitHost();
-  const name = registryRepoName();
-  if (host instanceof LocalHost) {
-    return host.createRepo(name, { description: "Digital Unit agent registry (skills & playbooks)" });
-  }
-  const org = process.env.GITHUB_ORG ?? "org";
-  return { owner: org, name, url: `https://github.com/${org}/${name}`, local: false };
-}
-
-/** Map an entry-relative path to its path in the registry repo. */
+/** Path in the git registry repo (github) for an entry-relative file. */
 function repoPath(type: EntryType, name: string, bundle: boolean, relPath: string): string {
   const slug = slugify(name) || safe(name).toLowerCase();
   if (type === "skill" && bundle) return `${DIR.skill}/${slug}/${safe(relPath)}`;
@@ -185,36 +175,49 @@ function repoPath(type: EntryType, name: string, bundle: boolean, relPath: strin
   return `${DIR.playbook}/${slug}.md`;
 }
 
-/**
- * Propose an add/edit across one or more files of an entry as a SINGLE pull
- * request. Never merges. `bundle` selects the skill-bundle layout.
- */
-export async function proposeChange(input: {
-  type: EntryType;
-  name: string;
-  bundle: boolean;
-  files: ProposeFile[];
-  message: string;
-}): Promise<ProposeResult> {
-  const host = getGitHost();
-  const repo = await resolveRepo();
-  const slug = slugify(input.name) || safe(input.name).toLowerCase();
-  const branch = `registry/${input.type}-${slug}`;
+/** Path on disk (local working tree) for an entry-relative file. */
+function treePath(type: EntryType, name: string, bundle: boolean, relPath: string): string {
+  if (type === "skill" && bundle) return join(DIR.skill, safe(name), safe(relPath));
+  if (type === "skill") return join(DIR.skill, `${safe(name)}.md`);
+  return join(DIR.playbook, `${safe(name)}.md`);
+}
 
-  await host.createBranch(repo, branch, "main");
+/**
+ * Save an add/edit across one or more files DIRECTLY:
+ *   - GitHub: commit each file to the registry repo's `main` branch (no PR).
+ *   - Local:  write the working tree the app reads, so the change is live at once.
+ *
+ * This is a deliberate product choice for the registry — a plain "save" a
+ * non-technical user understands. (Use-case *gate* PRs, by contrast, are never
+ * merged by the portal; that boundary is unaffected — this writes the registry
+ * repo only.) `opts.baseDir` overrides the local root (tests).
+ */
+export async function saveEntry(
+  input: { type: EntryType; name: string; bundle: boolean; files: RegistryFile[]; message?: string },
+  opts?: { baseDir?: string },
+): Promise<SaveResult> {
+  const host = getGitHost();
+  const message = input.message?.trim() || `Update ${input.type} ${input.name}`;
   const paths: string[] = [];
-  for (const f of input.files) {
-    const path = repoPath(input.type, input.name, input.bundle, f.path);
-    await host.putFile(repo, { path, content: f.content }, input.message, branch);
-    paths.push(path);
+
+  if (host instanceof LocalHost) {
+    const base = opts?.baseDir ?? root();
+    for (const f of input.files) {
+      const rel = treePath(input.type, input.name, input.bundle, f.path);
+      const abs = join(base, rel);
+      await mkdir(dirname(abs), { recursive: true });
+      await writeFile(abs, f.content);
+      paths.push(rel);
+    }
+    return { host: "local", target: "working tree", repo: registryRepoName(), paths };
   }
 
-  const pullRequest = await host.openPullRequest(repo, {
-    title: `registry: ${input.type} ${slug} (${paths.length} file${paths.length > 1 ? "s" : ""})`,
-    head: branch,
-    base: "main",
-    body: `${input.message}\n\nFiles:\n${paths.map((p) => `- ${p}`).join("\n")}\n\nProposed via the portal. Changes to skills/playbooks require a second approver at merge (§4.5). The portal never merges.`,
-  });
-
-  return { host: host.kind, repo: repo.name, branch, paths, pullRequest };
+  const org = process.env.GITHUB_ORG ?? "org";
+  const repo: RepoRef = { owner: org, name: registryRepoName(), url: `https://github.com/${org}/${registryRepoName()}`, local: false };
+  for (const f of input.files) {
+    const path = repoPath(input.type, input.name, input.bundle, f.path);
+    await host.putFile(repo, { path, content: f.content }, message, "main"); // commit to main
+    paths.push(path);
+  }
+  return { host: "github", target: "main", repo: repo.name, paths };
 }

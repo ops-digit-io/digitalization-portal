@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { listRegistry, newFileTemplate, proposeChange, readEntryFile, ENTRY_FILE } from "./registry-store.js";
+import { mkdtempSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { listRegistry, newFileTemplate, saveEntry, readEntryFile, ENTRY_FILE } from "./registry-store.js";
 
 describe("registry store — bundles (read)", () => {
   it("reads skill bundles with their file tree", async () => {
@@ -34,26 +38,31 @@ describe("registry store — bundles (read)", () => {
   });
 });
 
-describe("registry store — multi-file propose", () => {
+describe("registry store — multi-file save (direct)", () => {
   it("templates a new SKILL.md and a supporting reference", () => {
     expect(newFileTemplate("skill", "x", ENTRY_FILE)).toMatch(/name: x/);
     expect(newFileTemplate("skill", "x", "references/notes.md")).toMatch(/Reference material/);
   });
 
-  it("opens ONE PR carrying multiple files, never merges", async () => {
-    const r = await proposeChange({
-      type: "skill",
-      name: "demo-skill",
-      bundle: true,
-      files: [
-        { path: ENTRY_FILE, content: newFileTemplate("skill", "demo-skill", ENTRY_FILE) },
-        { path: "references/notes.md", content: "# notes\n" },
-      ],
-      message: "add demo skill bundle",
-    });
+  it("saves multiple bundle files to the working tree (no PR)", async () => {
+    const base = mkdtempSync(join(tmpdir(), "reg-"));
+    const r = await saveEntry(
+      {
+        type: "skill",
+        name: "demo-skill",
+        bundle: true,
+        files: [
+          { path: ENTRY_FILE, content: newFileTemplate("skill", "demo-skill", ENTRY_FILE) },
+          { path: "references/notes.md", content: "# notes\n" },
+        ],
+      },
+      { baseDir: base },
+    );
     expect(r.host).toBe("local");
+    expect(r.target).toBe("working tree");
     expect(r.paths).toEqual(["skills/demo-skill/SKILL.md", "skills/demo-skill/references/notes.md"]);
-    expect(r.pullRequest.number).toBeGreaterThan(0);
-    expect(r.pullRequest.base).toBe("main");
+    // Files really landed on disk.
+    expect(await readFile(join(base, "skills/demo-skill/SKILL.md"), "utf8")).toMatch(/name: demo-skill/);
+    expect(await readFile(join(base, "skills/demo-skill/references/notes.md"), "utf8")).toMatch(/notes/);
   });
 });

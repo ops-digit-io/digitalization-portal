@@ -31,7 +31,7 @@ function NewEntry() {
         <span className="text-foreground">New</span>
       </nav>
       <h1 className="text-lg font-semibold">New {type}</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Give it a name; you&apos;ll edit the template, then open a pull request.</p>
+      <p className="mt-1 text-sm text-muted-foreground">Give it a name; you&apos;ll edit the template, and it saves to the registry.</p>
 
       <Card className="mt-5 p-4">
         <div className="inline-flex rounded-md border p-0.5 text-sm">

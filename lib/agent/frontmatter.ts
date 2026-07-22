@@ -59,3 +59,19 @@ export function metaList(value: string | string[] | undefined): string[] {
   if (value === undefined) return [];
   return Array.isArray(value) ? value : [value];
 }
+
+/** Rebuild a markdown file from a frontmatter object and a body. Inverse of parse. */
+export function serializeFrontmatter(meta: Record<string, string | string[]>, body: string): string {
+  const keys = Object.keys(meta).filter((k) => {
+    const v = meta[k];
+    return Array.isArray(v) ? v.length > 0 : typeof v === "string" && v.trim() !== "";
+  });
+  if (keys.length === 0) return body.replace(/^\n+/, "");
+  const lines = ["---"];
+  for (const k of keys) {
+    const v = meta[k]!;
+    lines.push(Array.isArray(v) ? `${k}: [${v.join(", ")}]` : `${k}: ${v}`);
+  }
+  lines.push("---", "", body.replace(/^\n+/, ""));
+  return lines.join("\n");
+}
