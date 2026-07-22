@@ -109,7 +109,7 @@ export default function Intake() {
   }
 
   return (
-    <main className="mx-auto flex min-h-[calc(100vh-3.5rem)] max-w-2xl flex-col px-4 py-6">
+    <main className="mx-auto flex h-[calc(100vh-3.5rem)] max-w-2xl flex-col overflow-hidden px-4 py-4">
       <nav className="mb-2 text-sm text-muted-foreground">
         <Link href="/" className="hover:text-foreground">Home</Link>
         <span className="mx-1.5" aria-hidden>›</span>
@@ -127,7 +127,7 @@ export default function Intake() {
       </div>
 
       {/* Conversation */}
-      <div ref={scrollRef} className="mt-4 flex-1 space-y-2.5 overflow-y-auto rounded-xl border bg-card/40 p-4">
+      <div ref={scrollRef} className="mt-4 min-h-0 flex-1 space-y-2.5 overflow-y-auto rounded-xl border bg-card/40 p-4">
         {messages.map((m, i) => <Bubble key={i} m={m} />)}
 
         {/* The demand page — revealed only once the conversation is done. */}
