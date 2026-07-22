@@ -46,6 +46,8 @@ export interface AgentTool<Input = unknown, Output = unknown> {
   description: string;
   /** The capability the invoking session must hold. Must not be forbidden. */
   capability: Capability;
+  /** JSON Schema for the tool input, sent to the model as the tool definition. */
+  inputSchema?: Record<string, unknown>;
   /** Pure-ish execution. Runs server-side only; never merges, never passes a gate. */
   run(input: Input, ctx: AgentToolContext): Promise<Output> | Output;
 }

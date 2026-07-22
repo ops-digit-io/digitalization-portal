@@ -9,10 +9,14 @@
 import type { RegistryRow } from "./registry.js";
 import type { Session } from "./rbac.js";
 
-/** A demo session that can see the whole portfolio (portfolio forum). */
+/**
+ * A demo session: portfolio forum (sees the whole portfolio, gate authority) plus
+ * reviewer (draft capability, so the analyst can draft/simulate). Capabilities
+ * union across roles — a realistic dual membership.
+ */
 export const DEMO_SESSION: Session = {
   user: "demo.forum@example.com",
-  roles: ["portfolio_forum"],
+  roles: ["portfolio_forum", "reviewer"],
   scopes: [],
 };
 
@@ -75,6 +79,45 @@ row rendered from the portfolio registry cache._
 ${gateRowsForStage(row.stage)}
 `;
 }
+
+/** Seed business-case.md for Feature 1 (simulation), worked example docs/03 §3.6. */
+export const SEED_BUSINESS_CASE: Record<string, string> = {
+  "UC-2026-0041": `# Business case · UC-2026-0041
+
+## State
+
+- **Confidence:** indicative
+- **Version:** 2
+- **Review horizon:** 12 weeks
+
+## Baseline
+
+**Metric.** Share of scrap bookings without a recorded cause.
+**Value.** 0.62 over 2025-10-01 to 2026-03-01.
+**Verified.** No — sampled estimate. Verification required before G5.
+
+## Value
+
+**Category.** Quality cost reduction.
+**Annual gross.** EUR 180,000.
+**Basis.** Rework hours avoided at the pilot plant, at loaded labour rate.
+
+### Assumptions
+
+| Assumption | Tested | Source |
+|---|---|---|
+| Rework rate falls proportionally with attribution rate | No | — |
+| Attribution redirects rework rather than eliminating it | No | — |
+| Loaded rate EUR 62/h | Yes | Plant controlling |
+
+## Cost
+
+| | |
+|---|---|
+| Build estimate | EUR 45,000 |
+| Annual run estimate | EUR 12,000 |
+`,
+};
 
 /** Full README markdown for the detail page (worked example, docs/03 §3.5). */
 export const SEED_README: Record<string, string> = {

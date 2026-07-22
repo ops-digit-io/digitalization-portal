@@ -8,7 +8,7 @@ import { GateTimeline, type GateNode } from "@/components/portal/gate-timeline";
 import { MarkdownDoc } from "@/components/portal/markdown-doc";
 import { GateAction } from "@/components/portal/gate-action";
 import { HeatDot, LaneBadge, LevelBadge } from "@/components/portal/badges";
-import { SEED_README, SEED_ROWS, buildStubReadme, DEMO_SESSION } from "@/lib/seed";
+import { SEED_README, SEED_ROWS, SEED_BUSINESS_CASE, buildStubReadme, DEMO_SESSION } from "@/lib/seed";
 import type { Gate, Stage } from "@/lib/types";
 
 const GATE_LABELS: Record<string, string> = {
@@ -126,6 +126,15 @@ export default function UseCasePage({ params }: { params: { id: string } }) {
 
           {targetGate && (
             <GateAction gate={targetGate} decision={decision} approvers="Portfolio forum" />
+          )}
+
+          {SEED_BUSINESS_CASE[params.id] && (
+            <Link
+              href={`/uc/${params.id}/simulate`}
+              className="flex items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-3 text-sm font-medium hover:border-foreground/40"
+            >
+              ⚡ Simulate business case
+            </Link>
           )}
         </aside>
       </div>
