@@ -17,7 +17,6 @@ function Tile({ label, value, tone }: { label: string; value: number; tone?: str
 
 export default function Funnel() {
   const f = analyzeFunnel(SEED_ROWS);
-  const max = Math.max(f.totalEntered, 1);
 
   return (
     <main className="mx-auto max-w-[1000px] px-4 py-6">
@@ -40,48 +39,99 @@ export default function Funnel() {
         </div>
       ))}
 
+      {/* Headline funnel KPIs */}
       <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
         <Tile label="Entered" value={f.totalEntered} />
-        <Tile label="Active" value={f.activeTotal} tone="--info" />
-        <Tile label="Killed" value={f.killedTotal} tone="--destructive" />
-        <Tile label="Parked" value={f.parkedTotal} tone="--muted-foreground" />
+        <Card className="p-4">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">Overall conversion</div>
+          <div className="mt-1 text-2xl font-semibold tabular-nums text-ok">{Math.round(f.overallConversion * 100)}%</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">S1 → S8</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">Avg step conversion</div>
+          <div className="mt-1 text-2xl font-semibold tabular-nums">{Math.round(f.avgStepConversion * 100)}%</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">Biggest drop-off</div>
+          {f.biggestDrop ? (
+            <>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-warn">−{Math.round(f.biggestDrop.pct * 100)}%</div>
+              <div className="mt-0.5 text-xs text-muted-foreground">{f.biggestDrop.from} → {f.biggestDrop.to} · {f.biggestDrop.lost} lost</div>
+            </>
+          ) : <div className="mt-1 text-2xl font-semibold text-muted-foreground">—</div>}
+        </Card>
       </div>
 
-      {/* Funnel bars */}
+      {/* BI-style funnel: centered narrowing shape + step conversion + drop-off */}
       <Card className="mt-6 p-4">
-        <h2 className="mb-4 text-sm font-semibold">Stage funnel</h2>
-        <div className="space-y-1">
-          {f.stages.map((s, i) => (
-            <div key={s.stage}>
-              <div className="flex items-center gap-3">
-                <span className="w-28 shrink-0 text-xs text-muted-foreground">{s.stage} {s.label}</span>
-                <div className="flex-1">
-                  <div
-                    className="flex h-7 items-center rounded px-2 text-xs font-medium text-white"
-                    style={{ width: `${Math.max((s.entered / max) * 100, 6)}%`, background: `hsl(var(--stage-${s.stage.toLowerCase()}))` }}
-                  >
-                    {s.entered}
+        <h2 className="mb-4 text-sm font-semibold">Conversion funnel</h2>
+        <div className="mx-auto max-w-2xl">
+          {f.stages.map((s, i) => {
+            const isDrop = f.biggestDrop && f.biggestDrop.to === s.stage;
+            return (
+              <div key={s.stage}>
+                <div className="flex items-center gap-3">
+                  <span className="w-24 shrink-0 text-right text-xs text-muted-foreground">{s.stage} {s.label}</span>
+                  {/* full width = top count; centered colored fill = this step */}
+                  <div className="relative h-9 flex-1 overflow-hidden rounded bg-secondary/50">
+                    <div
+                      className="absolute inset-y-0 left-1/2 flex -translate-x-1/2 items-center justify-center text-xs font-semibold text-white"
+                      style={{ width: `${Math.max(s.pctOfTop * 100, 5)}%`, background: `hsl(var(--stage-${s.stage.toLowerCase()}))` }}
+                    >
+                      {s.entered}
+                    </div>
                   </div>
+                  <span className="w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{Math.round(s.pctOfTop * 100)}%</span>
                 </div>
-                <span className="w-40 shrink-0 text-right text-[11px] text-muted-foreground">
-                  {s.active > 0 && <span>{s.active} active</span>}
-                  {s.killed > 0 && <span className="text-destructive"> · {s.killed} killed</span>}
-                  {s.parked > 0 && <span> · {s.parked} parked</span>}
-                </span>
+                {s.conversionToNext !== undefined && (
+                  <div className="flex items-center gap-3">
+                    <span className="w-24 shrink-0" />
+                    <div className="flex-1 py-0.5 text-center">
+                      <span className={`text-[11px] ${isDrop && f.stages[i + 1] ? "" : ""}`}>
+                        <span className={f.biggestDrop && f.biggestDrop.from === s.stage ? "font-medium text-warn" : "text-muted-foreground"}>
+                          ↓ {Math.round(s.conversionToNext * 100)}% step conversion
+                          {s.entered - (f.stages[i + 1]?.entered ?? 0) > 0 && ` · −${s.entered - (f.stages[i + 1]?.entered ?? 0)} drop-off`}
+                        </span>
+                      </span>
+                    </div>
+                    <span className="w-16 shrink-0" />
+                  </div>
+                )}
               </div>
-              {s.conversionToNext !== undefined && (
-                <div className="flex items-center gap-3 py-0.5">
-                  <span className="w-28 shrink-0" />
-                  <span className="text-[11px] text-muted-foreground">
-                    ↓ {Math.round(s.conversionToNext * 100)}% to {f.stages[i + 1]?.stage}
-                    {s.entered - (f.stages[i + 1]?.entered ?? 0) > 0 && (
-                      <span> · {s.entered - (f.stages[i + 1]?.entered ?? 0)} stop here</span>
-                    )}
-                  </span>
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
+        </div>
+
+        {/* Per-step table (the analyst cut) */}
+        <div className="mt-5 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr className="border-b">
+                <th className="py-2 pr-4 font-medium">Stage</th>
+                <th className="py-2 pr-4 text-right font-medium">Reached</th>
+                <th className="py-2 pr-4 text-right font-medium">% of entry</th>
+                <th className="py-2 pr-4 text-right font-medium">Step conv.</th>
+                <th className="py-2 pr-4 text-right font-medium">Drop-off</th>
+                <th className="py-2 text-right font-medium">Stopped here</th>
+              </tr>
+            </thead>
+            <tbody>
+              {f.stages.map((s) => (
+                <tr key={s.stage} className="border-b last:border-0">
+                  <td className="py-1.5 pr-4">{s.stage} {s.label}</td>
+                  <td className="py-1.5 pr-4 text-right tabular-nums">{s.entered}</td>
+                  <td className="py-1.5 pr-4 text-right tabular-nums">{Math.round(s.pctOfTop * 100)}%</td>
+                  <td className="py-1.5 pr-4 text-right tabular-nums">{s.stepConversion !== undefined ? `${Math.round(s.stepConversion * 100)}%` : "—"}</td>
+                  <td className="py-1.5 pr-4 text-right tabular-nums text-muted-foreground">{s.dropFromPrev ? `−${s.dropFromPrev}` : "—"}</td>
+                  <td className="py-1.5 text-right text-xs text-muted-foreground">
+                    {s.killed > 0 && <span className="text-destructive">{s.killed} killed </span>}
+                    {s.parked > 0 && <span>{s.parked} parked </span>}
+                    {s.killed === 0 && s.parked === 0 && "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </Card>
 

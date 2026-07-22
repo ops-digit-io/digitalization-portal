@@ -23,12 +23,18 @@ function stageIndex(stage: Stage | undefined): number {
 export interface FunnelStage {
   stage: Stage;
   label: string;
-  /** Reached this stage or beyond. */
+  /** Reached this stage or beyond (the funnel step count). */
   entered: number;
   active: number;
   killed: number;
   parked: number;
-  /** entered(next) / entered(this), or undefined for S8. */
+  /** entered / entered(top) — cumulative conversion from entry (0..1). */
+  pctOfTop: number;
+  /** entered / entered(prev) — step conversion (0..1); undefined for the top step. */
+  stepConversion?: number;
+  /** entered(prev) − entered — absolute drop-off entering this step. */
+  dropFromPrev?: number;
+  /** entered(next) / entered(this) (0..1), or undefined for S8. */
   conversionToNext?: number;
 }
 
@@ -49,6 +55,12 @@ export interface FunnelAnalysis {
   killedTotal: number;
   parkedTotal: number;
   needsAttention: number;
+  /** Overall conversion entry → S8 (reached S8 / reached S1), 0..1. */
+  overallConversion: number;
+  /** Mean step conversion across the funnel, 0..1. */
+  avgStepConversion: number;
+  /** The single largest step drop-off (the bottleneck). */
+  biggestDrop?: { from: Stage; to: Stage; lost: number; pct: number };
   laneBalance: { lane: Lane; count: number }[];
   flags: string[];
 }
@@ -61,20 +73,46 @@ export function analyzeFunnel(rows: readonly RegistryRow[]): FunnelAnalysis {
   const at = (status: RegistryRow["status"], s: number) =>
     withStage.filter((r) => r.status === status && stageIndex(r.stage) === s).length;
 
+  const top = entered[0] ?? 0;
   const stages: FunnelStage[] = STAGES.map((stage, s) => {
+    const count = entered[s] ?? 0;
+    const prev = entered[s - 1] ?? 0;
     const st: FunnelStage = {
       stage,
       label: STAGE_LABEL[stage],
-      entered: entered[s] ?? 0,
+      entered: count,
       active: at("active", s),
       killed: at("killed", s),
       parked: at("parked", s),
+      pctOfTop: top > 0 ? Math.round((count / top) * 1000) / 1000 : 0,
     };
-    if (s < STAGES.length - 1 && (entered[s] ?? 0) > 0) {
-      st.conversionToNext = Math.round(((entered[s + 1] ?? 0) / (entered[s] ?? 1)) * 100) / 100;
+    if (s > 0) {
+      st.stepConversion = prev > 0 ? Math.round((count / prev) * 1000) / 1000 : 0;
+      st.dropFromPrev = prev - count;
+    }
+    if (s < STAGES.length - 1 && count > 0) {
+      st.conversionToNext = Math.round(((entered[s + 1] ?? 0) / count) * 1000) / 1000;
     }
     return st;
   });
+
+  // Funnel-analytics headline metrics.
+  const overallConversion = top > 0 ? Math.round(((entered[STAGES.length - 1] ?? 0) / top) * 1000) / 1000 : 0;
+  const stepConvs = stages.slice(1).map((s) => s.stepConversion ?? 0).filter((_, i) => (entered[i] ?? 0) > 0);
+  const avgStepConversion = stepConvs.length > 0 ? Math.round((stepConvs.reduce((a, b) => a + b, 0) / stepConvs.length) * 1000) / 1000 : 0;
+
+  // The bottleneck: the sharpest conversion drop (largest %), tie-broken by count.
+  let biggestDrop: FunnelAnalysis["biggestDrop"];
+  for (let s = 1; s < STAGES.length; s++) {
+    const prev = entered[s - 1] ?? 0;
+    const cur = entered[s] ?? 0;
+    if (prev > 0 && cur < prev) {
+      const pct = Math.round((1 - cur / prev) * 1000) / 1000;
+      if (!biggestDrop || pct > biggestDrop.pct) {
+        biggestDrop = { from: STAGES[s - 1]!, to: STAGES[s]!, lost: prev - cur, pct };
+      }
+    }
+  }
 
   // Gate G_n is the exit of stage S_n. Kill rate = killed-at-stage / reached-stage.
   const gateKills: GateKill[] = STAGES.slice(0, 7).map((stage, s) => {
@@ -107,6 +145,9 @@ export function analyzeFunnel(rows: readonly RegistryRow[]): FunnelAnalysis {
     killedTotal: withStage.filter((r) => r.status === "killed").length,
     parkedTotal: withStage.filter((r) => r.status === "parked").length,
     needsAttention,
+    overallConversion,
+    avgStepConversion,
+    ...(biggestDrop ? { biggestDrop } : {}),
     laneBalance,
     flags,
   };

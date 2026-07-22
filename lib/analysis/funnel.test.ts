@@ -50,4 +50,26 @@ describe("analyzeFunnel", () => {
   it("summarises lane balance", () => {
     expect(f.laneBalance[0]!.lane).toBe("transform"); // most common
   });
+
+  it("computes funnel-analytics metrics: % of entry, step conversion, overall", () => {
+    const s1 = f.stages[0]!;
+    expect(s1.pctOfTop).toBe(1); // top = 100%
+    expect(s1.stepConversion).toBeUndefined();
+    // entered = [6,5,4,2,1,1,1,1]
+    const s4 = f.stages.find((s) => s.stage === "S4")!;
+    expect(s4.pctOfTop).toBeCloseTo(2 / 6, 2); // 33% of entry
+    expect(s4.stepConversion).toBeCloseTo(0.5, 2); // 2 of 4
+    expect(s4.dropFromPrev).toBe(2);
+    expect(f.overallConversion).toBeCloseTo(1 / 6, 2); // S1→S8
+    expect(f.avgStepConversion).toBeGreaterThan(0);
+  });
+
+  it("identifies the bottleneck as the sharpest conversion drop", () => {
+    // step drops %: S1→S2 17%, S2→S3 20%, S3→S4 50%, S4→S5 50% — biggest S3→S4
+    expect(f.biggestDrop).toBeDefined();
+    expect(f.biggestDrop!.from).toBe("S3");
+    expect(f.biggestDrop!.to).toBe("S4");
+    expect(f.biggestDrop!.pct).toBeCloseTo(0.5, 2);
+    expect(f.biggestDrop!.lost).toBe(2);
+  });
 });
