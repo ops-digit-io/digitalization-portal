@@ -16,8 +16,8 @@ import type { Session } from "./rbac.js";
  */
 export const DEMO_SESSION: Session = {
   user: "demo.forum@example.com",
-  roles: ["portfolio_forum", "reviewer"],
-  scopes: [],
+  roles: ["portfolio_forum", "reviewer", "champion"],
+  scopes: ["DE-ALD"],
 };
 
 /** Reference "now" so days-in-stage is stable across renders. */

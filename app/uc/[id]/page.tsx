@@ -136,6 +136,13 @@ export default function UseCasePage({ params }: { params: { id: string } }) {
               ⚡ Simulate business case
             </Link>
           )}
+
+          <Link
+            href={`/uc/${params.id}/poc`}
+            className="flex items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-3 text-sm font-medium hover:border-foreground/40"
+          >
+            🛠 Build PoC with agents
+          </Link>
         </aside>
       </div>
     </main>
