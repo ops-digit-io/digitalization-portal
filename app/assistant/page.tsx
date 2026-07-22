@@ -119,7 +119,7 @@ export default function Assistant() {
         </div>
       )}
 
-      <p className="mt-8 text-xs text-muted-foreground">AI assistant · drafts only, never approves</p>
+      <p className="mt-8 text-xs text-muted-foreground">Analyst · drafts and analyses only, never approves. To capture a new demand, use <Link href="/intake" className="underline">Intake</Link>.</p>
     </main>
   );
 }
