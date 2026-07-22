@@ -10,11 +10,13 @@ maintenance
 
 The maintenance team needs to a structured digital handover that carries open issues, part status and half-done work across shifts. Today, Each handover takes 20–30 minutes and things still fall through. Repeat breakdowns because the incoming shift didn't know a fix was half-done.. Success means: A structured digital handover that carries open issues, part status and half-done work across shifts..
 
-## Comparable patterns (domain research)
+## Comparable patterns (baseline)
 
 - anomaly detection on sensor streams
 - remaining-useful-life estimate
 - condition-based maintenance
+
+_Broader view — real reference cases, testimonials, and benchmarks from public sources — is in the case's `research.md` (domain-research agent)._
 
 ## Suggested enhancements to the intake
 

@@ -48,6 +48,8 @@ export interface CompletionRequest {
   messages: ModelMessage[];
   tools?: ToolSpec[];
   maxTokens?: number;
+  /** Enable the provider's public web-search tool (Anthropic server tool). */
+  webSearch?: boolean;
 }
 
 export interface ModelResponse {
@@ -94,7 +96,15 @@ export class AnthropicProvider implements ModelProvider {
         max_tokens: req.maxTokens ?? 2048,
         system: req.system,
         messages: req.messages,
-        ...(req.tools && req.tools.length > 0 ? { tools: req.tools } : {}),
+        ...(() => {
+          // The web-search server tool (Anthropic runs it) lets the research agent
+          // use public data. Composes with any client tools.
+          const tools = [
+            ...(req.tools ?? []),
+            ...(req.webSearch ? [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }] : []),
+          ];
+          return tools.length > 0 ? { tools } : {};
+        })(),
       }),
     });
 

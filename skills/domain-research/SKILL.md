@@ -7,11 +7,13 @@ tools: []
 
 # domain-research
 
-Supplies the "common domain research and knowledge" the requirements-analysis agent
-applies when it reads a demand. Backed by the domain knowledge base
-(`lib/domain-knowledge.ts`): for each manufacturing domain, the personas, recurring
-epic themes, typical non-functional requirements, data sources, standards, and
-comparable solution patterns.
+Supplies the domain research the analysis draws on. The built-in knowledge base
+(`lib/domain-knowledge.ts`) is only a **seed** — the research agent
+(`playbooks/domain-research.md`) goes wider, researching **public data freely** to
+find real reference cases, testimonials, comparable implementations, benchmarks,
+and lessons learned, and writing a `research.md` brief per case. The baseline KB
+carries, per domain, the personas, recurring epic themes, typical non-functional
+requirements, data sources, standards, and comparable patterns to start from.
 
 ## How to apply it
 

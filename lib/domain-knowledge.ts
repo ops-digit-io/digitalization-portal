@@ -1,13 +1,15 @@
 /**
- * Domain knowledge base for the requirements-analysis agent (`playbooks/
- * requirements-analysis.md`).
+ * Baseline domain knowledge — a SEED, not a ceiling.
  *
- * This is the "common domain research and knowledge" the analysis tool draws on to
- * enhance an intake and derive requirements: for each manufacturing domain, the
- * personas involved, the epic themes that recur, the typical non-functional
- * requirements, the data sources and systems in play, relevant standards, and
- * comparable solution patterns. Deterministic and data-driven — adding a domain is
- * one entry. A live model may add more; this is the floor, and the offline engine.
+ * This is a small, deterministic starting point for each manufacturing domain:
+ * personas, recurring epic themes, typical NFRs, data sources, standards, and
+ * comparable patterns. It is what the offline engine falls back to and what a
+ * research run starts from — NOT the limit of what the agent may use.
+ *
+ * The `domain-research` agent (`playbooks/domain-research.md`) extends this freely
+ * with public data — real reference cases, testimonials, benchmarks, and lessons
+ * from comparable implementations — and writes a `research.md` brief per case.
+ * Keep this baseline broad and honest; the research agent goes wider.
  */
 
 export interface DomainKnowledge {

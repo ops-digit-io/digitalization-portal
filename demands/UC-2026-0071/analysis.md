@@ -10,11 +10,13 @@ quality
 
 The quality team needs to an early signal from process telemetry that predicts a defect trend so the line can be adjusted before a batch is lost. Today, Operators react to defects manually once inspection flags them. On a bad shift we scrap 40–60 parts before anyone adjusts the line. Roughly 2–3 such shifts a week.. Success means: An early signal from process telemetry that predicts a defect trend so the line can be adjusted before a batch is lost..
 
-## Comparable patterns (domain research)
+## Comparable patterns (baseline)
 
 - SPC control charts
 - Pareto of cause codes
 - early-warning model on process tags
+
+_Broader view — real reference cases, testimonials, and benchmarks from public sources — is in the case's `research.md` (domain-research agent)._
 
 ## Suggested enhancements to the intake
 

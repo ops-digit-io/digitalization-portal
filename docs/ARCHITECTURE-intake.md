@@ -107,6 +107,7 @@ Every case is a **folder** in the funnel repo, in a defined format:
 | `README.md` | The case record — the intake (State, Gates, the problem). The future use-case README. | intake tools (`buildDemand`) |
 | `requirements.md` | Standardized requirements: epics → user stories (with Given/When/Then acceptance criteria + MoSCoW) → NFRs → assumptions → risks → open questions → out of scope. | requirements-analysis agent |
 | `analysis.md` | Domain analysis & enhancement: refined problem, comparable patterns, gaps to fill, data sources, standards, personas. | requirements-analysis agent |
+| `research.md` | Domain research brief: reference cases, testimonials, comparable implementations, benchmarks, standards, pitfalls, sources — from public data. | domain-research agent |
 
 The formats are fixed in code (`lib/demand.ts`, `lib/requirements.ts`), so cases are
 comparable and reproducible.
@@ -123,8 +124,21 @@ standard) and derives the requirements. Draft only: it passes no gate and create
 no repository. The results commit to the case folder in the funnel, alongside the
 demand.
 
-Flow: **intake → demand in the funnel → requirements-analysis → requirements.md +
-analysis.md in the same case folder.**
+### Domain research (not a fixed knowledge base)
+
+The **domain-research agent** (`playbooks/domain-research.md`) is not limited to the
+built-in knowledge base — that (`lib/domain-knowledge.ts`) is only a **seed and the
+offline floor**. The agent researches **public data freely** to gather real
+reference cases, testimonials, comparable implementations, benchmarks, standards,
+and lessons learned for problems like this one, and writes `research.md`. Live, it
+uses the model's web-search tool under the research playbook and cites its sources;
+offline, a deterministic seed emits a genuine research *plan* plus the baseline,
+honestly labelled as having no live sources (`lib/research.ts`,
+`lib/agent/research-runner.ts`). External findings are treated as untrusted and are
+anchors for the business case, never this case's committed value.
+
+Flow: **intake → demand in the funnel → domain-research (research.md) →
+requirements-analysis (analysis.md + requirements.md), all in the case folder.**
 
 ## What does not happen at intake
 

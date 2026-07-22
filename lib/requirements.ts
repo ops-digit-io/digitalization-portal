@@ -215,9 +215,11 @@ ${a.domain}
 
 ${a.summary}
 
-## Comparable patterns (domain research)
+## Comparable patterns (baseline)
 
 ${list(a.comparablePatterns)}
+
+_Broader view — real reference cases, testimonials, and benchmarks from public sources — is in the case's \`research.md\` (domain-research agent)._
 
 ## Suggested enhancements to the intake
 

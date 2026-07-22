@@ -4,6 +4,7 @@ import { DEMO_SESSION } from "@/lib/seed";
 import { parseUseCase } from "@/lib/parse";
 import { parseDemandToAnswers } from "@/lib/demand";
 import { analyseIntake, buildRequirementsMarkdown, buildAnalysisMarkdown } from "@/lib/requirements";
+import { runResearch } from "@/lib/agent/research-runner";
 import { readDemand, saveArtifact } from "@/lib/demands-store";
 
 export const runtime = "nodejs";
@@ -38,20 +39,25 @@ export async function POST(req: Request) {
   const generatedOn = new Date().toISOString().slice(0, 10);
   const meta = { id: body.id, title, generatedOn };
 
+  // Research the demand against public data (live) or emit the seed plan (offline),
+  // then analyse and derive requirements grounded in it.
+  const research = await runResearch(answers, meta);
   const { analysis, requirements } = analyseIntake(answers);
   const requirementsMd = buildRequirementsMarkdown(meta, requirements);
   const analysisMd = buildAnalysisMarkdown(meta, analysis);
 
   if (body.action === "preview") {
-    return NextResponse.json({ id: body.id, analysis: analysisMd, requirements: requirementsMd });
+    return NextResponse.json({ id: body.id, research: research.markdown, analysis: analysisMd, requirements: requirementsMd });
   }
 
   try {
+    const res = await saveArtifact(body.id, "research", research.markdown, { message: `Research ${body.id}` });
     const a = await saveArtifact(body.id, "analysis", analysisMd, { message: `Analyse ${body.id}` });
     const r = await saveArtifact(body.id, "requirements", requirementsMd, { message: `Requirements for ${body.id}` });
     return NextResponse.json({
       id: body.id,
-      saved: { host: r.host, target: r.target, repo: r.repo, paths: [a.path, r.path] },
+      research: { live: research.live },
+      saved: { host: r.host, target: r.target, repo: r.repo, paths: [res.path, a.path, r.path] },
       counts: { epics: requirements.epics.length, stories: requirements.stories.length, nfrs: requirements.nfrs.length },
     });
   } catch (err) {

@@ -13,11 +13,12 @@ export default async function CaseRequirements({ params }: { params: { id: strin
   if (demand === undefined) notFound();
 
   const title = parseUseCase(demand).title?.replace(/^UC-\d{4}-\d+\s*·\s*/, "") ?? id;
-  const [requirements, analysis] = await Promise.all([
+  const [requirements, analysis, research] = await Promise.all([
     readArtifact(id, "requirements"),
     readArtifact(id, "analysis"),
+    readArtifact(id, "research"),
   ]);
-  const analysed = requirements !== undefined || analysis !== undefined;
+  const analysed = requirements !== undefined || analysis !== undefined || research !== undefined;
 
   return (
     <main className="mx-auto max-w-[1000px] px-6 py-6">
@@ -56,6 +57,16 @@ export default async function CaseRequirements({ params }: { params: { id: strin
               </summary>
               <Card className="mt-2 p-6">
                 <Md body={analysis} />
+              </Card>
+            </details>
+          )}
+          {research && (
+            <details className="group">
+              <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
+                <span className="transition-transform group-open:rotate-90">▸</span> Domain research (reference cases & testimonials)
+              </summary>
+              <Card className="mt-2 p-6">
+                <Md body={research} />
               </Card>
             </details>
           )}
