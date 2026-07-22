@@ -56,6 +56,8 @@ const DE: Strings = {
   "tile.attention.subtitle": "Unlesbar oder blockiert",
   "tile.analyst.title": "Analyst",
   "tile.analyst.subtitle": "Simulieren, dimensionieren, bauen",
+  "tile.requirements.title": "Anforderungen",
+  "tile.requirements.subtitle": "Epics & Stories aus dem Bedarf",
   "tile.analysis.title": "Umsetzungsanalyse",
   "tile.analysis.subtitle": "Aufwand vs. Wert",
   "tile.value.title": "Wert-Cockpit",

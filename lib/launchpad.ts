@@ -64,6 +64,7 @@ export const LAUNCHPAD: TileGroup[] = [
     category: "Analyse & value",
     tiles: [
       { id: "analyst", title: "Analyst", subtitle: "Simulate, size, scaffold", href: "/assistant", icon: I.chat, tone: "ok" },
+      { id: "requirements", title: "Requirements", subtitle: "Epics & stories from intake", href: "/requirements", icon: I.book, tone: "ok" },
       { id: "analysis", title: "Implementation Analysis", subtitle: "Workload vs. value", href: "/analysis", icon: I.chart, tone: "ok" },
       { id: "value", title: "Value Cockpit", subtitle: "Pipeline · committed · realized", href: "/value", icon: I.euro, tone: "ok" },
       { id: "simulate", title: "Business Case Simulation", subtitle: "P10 / P50 / P90 bands", href: "/simulate", icon: I.bolt, tone: "ok" },

@@ -8,11 +8,13 @@ taken in; a dedicated per-use-case repo only after the PoC stage.**
 
 ```
                  ┌─────────────────────────────────────────────┐
-   intake  ─────▶│  du-demands  (ONE central repo)             │
+   intake  ─────▶│  du-demands  (ONE central repo = the funnel)│
   (s1-intake)    │                                             │
-                 │  demands/UC-2026-0071.md   ← a markdown page │
-                 │  demands/UC-2026-0072.md      per demand     │
-                 │  demands/UC-2026-0073.md                     │
+                 │  demands/UC-2026-0071/       ← a case FOLDER │
+                 │    README.md        the case record (intake)│
+                 │    requirements.md  epics, user stories, NFRs│
+                 │    analysis.md      domain analysis          │
+                 │  demands/UC-2026-0072/ …                     │
                  └─────────────────────────────────────────────┘
                         │  S1 → S2 → S3  (all in the central repo)
                         │
@@ -95,6 +97,34 @@ offline and live-model paths produce the identical page.
 | Playbook (the user interaction) | `playbooks/s1-intake.md` |
 | Skills | `skills/intake-conversation/`, `skills/demand-classification/` |
 | Graduation to a repo (PoC stage) | `lib/poc/scaffold.ts` |
+
+## The case format — a folder that covers everything
+
+Every case is a **folder** in the funnel repo, in a defined format:
+
+| File | What it is | Written by |
+|---|---|---|
+| `README.md` | The case record — the intake (State, Gates, the problem). The future use-case README. | intake tools (`buildDemand`) |
+| `requirements.md` | Standardized requirements: epics → user stories (with Given/When/Then acceptance criteria + MoSCoW) → NFRs → assumptions → risks → open questions → out of scope. | requirements-analysis agent |
+| `analysis.md` | Domain analysis & enhancement: refined problem, comparable patterns, gaps to fill, data sources, standards, personas. | requirements-analysis agent |
+
+The formats are fixed in code (`lib/demand.ts`, `lib/requirements.ts`), so cases are
+comparable and reproducible.
+
+## Requirements analysis & enhancement (the second agent)
+
+The **requirements-analysis agent** (`playbooks/requirements-analysis.md`) reads a
+demand from the funnel and produces the two standardized artifacts above, grounded
+in domain knowledge (`lib/domain-knowledge.ts`: personas, epic themes, NFRs, data
+sources, standards, comparable patterns per domain). Deterministic offline engine
+(`lib/requirements.ts`); the same playbook drives the live model. It enhances the
+intake (naming the gaps — an unquantified baseline, missing owner, the applicable
+standard) and derives the requirements. Draft only: it passes no gate and creates
+no repository. The results commit to the case folder in the funnel, alongside the
+demand.
+
+Flow: **intake → demand in the funnel → requirements-analysis → requirements.md +
+analysis.md in the same case folder.**
 
 ## What does not happen at intake
 
