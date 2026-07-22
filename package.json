@@ -1,0 +1,21 @@
+{
+  "name": "digital-unit-portal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Digital Unit Portal — control plane for enterprise change demand. Git is the system of record; every artifact is markdown.",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm run test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}
