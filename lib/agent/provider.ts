@@ -182,6 +182,14 @@ export class OfflineProvider implements ModelProvider {
           `Best value per effort: ${top.map((x) => `${x.id} (${eur(x.valuePerEffort)}/pw)`).join(", ")}.`,
         ].filter(Boolean).join(" ") + note;
       }
+      // PoC scaffold (start-poc).
+      if (typeof r.repo === "string" && typeof r.specPath === "string") {
+        const files = Array.isArray(r.committedPaths) ? (r.committedPaths as string[]).length : 0;
+        return [
+          `Created repository "${r.repo}" (${r.host}) with ${files} files, including a drafted spec at ${r.specPath}.`,
+          "Review and approve the spec to build the artifact — I don't build it until a human approves.",
+        ].join(" ") + note;
+      }
       // Business-case simulation.
       if (typeof r.p10 === "number" && typeof r.p90 === "number") {
         const drivers = (r.drivers as { name: string; tested: boolean }[] | undefined) ?? [];

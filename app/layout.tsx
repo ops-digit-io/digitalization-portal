@@ -18,9 +18,10 @@ function TopNav() {
           Digital Unit Portal
         </Link>
         <nav className="flex items-center gap-4 text-sm text-muted-foreground">
+          <Link href="/" className="hover:text-foreground">Home</Link>
           <Link href="/board" className="hover:text-foreground">Portfolio</Link>
           <Link href="/analysis" className="hover:text-foreground">Analysis</Link>
-          <Link href="/" className="hover:text-foreground">Assistant</Link>
+          <Link href="/assistant" className="hover:text-foreground">Assistant</Link>
         </nav>
         <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
           <span className="hidden sm:inline">demo.forum@example.com</span>

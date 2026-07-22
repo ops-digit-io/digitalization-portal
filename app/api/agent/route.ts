@@ -12,6 +12,7 @@ import { runAgent } from "@/lib/agent/loop";
 import { getProvider } from "@/lib/agent/provider";
 import { createDefaultRegistry } from "@/lib/agent/registry";
 import { makeImplementationAnalysisTool } from "@/lib/agent/tools/implementation-analysis";
+import { makeStartPocTool } from "@/lib/agent/tools/start-poc";
 import { agentToolsEnabled } from "@/lib/agent/tools";
 import { SYSTEM_PROMPT, factsBlock } from "@/lib/agent/prompt";
 import { wrapExternal } from "@/lib/agent/wrap";
@@ -22,7 +23,7 @@ export const runtime = "nodejs";
 
 type Body = {
   message?: string;
-  task?: "chat" | "simulate" | "analysis";
+  task?: "chat" | "simulate" | "analysis" | "poc";
   useCaseId?: string;
   horizon?: "quarter" | "year";
 };
@@ -37,11 +38,14 @@ export async function POST(req: Request) {
 
   const session = DEMO_SESSION; // demo: real deployment resolves this from the OIDC session
   const provider = getProvider();
-  const registry = createDefaultRegistry().register(makeImplementationAnalysisTool(SEED_ROWS));
+  const registry = createDefaultRegistry()
+    .register(makeImplementationAnalysisTool(SEED_ROWS))
+    .register(makeStartPocTool(SEED_ROWS));
 
   const task = body.task ?? "chat";
   let userMessage = body.message ?? "";
   let toolNames: string[] | undefined;
+  let link: string | undefined;
 
   if (task === "simulate" && body.useCaseId) {
     const bc = SEED_BUSINESS_CASE[body.useCaseId];
@@ -62,6 +66,13 @@ export async function POST(req: Request) {
       `Analyse the portfolio implementation workload and business value for the next ${horizon}. Use the implementation-analysis tool, then summarise the workload, the value that lands, and the top use cases by value-per-effort.`,
       factsBlock({ horizon }),
     ].join("\n");
+  } else if (task === "poc" && body.useCaseId) {
+    toolNames = ["start-poc"];
+    link = `/uc/${body.useCaseId}/poc`;
+    userMessage = [
+      `Start a PoC for ${body.useCaseId}: scaffold the repository and draft the spec with the start-poc tool, then tell the user to approve the spec to build the artifact. Do not build the artifact yourself.`,
+      factsBlock({ useCaseId: body.useCaseId }),
+    ].join("\n");
   }
 
   try {
@@ -79,6 +90,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       text: result.text,
+      ...(link ? { link } : {}),
       provider: { name: provider.name, live: provider.live },
       trace: {
         toolsOffered: result.trace.toolsOffered,
