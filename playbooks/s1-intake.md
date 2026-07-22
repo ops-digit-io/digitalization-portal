@@ -16,27 +16,39 @@ earns its own repo only at the PoC stage.
 
 The agent is implemented deterministically in `lib/intake-agent.ts` (the offline
 agent and the on-script core behind any live phrasing); this playbook is its
-protocol.
+protocol. The interview questions, intent, and nudges live in the
+`intake-conversation` skill's [interview guide](../skills/intake-conversation/references/interview.md).
+
+## Two sides, one demand
+
+The intake is a split **demand studio**:
+
+- **Left — the chat interview.** The agent runs the interview below, one question
+  at a time. This is the guided, AI-driven way in.
+- **Right — the demand view.** The same demand, shown as **markdown** or as an
+  editable **form**, filling in live as the interview proceeds. A requester who
+  prefers to type directly can switch to the form; a reviewer can read the markdown.
+
+Both sides edit the *same captured answers*, and the markdown is always rendered by
+`buildDemand` — so the two views never disagree and the output stays deterministic.
 
 ## Conversational protocol (how the agent must behave)
 
-- **One question per turn.** Ask the next question and wait. Never print the list
-  of upcoming questions, a progress roadmap, or "step N of M" — the requester sees
-  a conversation, not a form. The order is fixed (`INTAKE_FIELDS`); the agent walks
-  it, it does not expose it.
+- **One question per turn.** Ask the next question and wait. Never recite the list
+  of upcoming questions or "step N of M" in the chat — the requester is being
+  interviewed, not handed a form. The order is fixed (`INTAKE_FIELDS`); the agent
+  walks it. (The side view showing the artifact is fine — that is the demand taking
+  shape, not a roadmap of questions.)
 - **The requester's words.** Keep answers verbatim (tidy grammar only). Do not
   invent detail — an optional question the requester skips stays empty, and the
   renderer fills it with a stable placeholder. An empty section is honest.
 - **Required vs optional.** A required question left blank is re-asked, once, in
   plain terms — the conversation does not advance until it is answered. An optional
   question may be skipped ("skip" / empty).
-- **Hold the artifact to the end.** Do NOT show the markdown demand page mid-chat.
-  It is rendered and shown only after the last question is answered — that single
-  reveal is the review moment.
 - **AI drafts, humans decide.** Nothing here passes a gate. The agent may *propose*
   a lane; it never *assigns* one.
 
-## The fixed script (asked one at a time, never listed)
+## The interview (asked one at a time, never listed)
 
 1. In one line, what is the demand?
 2. What is the problem you are seeing?
@@ -53,23 +65,24 @@ protocol.
 
 1. **Open** (`intake-conversation`). Greet, explain briefly, ask question 1.
 2. **Converse.** For each answer, acknowledge and ask the next question, following
-   the protocol above, until every question has been asked.
-3. **Render** (deterministic, no model). On completion, call `buildDemand` with the
-   captured answers and `classifyDemand` for the proposed lane/domain. Pure code —
-   the artifact is a function of the answers, not of the conversation.
-4. **Review + confirm** (human). Reveal the rendered markdown page exactly as it
-   will be saved, with the proposed lane. This is the single review checkpoint —
-   `confirm-understanding` and `confirm-demand` collapse into it because the
-   requester built the demand answer by answer. Save only on explicit confirmation;
-   "Start over" restarts the conversation.
+   the protocol above, until every question has been asked. The demand view updates
+   live alongside.
+3. **Render** (deterministic, no model). `buildDemand` renders the page from the
+   captured answers; `classifyDemand` proposes the lane/domain. Pure code — the
+   artifact is a function of the answers, not of the conversation.
+4. **Review + confirm** (human). The demand view shows the page exactly as it will
+   be saved, with the proposed lane. This is the single `review-demand` checkpoint —
+   the requester built the demand answer by answer. Save only on explicit
+   confirmation; "Start over" restarts the interview.
 5. **Save** (`draft` authority). Write the page to the central `du-demands` repo
    (`saveDemand`). It now shows on the demands list and the board at S1 with G1
    open, awaiting triage acceptance — a human act, never this playbook.
 
 ## Guarantees
 
-- The artifact is byte-for-byte reproducible from the captured answers.
-- The upcoming questions are never shown; the demand page is shown only at the end.
+- The artifact is byte-for-byte reproducible from the captured answers; the two
+  views (chat/markdown/form) never disagree because they share those answers.
+- The chat never recites the question list; upcoming questions stay in the interview.
 - No repository is created at intake; the PoC builder creates the `uc-*` repo later.
 - Runs under the invoking user's authority; a session lacking `draft` is refused
   with the reason. Live model when configured, deterministic offline agent
