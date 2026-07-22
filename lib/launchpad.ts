@@ -41,6 +41,7 @@ const I = {
   cog: "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z M12 3v3 M12 18v3 M3 12h3 M18 12h3 M6 6l2 2 M16 16l2 2 M18 6l-2 2 M8 16l-2 2",
 };
 
+// Tiles are pure entry points — no metrics rendered on them.
 export const LAUNCHPAD: TileGroup[] = [
   {
     category: "Demand & intake",
@@ -76,9 +77,3 @@ export const LAUNCHPAD: TileGroup[] = [
     ],
   },
 ];
-
-export interface TileKpi {
-  value: string;
-  label: string;
-  tone?: Tone;
-}
