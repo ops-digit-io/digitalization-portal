@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buildDemand, classifyDemand } from "@/lib/demand";
-import { startIntake, submitAnswer, type ChatMessage, type IntakeState } from "@/lib/intake-agent";
+import type { ChatMessage, IntakeState } from "@/lib/intake-agent";
 import { ToolHeader, SavedLinks, useIntakeSave } from "../shared";
 
 const LANE_LABEL: Record<string, string> = {
@@ -27,17 +27,35 @@ export default function ChatTool() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [state, setState] = useState<IntakeState | null>(null);
   const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
   const { saving, saved, error, save, reset } = useIntakeSave();
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const { state: s, messages: m } = startIntake();
-    setState(s);
-    setMessages(m);
-  }, []);
+  // Each turn goes through /api/intake/turn, which runs the playbook-governed
+  // agent: the live model (guided by the s1-intake system prompt) or the
+  // deterministic offline agent that encodes the same rules.
+  async function turn(payload: { action: "start" | "answer"; userText?: string; msgs: ChatMessage[]; st: IntakeState | null }) {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/intake/turn", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: payload.action, userText: payload.userText, messages: payload.msgs, state: payload.st }),
+      });
+      const data = (await res.json()) as { messages: ChatMessage[]; state: IntakeState };
+      setState(data.state);
+      setMessages((prev) => [...prev, ...(data.messages ?? [])]);
+    } catch {
+      setMessages((prev) => [...prev, { role: "assistant", text: "Sorry — something went wrong. Try again." }]);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => { void turn({ action: "start", msgs: [], st: null }); }, []);
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+  }, [messages, busy]);
 
   const done = state?.done ?? false;
   const classification = useMemo(() => (state ? classifyDemand(state.answers) : null), [state]);
@@ -47,12 +65,14 @@ export default function ChatTool() {
   );
 
   function send() {
-    if (!state || done) return;
+    if (busy || done) return;
     const text = input;
+    if (text.trim() === "") return;
     setInput("");
-    const { state: next, messages: replies } = submitAnswer(state, text);
-    setState(next);
-    setMessages((prev) => [...prev, { role: "user", text: text.trim() || "(skip)" }, ...replies]);
+    const userMsg: ChatMessage = { role: "user", text: text.trim() };
+    const next = [...messages, userMsg];
+    setMessages(next);
+    void turn({ action: "answer", userText: text, msgs: next, st: state });
   }
 
   async function doSave() {
@@ -62,20 +82,21 @@ export default function ChatTool() {
   }
 
   function restart() {
-    const { state: s, messages: m } = startIntake();
-    setState(s);
-    setMessages(m);
+    setMessages([]);
+    setState(null);
     setInput("");
     reset();
+    void turn({ action: "start", msgs: [], st: null });
   }
 
   return (
     <main className="mx-auto flex h-[calc(100vh-3.5rem)] max-w-2xl flex-col overflow-hidden px-4 py-3">
-      <ToolHeader active="chat" blurb="An AI interview — one short question at a time." />
+      <ToolHeader active="chat" blurb="An AI interview — one short question at a time, run from the s1-intake playbook." />
 
       <Card className="flex min-h-0 flex-1 flex-col p-0">
         <div ref={scrollRef} className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-4">
           {messages.map((m, i) => <Bubble key={i} m={m} />)}
+          {busy && <div className="flex justify-start"><div className="rounded-2xl rounded-bl-sm bg-secondary px-3.5 py-2 text-sm text-muted-foreground">…</div></div>}
 
           {done && classification && (
             <div className="pt-2">
@@ -92,13 +113,13 @@ export default function ChatTool() {
         {!done ? (
           <div className="flex items-end gap-2 border-t p-2">
             <textarea
-              autoFocus rows={1} value={input}
+              autoFocus rows={1} value={input} disabled={busy}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-              placeholder="Type your answer…  (Enter to send)"
-              className="max-h-32 min-h-[2.25rem] flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground"
+              placeholder="Type your answer…  (Enter to send · try 'back' or 'why')"
+              className="max-h-32 min-h-[2.25rem] flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-60"
             />
-            <button onClick={send} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">Send</button>
+            <button onClick={send} disabled={busy} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">Send</button>
           </div>
         ) : (
           <div className="border-t px-4 py-2.5">

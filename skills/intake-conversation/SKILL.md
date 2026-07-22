@@ -7,10 +7,13 @@ tools: []
 
 # intake-conversation
 
-Runs the elicitation half of the `s1-intake` playbook as a **chat interview**. You
-ask the fixed intake questions **one per turn**, in the requester's own language,
-and wait for each answer before asking the next. The full interview guide is
-[references/interview.md](references/interview.md) — questions, intent, and nudges.
+Runs the elicitation half of the `s1-intake` playbook as a **chat interview**. The
+playbook is the agent's behavioural guideline — *how* to respond to each kind of
+message (answers, thin answers, skips, "go back", corrections, meta-questions). It
+is loaded into the live model's system prompt and mirrored by the deterministic
+offline agent (`lib/intake-agent.ts`). The full interview guide —
+[references/interview.md](references/interview.md) — holds the questions, intent,
+and nudges. Ask **one per turn**, in the requester's own language.
 
 The demand takes shape live in a view beside the chat (markdown or a form); the
 requester can watch it fill in, or switch to the form and type directly. Either

@@ -84,8 +84,12 @@ offline and live-model paths produce the identical page.
 | Demand model — fields, deterministic `buildDemand`, `classifyDemand` | `lib/demand.ts` |
 | Central store — list / read / save to `du-demands` | `lib/demands-store.ts` |
 | Intake API — preview + save (answers or raw markdown) | `app/api/intake/route.ts` |
+| Intake turn API — one interview turn (live model or offline agent) | `app/api/intake/turn/route.ts` |
 | Intake tools — chooser + Chat / Form / Markdown | `app/intake/{page,chat,form,md}` |
 | Intake field set — one definition for all three tools | `INTAKE_FIELDS` in `lib/demand.ts` |
+| Agent guideline (playbook) — how the agent behaves | `playbooks/s1-intake.md` |
+| Deterministic agent — encodes the guideline | `lib/intake-agent.ts` |
+| Guideline loader — playbook → live model system prompt | `lib/agent/intake-guideline.ts` |
 | Interview guide — questions, intent, nudges | `skills/intake-conversation/references/interview.md` |
 | Demands list | `app/demands/page.tsx` |
 | Playbook (the user interaction) | `playbooks/s1-intake.md` |

@@ -1,81 +1,108 @@
 import { describe, expect, it } from "vitest";
-import { startIntake, submitAnswer, type IntakeState } from "./intake-agent.js";
+import { startIntake, submitAnswer, detectIntent, type IntakeState } from "./intake-agent.js";
 import { INTAKE_FIELDS } from "./demand.js";
 
-/** Drive a whole conversation from a map of field-key → answer. */
-function runConversation(answers: Partial<Record<string, string>>): { state: IntakeState; asked: number } {
+/** A substantial answer so the thin-answer nudge doesn't fire in flow tests. */
+const RICH = "This is a detailed answer with enough substance.";
+
+/** Drive a whole conversation, giving a rich answer to each required question. */
+function runConversation(): { state: IntakeState; turns: number } {
   let { state } = startIntake();
-  let asked = 1; // first question asked by startIntake
+  let turns = 0;
   while (!state.done) {
-    const field = INTAKE_FIELDS[state.step]!;
-    const reply = submitAnswer(state, answers[field.key] ?? "");
-    // If it re-asked (required + empty), supply a value so the test terminates.
-    if (reply.state.step === state.step && !reply.state.done) {
-      state = submitAnswer(state, "fallback").state;
-    } else {
-      state = reply.state;
-    }
-    asked++;
-    if (asked > 50) throw new Error("conversation did not terminate");
+    state = submitAnswer(state, RICH).state;
+    if (++turns > 60) throw new Error("did not terminate");
   }
-  return { state, asked };
+  return { state, turns };
 }
+
+describe("detectIntent", () => {
+  it("classifies commands only when they are the whole message", () => {
+    expect(detectIntent("back")).toBe("back");
+    expect(detectIntent("go back")).toBe("back");
+    expect(detectIntent("skip")).toBe("skip");
+    expect(detectIntent("why?")).toBe("meta");
+    expect(detectIntent("")).toBe("empty");
+  });
+  it("does not hijack a real answer that merely contains a command word", () => {
+    expect(detectIntent("the back office process is affected")).toBe("answer");
+    expect(detectIntent("why it matters: it stops the line")).toBe("answer");
+  });
+});
 
 describe("intake-agent", () => {
   it("opens with an intro and the first question, not done", () => {
     const { state, messages } = startIntake();
     expect(state.step).toBe(0);
     expect(state.done).toBe(false);
-    expect(messages).toHaveLength(2);
-    expect(messages[0]!.role).toBe("assistant");
+    expect(state.nudged).toEqual([]);
     expect(messages[1]!.text).toContain(INTAKE_FIELDS[0]!.question);
   });
 
-  it("records an answer and advances to the next question", () => {
+  it("records an answer and advances", () => {
     const { state } = startIntake();
     const r = submitAnswer(state, "Predictive scrap alerts");
     expect(r.state.step).toBe(1);
     expect(r.state.answers.title).toBe("Predictive scrap alerts");
-    expect(r.messages[0]!.text).toContain(INTAKE_FIELDS[1]!.question);
   });
 
-  it("re-asks a required question left blank without advancing", () => {
-    const { state } = startIntake(); // step 0 (title) is required
-    const r = submitAnswer(state, "   ");
-    expect(r.state.step).toBe(0);
-    expect(r.state.done).toBe(false);
-    expect(r.messages[0]!.text.toLowerCase()).toContain("need");
-  });
-
-  it("allows skipping an optional question", () => {
-    // Advance to the first optional field.
+  it("goes back to the previous question on 'back'", () => {
     let { state } = startIntake();
-    while (INTAKE_FIELDS[state.step]!.required) {
-      state = submitAnswer(state, "answer").state;
-    }
-    const optional = INTAKE_FIELDS[state.step]!;
-    const r = submitAnswer(state, "skip");
-    expect(r.state.step).toBe(state.step + 1);
+    state = submitAnswer(state, "A title").state; // now on step 1 (problem)
+    const r = submitAnswer(state, "back");
+    expect(r.state.step).toBe(0);
+    expect(r.messages[0]!.text.toLowerCase()).toContain("revisit");
+    expect(r.messages[0]!.text).toContain("A title"); // shows what they had
+  });
+
+  it("explains a meta-question and re-asks without advancing", () => {
+    const { state } = startIntake();
+    const r = submitAnswer(state, "why do you ask");
+    expect(r.state.step).toBe(0);
+    expect(r.messages[0]!.text).toContain(INTAKE_FIELDS[0]!.hint);
+  });
+
+  it("nudges once on a thin required answer, then accepts", () => {
+    let { state } = startIntake();
+    state = submitAnswer(state, "Scrap").state; // title (not a section field) — advances to problem
+    const thin = submitAnswer(state, "bad"); // problem is required + section → thin
+    expect(thin.state.step).toBe(state.step); // did not advance
+    expect(thin.state.nudged).toContain("problem");
+    expect(thin.messages[0]!.text.toLowerCase()).toContain("a bit more");
+    const accepted = submitAnswer(thin.state, "more");
+    expect(accepted.state.step).toBe(state.step + 1); // advanced now
+    expect(accepted.state.answers.problem).toContain("bad"); // kept the first, appended
+  });
+
+  it("does not nudge when the answer carries a number", () => {
+    let { state } = startIntake();
+    state = submitAnswer(state, "Scrap").state;
+    const r = submitAnswer(state, "6h/mo"); // short but has a digit
+    expect(r.state.step).toBe(state.step + 1); // accepted, no nudge
+  });
+
+  it("re-asks a required question left blank; skips an optional one", () => {
+    const { state } = startIntake(); // title required
+    expect(submitAnswer(state, "").state.step).toBe(0);
+    // advance to the first optional field, then skip it
+    let s = state;
+    while (INTAKE_FIELDS[s.step]!.required) s = submitAnswer(s, RICH).state;
+    const optional = INTAKE_FIELDS[s.step]!;
+    const r = submitAnswer(s, "skip");
+    expect(r.state.step).toBe(s.step + 1);
     expect(r.state.answers[optional.key]).toBe("");
   });
 
-  it("ends the conversation once all questions are answered", () => {
-    const { state } = runConversation({
-      title: "t", problem: "p", currentPain: "c", desiredOutcome: "d", plant: "DE-ALD",
-    });
-    expect(state.done).toBe(true);
-    expect(state.answers.title).toBe("t");
-  });
-
-  it("is deterministic — the same answers yield the same final state", () => {
-    const a = runConversation({ title: "t", problem: "p", currentPain: "c", desiredOutcome: "d", plant: "X" });
-    const b = runConversation({ title: "t", problem: "p", currentPain: "c", desiredOutcome: "d", plant: "X" });
+  it("ends after all questions and is deterministic", () => {
+    const a = runConversation();
+    const b = runConversation();
+    expect(a.state.done).toBe(true);
     expect(a.state.answers).toEqual(b.state.answers);
-    expect(a.asked).toBe(b.asked);
+    expect(a.turns).toBe(b.turns);
   });
 
-  it("never advances past the end or mutates a done state", () => {
-    const { state } = runConversation({ title: "t", problem: "p", currentPain: "c", desiredOutcome: "d", plant: "X" });
+  it("never mutates a done state", () => {
+    const { state } = runConversation();
     const r = submitAnswer(state, "extra");
     expect(r.state).toBe(state);
     expect(r.messages).toHaveLength(0);
