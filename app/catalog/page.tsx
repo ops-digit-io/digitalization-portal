@@ -12,7 +12,10 @@ function EntryCard({ e }: { e: RegistryEntry }) {
       <Card className="h-full p-4 transition-colors hover:border-foreground/20">
         <div className="flex items-center justify-between">
           <span className="font-medium">{e.title}</span>
-          <Badge variant="outline" className="text-[10px]">{e.type}</Badge>
+          <div className="flex items-center gap-1">
+            {e.bundle && <Badge variant="secondary" className="text-[10px] font-normal">{e.files.length} files</Badge>}
+            <Badge variant="outline" className="text-[10px]">{e.type}</Badge>
+          </div>
         </div>
         <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{e.description || "—"}</p>
         {tags.length > 0 && (

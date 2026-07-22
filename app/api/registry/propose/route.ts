@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac";
-import { proposeChange, type EntryType } from "@/lib/registry-store";
+import { proposeChange, type EntryType, type ProposeFile } from "@/lib/registry-store";
 import { DEMO_SESSION } from "@/lib/seed";
 
 export const runtime = "nodejs";
@@ -15,23 +15,27 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
   }
 
-  let body: { type?: EntryType; name?: string; content?: string; message?: string };
+  let body: { type?: EntryType; name?: string; bundle?: boolean; files?: ProposeFile[]; message?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
   }
 
-  const { type, name, content } = body;
-  if ((type !== "skill" && type !== "playbook") || !name || !content) {
-    return NextResponse.json({ error: "type, name and content are required" }, { status: 400 });
+  const { type, name, files } = body;
+  if ((type !== "skill" && type !== "playbook") || !name || !Array.isArray(files) || files.length === 0) {
+    return NextResponse.json({ error: "type, name and a non-empty files[] are required" }, { status: 400 });
+  }
+  if (files.some((f) => typeof f.path !== "string" || typeof f.content !== "string")) {
+    return NextResponse.json({ error: "each file needs a path and content" }, { status: 400 });
   }
 
   try {
     const result = await proposeChange({
       type,
       name,
-      content,
+      bundle: body.bundle ?? type === "skill",
+      files,
       message: body.message?.trim() || `Update ${type} ${name}`,
     });
     return NextResponse.json(result);

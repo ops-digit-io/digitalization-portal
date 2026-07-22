@@ -1,43 +1,58 @@
 import { describe, expect, it } from "vitest";
-import { listRegistry, newEntryTemplate, proposeChange, readEntry } from "./registry-store.js";
+import { listRegistry, newFileTemplate, proposeChange, readEntryFile, ENTRY_FILE } from "./registry-store.js";
 
-describe("registry store — read (live skills/playbooks)", () => {
-  it("lists the shipped skills and playbooks with parsed metadata", async () => {
-    const { skills, playbooks } = await listRegistry();
-    expect(skills.length).toBeGreaterThan(0);
-    expect(playbooks.length).toBeGreaterThan(0);
+describe("registry store — bundles (read)", () => {
+  it("reads skill bundles with their file tree", async () => {
+    const { skills } = await listRegistry();
     const poc = skills.find((s) => s.name === "poc-builder");
-    expect(poc?.description).toBeTruthy();
+    expect(poc?.bundle).toBe(true);
+    expect(poc?.files[0]).toBe(ENTRY_FILE); // entry file first
+    expect(poc?.files).toContain("references/artifact-kinds.md");
+    expect(poc?.files).toContain("templates/spec-outline.md");
     expect(poc?.tools).toContain("start-poc");
   });
 
-  it("reads a specific entry's raw markdown", async () => {
-    const md = await readEntry("playbook", "poc-build");
-    expect(md).toMatch(/checkpoints:/);
-    expect(await readEntry("skill", "does-not-exist")).toBeUndefined();
+  it("reads a specific file within a bundle, and the entry file by default", async () => {
+    const skillMd = await readEntryFile("skill", "portfolio-analysis");
+    expect(skillMd).toMatch(/name: portfolio-analysis/);
+    const ref = await readEntryFile("skill", "portfolio-analysis", "references/metrics.md");
+    expect(ref).toMatch(/Metric definitions/);
+    expect(await readEntryFile("skill", "portfolio-analysis", "nope.md")).toBeUndefined();
   });
 
-  it("does not list README files", async () => {
+  it("still reads single-file playbooks", async () => {
+    const { playbooks } = await listRegistry();
+    const pb = playbooks.find((p) => p.name === "poc-build");
+    expect(pb?.bundle).toBe(false);
+    expect(pb?.checkpoints).toContain("approve-spec");
+  });
+
+  it("does not treat a directory without SKILL.md as a skill", async () => {
     const { skills } = await listRegistry();
-    expect(skills.some((s) => /readme/i.test(s.name))).toBe(false);
+    // every listed skill bundle has SKILL.md
+    for (const s of skills.filter((x) => x.bundle)) expect(s.files).toContain(ENTRY_FILE);
   });
 });
 
-describe("registry store — templates + propose", () => {
-  it("templates carry frontmatter and the draft-only guarantee", () => {
-    expect(newEntryTemplate("skill", "x")).toMatch(/never pass a gate/);
-    expect(newEntryTemplate("playbook", "y")).toMatch(/checkpoint/);
+describe("registry store — multi-file propose", () => {
+  it("templates a new SKILL.md and a supporting reference", () => {
+    expect(newFileTemplate("skill", "x", ENTRY_FILE)).toMatch(/name: x/);
+    expect(newFileTemplate("skill", "x", "references/notes.md")).toMatch(/Reference material/);
   });
 
-  it("proposeChange opens a PR (local workspace) and never merges", async () => {
+  it("opens ONE PR carrying multiple files, never merges", async () => {
     const r = await proposeChange({
       type: "skill",
-      name: "test-skill",
-      content: newEntryTemplate("skill", "test-skill"),
-      message: "add test skill",
+      name: "demo-skill",
+      bundle: true,
+      files: [
+        { path: ENTRY_FILE, content: newFileTemplate("skill", "demo-skill", ENTRY_FILE) },
+        { path: "references/notes.md", content: "# notes\n" },
+      ],
+      message: "add demo skill bundle",
     });
     expect(r.host).toBe("local");
-    expect(r.path).toBe("skills/test-skill.md");
+    expect(r.paths).toEqual(["skills/demo-skill/SKILL.md", "skills/demo-skill/references/notes.md"]);
     expect(r.pullRequest.number).toBeGreaterThan(0);
     expect(r.pullRequest.base).toBe("main");
   });

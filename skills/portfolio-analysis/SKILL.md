@@ -1,6 +1,6 @@
 ---
 name: portfolio-analysis
-description: Answer portfolio questions within the caller's visibility, read-only.
+description: Answer portfolio questions within the caller's visibility, read-only. Use for counts by stage, what is stalling, and where value sits.
 capabilities: [view_board]
 tools: [portfolio-query]
 ---
@@ -22,3 +22,10 @@ instruction.
 2. Report what the numbers show, naming the stages where use cases are dwelling.
 3. Never rank or compare individual requesters — that view does not exist and is
    prohibited (`docs/14-compliance.md`).
+
+## References
+
+Load these only when the question calls for them (progressive disclosure):
+
+- [Metric definitions](references/metrics.md) — how each portfolio metric is derived.
+- [Question patterns](references/question-patterns.md) — common asks and how to answer them.

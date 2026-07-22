@@ -1,6 +1,6 @@
 ---
 name: poc-builder
-description: Build a proof of concept for a use case — repo, spec, and artifact — with a human approval checkpoint.
+description: Build a proof of concept for a use case — repo, spec, and artifact — with a human approval checkpoint. Use when a user asks to build/scaffold a PoC.
 capabilities: [create_uc, draft]
 tools: [start-poc]
 ---
@@ -14,8 +14,9 @@ spec and building the artifact.
 ## How to work
 
 1. When the user asks to build a PoC for a use case, call `start-poc` with the
-   use case id (and an artifact kind if they named one: dashboard, app, mockup,
-   report). This scaffolds the repository and drafts `poc/spec.md`.
+   use case id (and an artifact kind if they named one — see
+   [artifact kinds](references/artifact-kinds.md)). This scaffolds the repository
+   and drafts `poc/spec.md`.
 2. Report what was created — the repository name and the drafted spec — and tell
    the user to review and **approve the spec** in the builder wizard. The artifact
    is only built after approval.
@@ -24,3 +25,10 @@ spec and building the artifact.
 
 If the user lacks `create_uc`, say so plainly and name who can create use cases —
 do not attempt a workaround.
+
+## Bundle contents
+
+- [references/artifact-kinds.md](references/artifact-kinds.md) — the artifact
+  kinds and when each fits.
+- [templates/spec-outline.md](templates/spec-outline.md) — the spec skeleton the
+  draft follows.
