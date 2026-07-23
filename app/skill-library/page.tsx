@@ -56,8 +56,10 @@ export default function SkillLibraryPage() {
       </nav>
       <h1 className="text-lg font-semibold">Skill Library · import reference skills</h1>
       <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-        Bring in skills from the open <code className="rounded border px-1">SKILL.md</code> ecosystem. Paste a raw
-        skill URL, review it, and import — it lands in your{" "}
+        Bring in skills from the open <code className="rounded border px-1">SKILL.md</code> ecosystem. Copy what a
+        marketplace gives you — its <code className="rounded border px-1">npx skills add …</code> command, an
+        <code className="rounded border px-1"> owner/repo@skill</code> reference, or a raw SKILL.md URL — review it, and
+        import. It lands in your{" "}
         <Link href="/catalog" className="underline hover:text-foreground">Skills &amp; Playbooks registry</Link>, where you
         check and adjust it under governance. This tool only acquires; the registry is where you curate.
       </p>
@@ -82,19 +84,20 @@ export default function SkillLibraryPage() {
       </div>
 
       <Card className="mt-5 p-4">
-        <label htmlFor="skill-url" className="text-sm font-medium">Raw SKILL.md URL</label>
+        <label htmlFor="skill-url" className="text-sm font-medium">Install command, reference, or URL</label>
         <div className="mt-1 flex gap-2">
           <input
             id="skill-url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://raw.githubusercontent.com/…/SKILL.md"
+            placeholder="npx skills add owner/repo@skill   ·   owner/repo@skill   ·   https://…/SKILL.md"
             className="flex-1 rounded-md border bg-transparent px-2.5 py-1.5 text-sm outline-none focus:ring-1 focus:ring-ring"
           />
           <button onClick={() => call("preview")} disabled={busy || url.trim() === ""} className="rounded-md border px-3 py-1.5 text-sm font-medium hover:border-foreground/40 disabled:opacity-50">
             {busy && !preview ? "Fetching…" : "Preview"}
           </button>
         </div>
+        <p className="mt-1.5 text-[11px] text-muted-foreground">Paste the command straight from a marketplace — the <code className="rounded border px-1">npx</code> wrapper and <code className="rounded border px-1">-y</code> flags are ignored; the skill is fetched from its GitHub source and committed to your registry.</p>
         {error && <div className="mt-2 text-xs text-destructive">{error}</div>}
         {saved && (
           <div className="mt-2 text-xs text-ok">

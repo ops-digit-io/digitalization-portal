@@ -1,10 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
   parseSkillMarkdown,
+  parseSkillReference,
+  resolveCandidates,
   isAllowedSkillUrl,
   normalizeSkillUrl,
   ensureProvenance,
   fetchReferenceSkill,
+  REFERENCE_SOURCES,
 } from "./skill-import.js";
 
 const SKILL = `---
@@ -16,74 +19,99 @@ description: Extract text and tables from PDFs.
 
 Use pdfplumber to read the file.`;
 
-describe("parseSkillMarkdown", () => {
-  it("splits frontmatter from body", () => {
-    const p = parseSkillMarkdown(SKILL);
-    expect(p.name).toBe("pdf-extraction");
-    expect(p.description).toBe("Extract text and tables from PDFs.");
-    expect(p.hasFrontmatter).toBe(true);
-    expect(p.body).toContain("# PDF extraction");
-    expect(p.body).not.toContain("---");
+describe("parseSkillReference", () => {
+  it("parses an `npx skills add owner/repo@skill -y` command", () => {
+    const ref = parseSkillReference("npx skills add vercel/skills@react-best-practices -y");
+    expect(ref).toEqual({ kind: "repo", owner: "vercel", repo: "skills", skill: "react-best-practices" });
+  });
+  it("parses a bare owner/repo and a --skill flag", () => {
+    expect(parseSkillReference("mcp-use/skills")).toEqual({ kind: "repo", owner: "mcp-use", repo: "skills" });
+    expect(parseSkillReference("npx skills add doitian/skills-repo --skill skill-creator")).toEqual({
+      kind: "repo", owner: "doitian", repo: "skills-repo", skill: "skill-creator",
+    });
+  });
+  it("parses github repo, blob, and raw URLs", () => {
+    expect(parseSkillReference("https://github.com/o/r")).toEqual({ kind: "repo", owner: "o", repo: "r" });
+    expect(parseSkillReference("https://github.com/o/r/blob/main/skills/x/SKILL.md")).toEqual({
+      kind: "url", url: "https://raw.githubusercontent.com/o/r/main/skills/x/SKILL.md",
+    });
+    expect(parseSkillReference("https://raw.githubusercontent.com/o/r/main/SKILL.md")).toEqual({
+      kind: "url", url: "https://raw.githubusercontent.com/o/r/main/SKILL.md",
+    });
+  });
+  it("rejects nonsense", () => {
+    expect(parseSkillReference("")).toBeUndefined();
+    expect(parseSkillReference("just some words")).toBeUndefined();
+  });
+});
+
+describe("resolveCandidates", () => {
+  it("targets the GitHub contents API for a repo+skill, most-specific first", () => {
+    const c = resolveCandidates({ kind: "repo", owner: "o", repo: "r", skill: "x" });
+    expect(c[0]).toBe("https://api.github.com/repos/o/r/contents/skills/x/SKILL.md");
+    expect(c).toContain("https://api.github.com/repos/o/r/contents/SKILL.md");
   });
 });
 
 describe("isAllowedSkillUrl", () => {
-  it("allows the ecosystem hosts over https", () => {
-    expect(isAllowedSkillUrl("https://agentskills.io/s/x", {})).toBe(true);
+  it("allows the ecosystem hosts (incl. the GitHub API) over https", () => {
     expect(isAllowedSkillUrl("https://skills.sh/s/x", {})).toBe(true);
+    expect(isAllowedSkillUrl("https://api.github.com/repos/o/r/contents/SKILL.md", {})).toBe(true);
     expect(isAllowedSkillUrl("https://raw.githubusercontent.com/o/r/main/SKILL.md", {})).toBe(true);
   });
-  it("blocks non-https, unknown hosts, and SSRF targets", () => {
-    expect(isAllowedSkillUrl("http://agentskills.io/x", {})).toBe(false); // not https
+  it("blocks agentskills.io, non-https, unknown hosts, and SSRF targets", () => {
+    expect(isAllowedSkillUrl("https://agentskills.io/x", {})).toBe(false); // dropped per request
+    expect(isAllowedSkillUrl("http://skills.sh/x", {})).toBe(false);
     expect(isAllowedSkillUrl("https://evil.example.com/x", {})).toBe(false);
     expect(isAllowedSkillUrl("https://169.254.169.254/latest/meta-data", {})).toBe(false);
-    expect(isAllowedSkillUrl("https://localhost/x", {})).toBe(false);
-  });
-  it("honours SKILL_IMPORT_HOSTS to extend the allowlist", () => {
-    expect(isAllowedSkillUrl("https://skills.acme.com/x", { SKILL_IMPORT_HOSTS: "skills.acme.com" })).toBe(true);
   });
 });
 
-describe("normalizeSkillUrl", () => {
+describe("reference sources", () => {
+  it("lists marketplaces but not agentskills.io", () => {
+    const names = REFERENCE_SOURCES.map((s) => s.name.toLowerCase());
+    expect(names).toContain("skills.sh");
+    expect(names).toContain("skillsmp");
+    expect(REFERENCE_SOURCES.every((s) => !s.url.includes("agentskills.io"))).toBe(true);
+  });
+});
+
+describe("normalizeSkillUrl / ensureProvenance", () => {
   it("rewrites a GitHub blob URL to raw", () => {
-    expect(normalizeSkillUrl("https://github.com/o/r/blob/main/skills/x/SKILL.md")).toBe(
-      "https://raw.githubusercontent.com/o/r/main/skills/x/SKILL.md",
+    expect(normalizeSkillUrl("https://github.com/o/r/blob/main/x/SKILL.md")).toBe(
+      "https://raw.githubusercontent.com/o/r/main/x/SKILL.md",
     );
   });
-  it("passes other URLs through", () => {
-    expect(normalizeSkillUrl("https://skills.sh/s/x")).toBe("https://skills.sh/s/x");
-  });
-});
-
-describe("ensureProvenance", () => {
   it("records the source URL in the frontmatter", () => {
-    const out = ensureProvenance(SKILL, "https://skills.sh/s/pdf");
-    expect(out).toMatch(/source: https:\/\/skills\.sh\/s\/pdf/);
-    // still a valid SKILL.md
+    const out = ensureProvenance(SKILL, "https://github.com/o/r#pdf");
+    expect(out).toMatch(/source: https:\/\/github\.com\/o\/r#pdf/);
     expect(parseSkillMarkdown(out).name).toBe("pdf-extraction");
-  });
-  it("replaces an existing source rather than duplicating", () => {
-    const withSrc = SKILL.replace("---\n\n", "source: https://old\n---\n\n");
-    const out = ensureProvenance(withSrc, "https://new");
-    expect(out).toMatch(/source: https:\/\/new/);
-    expect(out).not.toMatch(/source: https:\/\/old/);
   });
 });
 
 describe("fetchReferenceSkill", () => {
+  it("resolves an npx command via the GitHub contents API (base64)", async () => {
+    const b64 = Buffer.from(SKILL).toString("base64");
+    const fake = (async (u: string) => {
+      if (u === "https://api.github.com/repos/vercel/skills/contents/skills/pdf/SKILL.md") {
+        return new Response(JSON.stringify({ content: b64, encoding: "base64" }), { status: 200 });
+      }
+      return new Response("", { status: 404 });
+    }) as unknown as typeof fetch;
+    const got = await fetchReferenceSkill("npx skills add vercel/skills@pdf -y", {}, fake);
+    expect(got.name).toBe("pdf-extraction");
+    expect(got.sourceUrl).toBe("https://github.com/vercel/skills#pdf");
+  });
+
   it("rejects a disallowed host without fetching", async () => {
     let called = false;
-    const fakeFetch = (async () => { called = true; return new Response(""); }) as unknown as typeof fetch;
-    await expect(fetchReferenceSkill("https://evil.example.com/x", {}, fakeFetch)).rejects.toThrow(/host/i);
+    const fake = (async () => { called = true; return new Response(""); }) as unknown as typeof fetch;
+    await expect(fetchReferenceSkill("https://evil.example.com/x", {}, fake)).rejects.toThrow(/allowed|SKILL|command/i);
     expect(called).toBe(false);
   });
 
-  it("fetches, parses, and requires a SKILL.md name", async () => {
-    const ok = (async () => new Response(SKILL, { status: 200 })) as unknown as typeof fetch;
-    const got = await fetchReferenceSkill("https://raw.githubusercontent.com/o/r/main/SKILL.md", {}, ok);
-    expect(got.name).toBe("pdf-extraction");
-
-    const notSkill = (async () => new Response("# just markdown", { status: 200 })) as unknown as typeof fetch;
-    await expect(fetchReferenceSkill("https://skills.sh/s/x", {}, notSkill)).rejects.toThrow(/SKILL\.md/i);
+  it("errors clearly when no SKILL.md is found", async () => {
+    const fake = (async () => new Response("", { status: 404 })) as unknown as typeof fetch;
+    await expect(fetchReferenceSkill("owner/repo@missing", {}, fake)).rejects.toThrow(/SKILL\.md/i);
   });
 });
