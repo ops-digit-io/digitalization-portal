@@ -16,12 +16,16 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": false,
     "noEmit": true,
+    "jsx": "preserve",
+    "allowJs": true,
+    "incremental": true,
+    "plugins": [{ "name": "next" }],
     "types": ["node"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["./*"]
     }
   },
-  "include": ["lib", "app", "components", "test", "*.ts"],
+  "include": ["lib", "app", "components", "test", "*.ts", "next-env.d.ts", ".next/types/**/*.ts"],
   "exclude": ["node_modules", ".next"]
 }

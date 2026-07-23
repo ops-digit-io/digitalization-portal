@@ -13,24 +13,39 @@ with [`docs/BUILD.md`](docs/BUILD.md).
 
 ## Status
 
-Milestone **M1 — Template & enforcement foundation** (portal-side, markdown-native).
-This is the load-bearing base every later milestone inherits; it is pure logic and
-runs without auth, GitHub, or a UI. See the build plan for the full roadmap
-(M0–M10) and the two locked decisions (portal-side enforcement; no gatekeeper role).
+Foundation built portal-side and markdown-native: **M1** (enforcement core) plus
+the **M2** and **M5** *logic seams* that need no external OIDC/GitHub — the pieces
+are pure logic and unit-tested, so only the Auth.js / Octokit / model wiring
+remains for later. See the build plan for the full roadmap (M0–M10) and the two
+locked decisions (portal-side enforcement; no gatekeeper role).
 
-## What's here (M1)
+## What's here
 
 | Module | Purpose |
 |---|---|
 | `lib/parse.ts` | Markdown state extraction. Never throws; unreadable state → "needs attention". |
 | `lib/gates.ts` | The single gate-enforcement point, called before any gate PR is opened. |
-| `lib/rbac.ts` | `can()` capability resolution (adapted: no gatekeeper). |
-| `lib/stages.ts` | Stage machine transition table + template materialisation map (data-driven seam). |
-| `lib/lanes.ts` | Lane taxonomy and triage routing (data-driven seam). |
-| `lib/value.ts` | Confidence states and value categories (data-driven seam). |
+| `lib/rbac.ts` · `lib/session.ts` | `can()` capability resolution (no gatekeeper) + session resolution from IdP group claims. |
+| `lib/registry.ts` · `lib/reconcile.ts` | Registry index parse ⇄ serialize (reconciler cache), round-trip stable. |
+| `lib/board.ts` · `lib/visibility.ts` | Server-side redacted board assembly (portfolio-transparent; confidential to view_all). |
+| `lib/stages.ts` · `lib/lanes.ts` · `lib/value.ts` | Data-driven transition table, lane taxonomy, value model (extensibility seams). |
 | `lib/codeowners.ts` | CODEOWNERS generation (no gatekeeper entries). |
-| `registry/*.md` | Human-editable registries: roles, plants, domains, value model, fleet index, handovers. |
-| `templates/*.md` | Artifact templates; guidance in HTML comments, materialised on gate passage. |
+| `lib/agent/*` | Agent-tool contract + registry (no gate/merge tool, enforced at registration), skill/playbook loader, kill switch, example tools. |
+| `registry/*.md` · `templates/*.md` · `skills/*` · `playbooks/*` | Human-editable registries, artifact templates, and example agent skill/playbook. |
+
+## Extending the portal (the point of the seams)
+
+Adding a capability is additive, never a core change:
+
+- **A new agent tool** — implement `AgentTool`, register it in `lib/agent/registry.ts`.
+  Registration **throws** if it requires a gate/merge/decision capability, so the
+  "no tool passes a gate" invariant cannot be violated by a later tool. See
+  `lib/agent/tools/simulate-value.ts` — the business-case simulation from the build
+  plan — as a worked example: one file, one registry line, zero core change.
+- **A new skill / playbook** — drop a markdown file with frontmatter into `skills/`
+  or `playbooks/`; the loader reads it.
+- **A new lane / value category / stage artifact** — a table entry in the
+  corresponding data module.
 
 ## Design commitments (non-negotiable — `docs/BUILD.md`)
 

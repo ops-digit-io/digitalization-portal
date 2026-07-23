@@ -1,0 +1,14 @@
+# Demands — the central intake store
+
+Every demand the Digital Unit takes in is **one markdown page in this one
+repository**. There is no repository per demand at intake. A demand earns its own
+`uc-*` repository only at the **PoC stage** — see `docs/ARCHITECTURE-intake.md`.
+
+Each page is written by the portal's **intake** (guided by the `s1-intake`
+playbook). The intake is AI-assisted but its output is **deterministic**: the same
+captured answers always render the same sections in the same order
+(`lib/demand.ts`). A demand page is the future use-case `README.md`, so it uses the
+same `## State` / `## Gates` structure the parser already reads.
+
+Files here are demo seed content. In a live deployment this directory is the
+`du-demands` repository the portal reads and writes.

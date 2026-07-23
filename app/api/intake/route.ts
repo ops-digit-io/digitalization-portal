@@ -1,0 +1,79 @@
+import { NextResponse } from "next/server";
+import { can } from "@/lib/rbac";
+import { DEMO_SESSION } from "@/lib/seed";
+import {
+  buildDemand,
+  classifyDemand,
+  missingRequired,
+  nextDemandId,
+  parseDemandToAnswers,
+  EMPTY_ANSWERS,
+  type DemandAnswers,
+} from "@/lib/demand";
+import { listDemandIds, saveDemand } from "@/lib/demands-store";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/** Capture-year for new demand ids (fixed for the demo so ids are stable). */
+const INTAKE_YEAR = 2026;
+
+function coerce(a: unknown): DemandAnswers {
+  const src = (a ?? {}) as Record<string, unknown>;
+  const out = { ...EMPTY_ANSWERS };
+  for (const k of Object.keys(out) as (keyof DemandAnswers)[]) {
+    if (typeof src[k] === "string") out[k] = src[k] as string;
+  }
+  return out;
+}
+
+/**
+ * Intake API. `preview` renders the deterministic demand + classification without
+ * writing; `save` persists it to the central intake repo. The rendered markdown is
+ * a pure function of the answers — same answers, same page — so preview and save
+ * always agree.
+ */
+export async function POST(req: Request) {
+  const session = DEMO_SESSION; // real deployment resolves this from the OIDC session
+  if (!can(session, "draft")) {
+    return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
+  }
+
+  let body: { action?: string; answers?: unknown; markdown?: string; id?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
+  }
+
+  // Three tools, one output: the Chat and Form tools send `answers`; the Markdown
+  // tool sends raw `markdown`, which we parse back to answers so it re-renders
+  // through the same buildDemand. Whatever the tool, the saved page is identical.
+  const answers = typeof body.markdown === "string" ? parseDemandToAnswers(body.markdown) : coerce(body.answers);
+  const classification = classifyDemand(answers);
+  const missing = missingRequired(answers).map((f) => f.key);
+
+  if (body.action === "preview") {
+    const id = typeof body.id === "string" && body.id ? body.id : "UC-YYYY-NNNN";
+    const markdown = buildDemand({ id, createdOn: "YYYY-MM-DD", lane: classification.lane }, answers);
+    return NextResponse.json({ classification, missing, markdown });
+  }
+
+  if (body.action === "save") {
+    if (missing.length > 0) {
+      return NextResponse.json({ error: `missing required: ${missing.join(", ")}`, missing }, { status: 400 });
+    }
+    try {
+      const existing = await listDemandIds();
+      const id = nextDemandId(existing, INTAKE_YEAR);
+      const createdOn = new Date().toISOString().slice(0, 10);
+      const markdown = buildDemand({ id, createdOn, lane: classification.lane }, answers);
+      const result = await saveDemand(id, markdown);
+      return NextResponse.json({ id, result, classification, markdown });
+    } catch (err) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : "save failed" }, { status: 500 });
+    }
+  }
+
+  return NextResponse.json({ error: "action must be 'preview' or 'save'" }, { status: 400 });
+}
