@@ -11,7 +11,8 @@ import { MarkdownDoc } from "@/components/portal/markdown-doc";
 import { GateAction } from "@/components/portal/gate-action";
 import { AdvanceStage } from "@/components/portal/advance-stage";
 import { HeatDot, LaneBadge, LevelBadge } from "@/components/portal/badges";
-import { SEED_README, SEED_ROWS, SEED_BUSINESS_CASE, buildStubReadme, DEMO_SESSION, DEMO_NOW } from "@/lib/seed";
+import { SEED_README, SEED_ROWS, SEED_BUSINESS_CASE, buildStubReadme, DEMO_NOW } from "@/lib/seed";
+import { getSession } from "@/lib/auth/current";
 import type { Gate, Stage } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +54,7 @@ export default async function UseCasePage({ params }: { params: { id: string } }
   const loaded = await loadCase(params.id);
   if (!loaded) notFound();
   const { markdown, live } = loaded;
+  const session = await getSession();
 
   const uc = parseUseCase(markdown);
   const people = parsePeople(markdown);
@@ -76,7 +78,7 @@ export default async function UseCasePage({ params }: { params: { id: string } }
   const openGate = ALL_GATES.find((id) => uc.gates.find((x) => x.id === id)?.status === "open");
   const targetGate = openGate ?? (stage ? exitGate(stage) : undefined);
   const decision = targetGate
-    ? canOpenGate(targetGate, { readme: uc, people, actor: DEMO_SESSION.user })
+    ? canOpenGate(targetGate, { readme: uc, people, actor: session.user })
     : { permitted: false as const, reason: "No open gate." };
   const toStage = stage ? nextStage(stage) : undefined;
 

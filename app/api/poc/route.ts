@@ -17,7 +17,8 @@ import type { RepoRef } from "@/lib/git";
 import { planPoc, scaffoldRepo, buildArtifact } from "@/lib/poc/builder";
 import { slugify, type UseCaseSeed } from "@/lib/poc/scaffold";
 import type { ArtifactKind } from "@/lib/poc/spec";
-import { DEMO_SESSION, DEMO_NOW, SEED_ROWS } from "@/lib/seed";
+import { DEMO_NOW, SEED_ROWS } from "@/lib/seed";
+import { getSession } from "@/lib/auth/current";
 
 export const runtime = "nodejs";
 
@@ -39,7 +40,7 @@ function seedFor(useCaseId: string): UseCaseSeed | undefined {
 }
 
 export async function POST(req: Request) {
-  const session = DEMO_SESSION;
+  const session = await getSession();
   let body: {
     step?: "scaffold" | "artifact";
     useCaseId?: string;

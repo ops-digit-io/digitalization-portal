@@ -17,7 +17,8 @@ import { agentToolsEnabled } from "@/lib/agent/tools";
 import { SYSTEM_PROMPT, factsBlock } from "@/lib/agent/prompt";
 import { wrapExternal } from "@/lib/agent/wrap";
 import { parseBusinessCase, toSimulationInput } from "@/lib/businesscase";
-import { DEMO_SESSION, DEMO_NOW, SEED_ROWS, SEED_BUSINESS_CASE } from "@/lib/seed";
+import { DEMO_NOW, SEED_ROWS, SEED_BUSINESS_CASE } from "@/lib/seed";
+import { getSession } from "@/lib/auth/current";
 
 export const runtime = "nodejs";
 
@@ -36,7 +37,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
   }
 
-  const session = DEMO_SESSION; // demo: real deployment resolves this from the OIDC session
+  const session = await getSession(); // demo: real deployment resolves this from the OIDC session
   const provider = getProvider();
   const registry = createDefaultRegistry()
     .register(makeImplementationAnalysisTool(SEED_ROWS))

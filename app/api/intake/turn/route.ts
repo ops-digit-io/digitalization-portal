@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac";
-import { DEMO_SESSION } from "@/lib/seed";
+import { getSession } from "@/lib/auth/current";
 import { getProvider } from "@/lib/agent/provider";
 import { loadIntakeGuideline, intakeSystemPrompt, SAVE_DEMAND_TOOL, INTAKE_PLAYBOOK, INTAKE_SKILLS } from "@/lib/agent/intake-guideline";
 import { startIntake, submitAnswer, type ChatMessage, type IntakeState } from "@/lib/intake-agent";
@@ -33,7 +33,7 @@ interface TurnResult {
  * failure), the deterministic agent that encodes the same rules runs instead.
  */
 export async function POST(req: Request) {
-  const session = DEMO_SESSION; // real deployment resolves this from the OIDC session
+  const session = await getSession(); // real deployment resolves this from the OIDC session
   if (!can(session, "draft")) {
     return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
   }

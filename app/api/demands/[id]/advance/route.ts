@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac";
-import { DEMO_SESSION } from "@/lib/seed";
+import { getSession } from "@/lib/auth/current";
 import { readDemand, saveDemand } from "@/lib/demands-store";
 import { advanceDemand } from "@/lib/demand-advance";
 
@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
  * how the portal has always maintained the intake funnel.
  */
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
-  const session = DEMO_SESSION;
+  const session = await getSession();
   const id = params.id;
 
   const md = await readDemand(id);

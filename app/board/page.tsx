@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { assembleBoard, type BoardCard, type BoardFilter } from "@/lib/board";
 import { STAGES, type Stage, type Lane } from "@/lib/types";
-import { DEMO_SESSION } from "@/lib/seed";
+import { getSession } from "@/lib/auth/current";
 import { loadPortfolioRows } from "@/lib/portfolio";
 import { can } from "@/lib/rbac";
 import { Card } from "@/components/ui/card";
@@ -52,11 +52,12 @@ export default async function BoardPage({ searchParams }: { searchParams: Params
   };
 
   // Live from the du-demands funnel when the GitHub App is configured, else demo seed.
+  const session = await getSession();
   const { rows, now, live, source } = await loadPortfolioRows();
-  const board = assembleBoard(rows, DEMO_SESSION, now, filter);
+  const board = assembleBoard(rows, session, now, filter);
 
   // Value KPIs are portfolio aggregates, shown only to view_all sessions.
-  const canValue = can(DEMO_SESSION, "view_all");
+  const canValue = can(session, "view_all");
   const visibleIds = new Set(board.cards.map((c) => c.id));
   const visibleRows = rows.filter((r) => visibleIds.has(r.id));
   const pipeline = canValue ? visibleRows.filter((r) => (r.status ?? "active") === "active").reduce((s, r) => s + (r.valueProjected ?? 0), 0) : 0;

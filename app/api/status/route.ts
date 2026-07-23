@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import { describeProvider } from "@/lib/agent/provider";
 import { probeProvider } from "@/lib/agent/health";
 import { hasGitHubCredentials } from "@/lib/git/host";
+import { getCurrentUser } from "@/lib/auth/current";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,9 +21,17 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: Request) {
   const probe = new URL(req.url).searchParams.get("probe") === "1";
+  const cu = await getCurrentUser();
   const body: Record<string, unknown> = {
     model: describeProvider(),
     git: { live: hasGitHubCredentials() },
+    user: {
+      name: cu.name ?? cu.session.user,
+      email: cu.session.user,
+      authenticated: cu.authenticated,
+      demo: cu.demo,
+      roles: cu.session.roles,
+    },
   };
   if (probe) body.health = await probeProvider();
   return NextResponse.json(body);

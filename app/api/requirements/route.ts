@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac";
-import { DEMO_SESSION } from "@/lib/seed";
+import { getSession } from "@/lib/auth/current";
 import { parseUseCase } from "@/lib/parse";
 import { parseDemandToAnswers } from "@/lib/demand";
 import { analyseIntake, buildRequirementsMarkdown, buildAnalysisMarkdown } from "@/lib/requirements";
@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
  * model would follow the same playbook.
  */
 export async function POST(req: Request) {
-  const session = DEMO_SESSION; // real deployment resolves this from the OIDC session
+  const session = await getSession(); // real deployment resolves this from the OIDC session
   if (!can(session, "draft")) {
     return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
   }
