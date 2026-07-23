@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { assembleBoard, type BoardCard, type BoardFilter } from "@/lib/board";
 import { STAGES, type Stage, type Lane } from "@/lib/types";
-import { SEED_ROWS, DEMO_SESSION, DEMO_NOW } from "@/lib/seed";
+import { DEMO_SESSION } from "@/lib/seed";
+import { loadPortfolioRows } from "@/lib/portfolio";
 import { can } from "@/lib/rbac";
 import { Card } from "@/components/ui/card";
 import { BoardColumn } from "@/components/portal/board-column";
@@ -39,7 +40,7 @@ function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: 
   );
 }
 
-export default function BoardPage({ searchParams }: { searchParams: Params }) {
+export default async function BoardPage({ searchParams }: { searchParams: Params }) {
   const group: Group = searchParams.group === "lane" ? "lane" : searchParams.group === "plant" ? "plant" : "stage";
   const filter: BoardFilter = {
     ...(searchParams.lane ? { lane: searchParams.lane } : {}),
@@ -50,18 +51,20 @@ export default function BoardPage({ searchParams }: { searchParams: Params }) {
     ...(searchParams.q ? { q: searchParams.q } : {}),
   };
 
-  const board = assembleBoard(SEED_ROWS, DEMO_SESSION, DEMO_NOW, filter);
+  // Live from the du-demands funnel when the GitHub App is configured, else demo seed.
+  const { rows, now, live, source } = await loadPortfolioRows();
+  const board = assembleBoard(rows, DEMO_SESSION, now, filter);
 
   // Value KPIs are portfolio aggregates, shown only to view_all sessions.
   const canValue = can(DEMO_SESSION, "view_all");
   const visibleIds = new Set(board.cards.map((c) => c.id));
-  const visibleRows = SEED_ROWS.filter((r) => visibleIds.has(r.id));
+  const visibleRows = rows.filter((r) => visibleIds.has(r.id));
   const pipeline = canValue ? visibleRows.filter((r) => (r.status ?? "active") === "active").reduce((s, r) => s + (r.valueProjected ?? 0), 0) : 0;
   const realized = canValue ? visibleRows.reduce((s, r) => s + (r.valueRealized ?? 0), 0) : 0;
 
-  const lanes = [...new Set(SEED_ROWS.map((r) => r.lane).filter(Boolean))] as string[];
-  const plants = [...new Set(SEED_ROWS.map((r) => r.plant).filter(Boolean))] as string[];
-  const domains = [...new Set(SEED_ROWS.map((r) => r.domain).filter(Boolean))] as string[];
+  const lanes = [...new Set(rows.map((r) => r.lane).filter(Boolean))] as string[];
+  const plants = [...new Set(rows.map((r) => r.plant).filter(Boolean))] as string[];
+  const domains = [...new Set(rows.map((r) => r.domain).filter(Boolean))] as string[];
 
   // Build the columns for the chosen grouping.
   const stageIdx = (s?: Stage) => (s ? STAGES.indexOf(s) : 99);
@@ -84,7 +87,15 @@ export default function BoardPage({ searchParams }: { searchParams: Params }) {
     <main className="mx-auto max-w-[1600px] px-6 py-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold">Portfolio board</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-semibold">Portfolio board</h1>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${live ? "bg-ok/10 text-ok" : "bg-secondary text-muted-foreground"}`}
+              title={live ? `Read live from ${source}` : "Demo seed data — configure the GitHub App to read the live funnel"}
+            >
+              {live ? `● live · ${source}` : "○ demo data"}
+            </span>
+          </div>
           <p className="text-sm text-muted-foreground">Every demand the Digital Unit owns, by stage — flow, stalls, and health at a glance. Value is a portfolio aggregate; figures stay indicative until pilot.</p>
         </div>
         <div className="flex overflow-hidden rounded-md border text-sm">

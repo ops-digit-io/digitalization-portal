@@ -3,7 +3,7 @@ import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { listDemands, readDemand, saveDemand, saveArtifact, readArtifact, listArtifacts } from "./demands-store.js";
+import { listDemands, listDemandRows, readDemand, saveDemand, saveArtifact, readArtifact, listArtifacts } from "./demands-store.js";
 import { buildDemand, EMPTY_ANSWERS } from "./demand.js";
 
 let dir: string;
@@ -41,6 +41,30 @@ describe("demands-store (case folders)", () => {
     const list = await listDemands(dir);
     expect(list[0]!.lane).toBe("unassigned");
     expect(list[0]!.needsAttention).toBe(false);
+  });
+
+  it("maps cases into board-ready registry rows, with since falling back to Created", async () => {
+    await seedCase("UC-2026-0071", demand("UC-2026-0071", "data_ai", { domain: "quality" }));
+    const rows = await listDemandRows(dir);
+    expect(rows).toHaveLength(1);
+    const row = rows[0]!;
+    expect(row.id).toBe("UC-2026-0071");
+    expect(row.stage).toBe("S1");
+    expect(row.lane).toBe("data_ai");
+    expect(row.status).toBe("active");
+    expect(row.plant).toBe("DE-ALD");
+    expect(row.domain).toBe("quality");
+    // A freshly captured demand carries Created, not yet a stage-entry Since.
+    expect(row.since).toBe("2026-06-30");
+    expect(row.needsAttention).toBeUndefined();
+  });
+
+  it("flags an unreadable case as needs-attention rather than dropping it", async () => {
+    await seedCase("UC-2026-0099", "# UC-2026-0099 · Broken\n\nNo State section here.\n");
+    const rows = await listDemandRows(dir);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.id).toBe("UC-2026-0099");
+    expect(rows[0]!.needsAttention).toBe(true);
   });
 
   it("saves a case record to the funnel working tree and reads it back", async () => {
