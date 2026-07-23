@@ -37,8 +37,39 @@ export class GitHubHost implements GitHost {
     return new GitHubHost({
       appId: env.GITHUB_APP_ID!,
       privateKey: (env.GITHUB_APP_PRIVATE_KEY ?? "").replace(/\\n/g, "\n"),
-      installationId: env.GITHUB_APP_INSTALLATION_ID!,
+      installationId: env.GITHUB_APP_INSTALLATION_ID ?? "", // optional — discovered from the org if empty/wrong
       org: env.GITHUB_ORG!,
+    });
+  }
+
+  /** Look up this App's installation on the org via the App JWT — the source of truth. */
+  private async discoverInstallationId(): Promise<string> {
+    const res = await fetch(`${API}/orgs/${this.cfg.org}/installation`, {
+      headers: {
+        authorization: `Bearer ${this.appJwt()}`,
+        accept: "application/vnd.github+json",
+        "x-github-api-version": "2022-11-28",
+      },
+    });
+    if (res.status === 401) {
+      throw new Error("GitHub App JWT rejected (401) — GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY must be from the SAME App, and the private key pasted in full.");
+    }
+    if (res.status === 404) {
+      throw new Error(`GitHub App is not installed on org "${this.cfg.org}" (404). Open the App → Install App → install it on ${this.cfg.org} with access to the repos.`);
+    }
+    if (!res.ok) throw new Error(`GitHub org-installation lookup ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const data = (await res.json()) as { id: number };
+    return String(data.id);
+  }
+
+  private async requestToken(installationId: string): Promise<Response> {
+    return fetch(`${API}/app/installations/${installationId}/access_tokens`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${this.appJwt()}`,
+        accept: "application/vnd.github+json",
+        "x-github-api-version": "2022-11-28",
+      },
     });
   }
 
@@ -54,22 +85,20 @@ export class GitHubHost implements GitHost {
 
   private async installationToken(): Promise<string> {
     if (this.token && this.token.expiresAt - 60_000 > Date.now()) return this.token.value;
-    const res = await fetch(`${API}/app/installations/${this.cfg.installationId}/access_tokens`, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${this.appJwt()}`,
-        accept: "application/vnd.github+json",
-        "x-github-api-version": "2022-11-28",
-      },
-    });
+
+    // Use the configured id if given, else discover it from the org.
+    let id = this.cfg.installationId.trim() || (await this.discoverInstallationId());
+    let res = await this.requestToken(id);
+
+    // A configured id that 404s is wrong for this App/org — self-heal by discovering.
+    if (res.status === 404 && this.cfg.installationId.trim()) {
+      id = await this.discoverInstallationId();
+      res = await this.requestToken(id);
+    }
+
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      const hint =
-        res.status === 404
-          ? " — GITHUB_APP_INSTALLATION_ID looks wrong, or the App is not installed on the org. Copy the number from the App → Install App → Configure URL (…/settings/installations/<ID>); it is NOT the App ID or Client ID."
-          : res.status === 401
-            ? " — the App JWT was rejected; check that GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY belong to the same App and the key is pasted in full."
-            : "";
+      const hint = res.status === 401 ? " — check GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY (same App, full key)." : "";
       throw new Error(`GitHub installation token ${res.status}${hint} :: ${body.slice(0, 200)}`);
     }
     const data = (await res.json()) as { token: string; expires_at: string };

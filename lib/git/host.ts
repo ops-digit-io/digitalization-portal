@@ -62,7 +62,11 @@ export interface GitHost {
   ): Promise<PullRequestRef>;
 }
 
-/** True when GitHub App credentials are present. */
+/**
+ * True when GitHub App credentials are present. The installation id is NOT
+ * required — the host discovers it from the org (`GET /orgs/{org}/installation`),
+ * so a missing or wrong `GITHUB_APP_INSTALLATION_ID` can never break auth.
+ */
 export function hasGitHubCredentials(env: Record<string, string | undefined> = process.env): boolean {
-  return Boolean(env.GITHUB_APP_ID && env.GITHUB_APP_PRIVATE_KEY && env.GITHUB_APP_INSTALLATION_ID && env.GITHUB_ORG);
+  return Boolean(env.GITHUB_APP_ID && env.GITHUB_APP_PRIVATE_KEY && env.GITHUB_ORG);
 }
