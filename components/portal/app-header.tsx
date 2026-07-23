@@ -11,9 +11,16 @@ export interface ModelStatus {
   live: boolean;
   model?: string;
 }
+export interface ProviderHealth {
+  provider: string;
+  live: boolean;
+  ok: boolean;
+  error?: string;
+}
 export interface AppStatus {
   model: ModelStatus;
   git: { live: boolean };
+  health?: ProviderHealth;
 }
 
 const PROVIDER_LABEL: Record<ModelStatus["provider"], string> = {
@@ -24,20 +31,34 @@ const PROVIDER_LABEL: Record<ModelStatus["provider"], string> = {
 
 function StatusChip({ status }: { status: AppStatus | null }) {
   if (!status) return null;
-  const { model, git } = status;
-  const dot = model.live ? "hsl(var(--ok))" : "hsl(var(--muted-foreground))";
-  const title = [
-    model.live ? `Model: ${PROVIDER_LABEL[model.provider]}${model.model ? ` (${model.model})` : ""}` : "Model: offline — set ANTHROPIC_API_KEY or OPENAI_API_KEY",
-    `GitHub App: ${git.live ? "connected" : "local workspace"}`,
-  ].join("\n");
+  const { model, git, health } = status;
+
+  // Dot: green = API reachable; red = key present but not responding; grey = offline.
+  const apiOk = model.live && (health ? health.ok : undefined);
+  const dot = !model.live
+    ? "hsl(var(--muted-foreground))"
+    : apiOk === false
+      ? "hsl(var(--destructive))"
+      : "hsl(var(--ok))";
+  const mark = model.live ? (health ? (health.ok ? " ✓" : " ⚠") : "…") : "";
+
+  const apiLine = !model.live
+    ? "API: offline — set ANTHROPIC_API_KEY or OPENAI_API_KEY"
+    : health
+      ? health.ok
+        ? `API: ${PROVIDER_LABEL[model.provider]} reachable${model.model ? ` (${model.model})` : ""}`
+        : `API: ${PROVIDER_LABEL[model.provider]} not responding — ${health.error ?? "check the key"}`
+      : `API: ${PROVIDER_LABEL[model.provider]} — checking…`;
+  const title = [apiLine, `GitHub App: ${git.live ? "connected" : "local workspace"}`, "", "Open Settings"].join("\n");
+
   return (
     <Link
       href="/settings"
       className="hidden items-center gap-1.5 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:text-foreground sm:inline-flex"
-      title={`${title}\n\nOpen Settings`}
+      title={title}
     >
       <span className="size-2 rounded-full" style={{ background: dot }} aria-hidden />
-      <span>{model.live ? PROVIDER_LABEL[model.provider] : "Offline"}</span>
+      <span>{model.live ? `${PROVIDER_LABEL[model.provider]}${mark}` : "Offline"}</span>
       {git.live && <span className="text-[10px] uppercase tracking-wide text-ok">· git</span>}
     </Link>
   );
@@ -50,10 +71,12 @@ export function AppHeader() {
   const [langOpen, setLangOpen] = useState(false);
   const [status, setStatus] = useState<AppStatus | null>(null);
 
-  // Fetch integration status at runtime (reflects the live environment).
+  // Fetch integration status at runtime (reflects the live environment). `probe=1`
+  // makes one minimal call to verify the model key actually works, not just that
+  // it's present — so the chip shows real API status (✓ reachable / ⚠ failing).
   useEffect(() => {
     let alive = true;
-    fetch("/api/status")
+    fetch("/api/status?probe=1")
       .then((r) => r.json())
       .then((s) => { if (alive) setStatus(s as AppStatus); })
       .catch(() => {});

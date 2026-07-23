@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { describeConfig, type IntegrationItem, type Level } from "@/lib/config-status";
 import { Card } from "@/components/ui/card";
+import { ProviderProbe } from "./probe";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +77,7 @@ export default function SettingsPage() {
             {cfg.model.model && <span className="text-xs text-muted-foreground">{cfg.model.model}</span>}
           </div>
           <div className="mt-0.5 text-xs text-muted-foreground">{cfg.model.live ? "Live reasoning enabled." : "Deterministic offline engine — add a model key to go live."}</div>
+          <ProviderProbe />
         </Card>
         <Card className="p-4">
           <div className="text-xs uppercase tracking-wide text-muted-foreground">GitHub App</div>
