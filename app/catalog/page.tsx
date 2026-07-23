@@ -2,6 +2,7 @@ import Link from "next/link";
 import { listRegistry, type RegistryEntry } from "@/lib/registry-store";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { SyncButton } from "./sync-button";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +52,8 @@ export default async function Catalog() {
             registry repo — changes are live for the agent.
           </p>
         </div>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex items-start gap-2">
+          <SyncButton />
           <Link href="/catalog/new?type=skill" className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground">+ Skill</Link>
           <Link href="/catalog/new?type=playbook" className="rounded-md border px-3 py-2 text-sm font-medium">+ Playbook</Link>
         </div>
