@@ -1,5 +1,5 @@
 {
-  "name": "digital-unit-portal",
+  "name": "digitalization-portal",
   "version": "0.1.0",
   "private": true,
   "description": "Digital Unit Portal — control plane for enterprise change demand. Git is the system of record; every artifact is markdown.",
