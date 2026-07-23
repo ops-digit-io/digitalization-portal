@@ -3,6 +3,7 @@ import {
   parseSkillMarkdown,
   parseSkillReference,
   resolveCandidates,
+  findSkillPath,
   isAllowedSkillUrl,
   normalizeSkillUrl,
   ensureProvenance,
@@ -111,7 +112,54 @@ describe("fetchReferenceSkill", () => {
   });
 
   it("errors clearly when no SKILL.md is found", async () => {
-    const fake = (async () => new Response("", { status: 404 })) as unknown as typeof fetch;
+    // Fixed paths 404, tree lookup returns nothing.
+    const fake = (async (u: string) => {
+      if (u.includes("/git/trees/")) return new Response(JSON.stringify({ tree: [] }), { status: 200 });
+      return new Response("", { status: 404 });
+    }) as unknown as typeof fetch;
     await expect(fetchReferenceSkill("owner/repo@missing", {}, fake)).rejects.toThrow(/SKILL\.md/i);
+  });
+
+  it("resolves a deeply-nested skill by walking the repo tree", async () => {
+    // Mirrors a plugins repo: product-brainstorming lives under a plugin dir.
+    const nested = "plugins/product-development/skills/product-brainstorming/SKILL.md";
+    const b64 = Buffer.from(SKILL).toString("base64");
+    const fake = (async (u: string, init?: RequestInit) => {
+      // Fixed-layout contents probes all miss.
+      if (u.includes("/contents/")) return new Response("", { status: 404 });
+      if (u === "https://api.github.com/repos/anthropics/knowledge-work-plugins") {
+        return new Response(JSON.stringify({ default_branch: "main" }), { status: 200 });
+      }
+      if (u.includes("/git/trees/main")) {
+        return new Response(JSON.stringify({ tree: [
+          { path: "README.md", type: "blob" },
+          { path: nested, type: "blob" },
+        ] }), { status: 200 });
+      }
+      if (u === `https://raw.githubusercontent.com/anthropics/knowledge-work-plugins/main/${nested}`) {
+        return new Response(SKILL, { status: 200 });
+      }
+      return new Response("", { status: 404 });
+    }) as unknown as typeof fetch;
+
+    const got = await fetchReferenceSkill(
+      "npx skills add https://github.com/anthropics/knowledge-work-plugins --skill product-brainstorming",
+      {},
+      fake,
+    );
+    expect(got.name).toBe("pdf-extraction");
+    expect(got.sourceUrl).toContain(nested);
+  });
+});
+
+describe("findSkillPath", () => {
+  it("matches a skill folder at any depth", () => {
+    const paths = ["a/skills/foo/SKILL.md", "b/c/bar/SKILL.md", "SKILL.md"];
+    expect(findSkillPath(paths, "bar")).toBe("b/c/bar/SKILL.md");
+    expect(findSkillPath(paths, "foo")).toBe("a/skills/foo/SKILL.md");
+  });
+  it("returns the sole skill when none is named, else undefined", () => {
+    expect(findSkillPath(["only/SKILL.md"])).toBe("only/SKILL.md");
+    expect(findSkillPath(["a/SKILL.md", "b/SKILL.md"])).toBeUndefined();
   });
 });
