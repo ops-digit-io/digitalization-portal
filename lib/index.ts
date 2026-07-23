@@ -1,5 +1,5 @@
 /**
- * Public library surface for the Opsphere core.
+ * Public library surface for the Digitalization Portal core.
  *
  * The portal's route handlers and UI import from here. Everything below is pure,
  * server-safe logic — no route merges a pull request, no agent tool passes a gate.

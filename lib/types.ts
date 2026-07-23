@@ -1,5 +1,5 @@
 /**
- * Shared domain types for Opsphere (the digital operations platform).
+ * Shared domain types for the Digitalization Portal.
  *
  * These enums are the vocabulary the whole system agrees on. They mirror the
  * markdown conventions in `docs/03-data-model.md`; the parser (`lib/parse.ts`)

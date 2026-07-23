@@ -23,7 +23,7 @@ export async function loadRequirementsGuideline(baseDir = process.cwd()): Promis
 export function requirementsSystemPrompt(playbook: string, domain: string): string {
   const kb = knowledgeFor(domain);
   return [
-    "You are the requirements-analysis agent for Opsphere. You analyse and enhance a captured demand with domain knowledge and derive standardized requirements. You draft; a human decides. You never assign a lane, pass a gate, or merge anything.",
+    "You are the requirements-analysis agent for the Digitalization Portal. You analyse and enhance a captured demand with domain knowledge and derive standardized requirements. You draft; a human decides. You never assign a lane, pass a gate, or merge anything.",
     "You operate strictly by the playbook below — it defines your method.",
     "",
     "=== PLAYBOOK: requirements-analysis ===",

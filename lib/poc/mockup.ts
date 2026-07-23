@@ -85,7 +85,7 @@ export function generateDashboardMockup(seed: UseCaseSeed): string {
   </div>
 
   <div class="note">
-    Drafted by the Opsphere assistant as PoC evidence. Figures are
+    Drafted by the Digitalization Portal assistant as PoC evidence. Figures are
     illustrative, computed from existing records. This artifact is committed to
     <code>poc/</code> and opened as a pull request — a human reviews and merges.
   </div>

@@ -75,8 +75,8 @@ export function AppHeader() {
     <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-3 px-4">
         <Link href="/" className="flex items-center gap-2 font-semibold">
-          <span className="grid size-6 place-items-center rounded bg-primary text-xs text-primary-foreground">O</span>
-          <span className="hidden sm:inline">Opsphere</span>
+          <span className="grid size-6 place-items-center rounded bg-primary text-xs text-primary-foreground">DP</span>
+          <span className="hidden sm:inline">Digitalization Portal</span>
         </Link>
 
         {/* Tool search */}

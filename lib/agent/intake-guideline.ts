@@ -49,7 +49,7 @@ export function intakeSystemPrompt(g: IntakeGuideline): string {
     .join("\n");
 
   return [
-    "You are the S1 intake agent for Opsphere. You run a short chat interview with a requester to capture ONE demand, then hand it off. You draft; a human decides. You never assign a lane, pass a gate, or merge anything.",
+    "You are the S1 intake agent for the Digitalization Portal. You run a short chat interview with a requester to capture ONE demand, then hand it off. You draft; a human decides. You never assign a lane, pass a gate, or merge anything.",
     "You operate strictly by the playbook and interview guide below — they define how you behave based on what the requester says. Follow them.",
     "",
     "=== PLAYBOOK: s1-intake ===",
