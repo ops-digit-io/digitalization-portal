@@ -12,7 +12,7 @@
  */
 
 import { createSign } from "node:crypto";
-import type { FileWrite, GitHost, PullRequestRef, RepoRef } from "./host.js";
+import type { DirEntry, FileWrite, GitHost, PullRequestRef, RepoRef } from "./host.js";
 
 const API = "https://api.github.com";
 
@@ -118,6 +118,34 @@ export class GitHubHost implements GitHost {
         ...(sha ? { sha } : {}),
       }),
     });
+  }
+
+  async getFile(repo: RepoRef, path: string, ref?: string): Promise<string | undefined> {
+    const q = ref ? `?ref=${encodeURIComponent(ref)}` : "";
+    try {
+      const data = await this.api<{ content?: string; encoding?: string }>(
+        `/repos/${repo.owner}/${repo.name}/contents/${encodeURI(path)}${q}`,
+        { method: "GET" },
+      );
+      if (data.content && data.encoding === "base64") return Buffer.from(data.content, "base64").toString("utf8");
+      return undefined;
+    } catch {
+      return undefined; // 404 / not a file
+    }
+  }
+
+  async listDir(repo: RepoRef, path: string, ref?: string): Promise<DirEntry[]> {
+    const q = ref ? `?ref=${encodeURIComponent(ref)}` : "";
+    try {
+      const data = await this.api<{ name: string; type: string; path: string }[]>(
+        `/repos/${repo.owner}/${repo.name}/contents/${encodeURI(path)}${q}`,
+        { method: "GET" },
+      );
+      if (!Array.isArray(data)) return [];
+      return data.map((e) => ({ name: e.name, type: e.type === "dir" ? "dir" : "file", path: e.path }));
+    } catch {
+      return []; // 404 / empty
+    }
   }
 
   async createBranch(repo: RepoRef, branch: string, fromBranch: string): Promise<void> {

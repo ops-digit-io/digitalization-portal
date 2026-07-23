@@ -22,7 +22,7 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { parseUseCase } from "./parse.js";
-import { getGitHost, type RepoRef } from "./git/index.js";
+import { getGitHost, hasGitHubCredentials, type RepoRef } from "./git/index.js";
 import { LocalHost } from "./git/local-host.js";
 import type { Lane, Stage, Status } from "./types.js";
 
@@ -71,8 +71,28 @@ async function isDir(p: string): Promise<boolean> {
   return stat(p).then((s) => s.isDirectory()).catch(() => false);
 }
 
+function demandsRepoName(env = process.env): string {
+  return env.DEMANDS_REPO ?? "du-demands";
+}
+
+/** True when the funnel is read/written live over GitHub rather than the local tree. */
+function live(): boolean {
+  return hasGitHubCredentials();
+}
+
+/** The funnel repo ref (GitHub). */
+function funnelRepo(): RepoRef {
+  const org = process.env.GITHUB_ORG ?? "org";
+  const name = demandsRepoName();
+  return { owner: org, name, url: `https://github.com/${org}/${name}`, local: false };
+}
+
 /** All case ids present in the funnel (folders with a README.md). */
 export async function listDemandIds(baseDir = root()): Promise<string[]> {
+  if (live()) {
+    const ents = await getGitHost().listDir(funnelRepo(), DIR);
+    return ents.filter((e) => e.type === "dir").map((e) => e.name).sort();
+  }
   const dir = join(baseDir, DIR);
   const ents = await readdir(dir, { withFileTypes: true }).catch(() => []);
   const ids: string[] = [];
@@ -85,11 +105,19 @@ export async function listDemandIds(baseDir = root()): Promise<string[]> {
 
 /** Raw markdown of the case record (README.md), or undefined if absent. */
 export async function readDemand(id: string, baseDir = root()): Promise<string | undefined> {
+  if (live()) return getGitHost().getFile(funnelRepo(), readmePath(id));
   return readFile(join(baseDir, readmePath(id)), "utf8").catch(() => undefined);
 }
 
 /** Names (without .md) of the standardized artifacts a case has, besides README. */
 export async function listArtifacts(id: string, baseDir = root()): Promise<string[]> {
+  if (live()) {
+    const ents = await getGitHost().listDir(funnelRepo(), caseDir(id));
+    return ents
+      .filter((e) => e.type === "file" && e.name.endsWith(".md") && e.name.toUpperCase() !== README.toUpperCase())
+      .map((e) => e.name.replace(/\.md$/i, ""))
+      .sort();
+  }
   const dir = join(baseDir, caseDir(id));
   const files = (await readdir(dir).catch(() => [])).filter((f) => f.endsWith(".md") && f.toUpperCase() !== README.toUpperCase());
   return files.map((f) => f.replace(/\.md$/i, "")).sort();
@@ -97,6 +125,7 @@ export async function listArtifacts(id: string, baseDir = root()): Promise<strin
 
 /** Read one standardized artifact (e.g. "requirements"), or undefined. */
 export async function readArtifact(id: string, name: string, baseDir = root()): Promise<string | undefined> {
+  if (live()) return getGitHost().getFile(funnelRepo(), artifactPath(id, name));
   return readFile(join(baseDir, artifactPath(id, name)), "utf8").catch(() => undefined);
 }
 
@@ -137,10 +166,6 @@ export interface DemandSaveResult {
   path: string;
 }
 
-function demandsRepoName(env = process.env): string {
-  return env.DEMANDS_REPO ?? "du-demands";
-}
-
 /** Write a file at `path` (relative to the funnel repo) to GitHub main or the working tree. */
 async function writeToFunnel(path: string, content: string, message: string, baseDir?: string): Promise<DemandSaveResult> {
   const host = getGitHost();
@@ -150,8 +175,7 @@ async function writeToFunnel(path: string, content: string, message: string, bas
     await writeFile(abs, content);
     return { host: "local", target: "working tree", repo: demandsRepoName(), path };
   }
-  const org = process.env.GITHUB_ORG ?? "org";
-  const repo: RepoRef = { owner: org, name: demandsRepoName(), url: `https://github.com/${org}/${demandsRepoName()}`, local: false };
+  const repo = funnelRepo();
   await host.putFile(repo, { path, content }, message, "main");
   return { host: "github", target: "main", repo: repo.name, path };
 }

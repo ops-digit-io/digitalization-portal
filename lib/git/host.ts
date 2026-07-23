@@ -36,12 +36,23 @@ export interface PullRequestRef {
   local: boolean;
 }
 
+export interface DirEntry {
+  name: string;
+  type: "file" | "dir";
+  /** Path relative to the repo root. */
+  path: string;
+}
+
 export interface GitHost {
   readonly kind: "github" | "local";
   /** Create a repository under the configured org/workspace. */
   createRepo(name: string, opts?: { description?: string; private?: boolean }): Promise<RepoRef>;
   /** Write (create or update) a file on a branch. */
   putFile(repo: RepoRef, file: FileWrite, message: string, branch: string): Promise<void>;
+  /** Read a file's text (default branch, or `ref`). undefined if absent. */
+  getFile(repo: RepoRef, path: string, ref?: string): Promise<string | undefined>;
+  /** List a directory's entries (default branch, or `ref`). Empty if absent. */
+  listDir(repo: RepoRef, path: string, ref?: string): Promise<DirEntry[]>;
   /** Create a branch from base (no-op if it exists). */
   createBranch(repo: RepoRef, branch: string, fromBranch: string): Promise<void>;
   /** Open a pull request. Never merges it. */

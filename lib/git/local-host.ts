@@ -6,9 +6,9 @@
  * Still no merge — a LocalHost PR is a record, never applied automatically.
  */
 
-import { mkdir, writeFile, readFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { FileWrite, GitHost, PullRequestRef, RepoRef } from "./host.js";
+import type { DirEntry, FileWrite, GitHost, PullRequestRef, RepoRef } from "./host.js";
 
 export class LocalHost implements GitHost {
   readonly kind = "local" as const;
@@ -40,6 +40,15 @@ export class LocalHost implements GitHost {
     const full = join(base, file.path);
     await mkdir(join(full, ".."), { recursive: true });
     await writeFile(full, file.content);
+  }
+
+  async getFile(repo: RepoRef, path: string, _ref?: string): Promise<string | undefined> {
+    return readFile(join(repo.url, path), "utf8").catch(() => undefined);
+  }
+
+  async listDir(repo: RepoRef, path: string, _ref?: string): Promise<DirEntry[]> {
+    const ents = await readdir(join(repo.url, path), { withFileTypes: true }).catch(() => []);
+    return ents.map((e) => ({ name: e.name, type: e.isDirectory() ? "dir" : "file", path: path ? `${path}/${e.name}` : e.name }));
   }
 
   async createBranch(repo: RepoRef, branch: string, _fromBranch: string): Promise<void> {

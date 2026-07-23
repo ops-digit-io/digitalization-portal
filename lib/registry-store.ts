@@ -17,7 +17,7 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { loadPlaybook, loadSkill } from "./agent/skills.js";
-import { getGitHost, type RepoRef } from "./git/index.js";
+import { getGitHost, hasGitHubCredentials, type RepoRef } from "./git/index.js";
 import { LocalHost } from "./git/local-host.js";
 import { slugify } from "./poc/scaffold.js";
 
@@ -61,6 +61,30 @@ async function walk(dir: string, base = ""): Promise<string[]> {
   return out;
 }
 
+/** True when the registry is read/written live over GitHub rather than the local tree. */
+function live(): boolean {
+  return hasGitHubCredentials();
+}
+
+/** The registry repo ref (GitHub). */
+function registryRepo(): RepoRef {
+  const org = process.env.GITHUB_ORG ?? "org";
+  const name = registryRepoName();
+  return { owner: org, name, url: `https://github.com/${org}/${name}`, local: false };
+}
+
+/** Recursively list files under a repo directory (paths relative to `dir`). */
+async function walkLive(dir: string, base = ""): Promise<string[]> {
+  const host = getGitHost();
+  const out: string[] = [];
+  for (const e of await host.listDir(registryRepo(), dir)) {
+    const rel = base ? `${base}/${e.name}` : e.name;
+    if (e.type === "dir") out.push(...(await walkLive(`${dir}/${e.name}`, rel)));
+    else out.push(rel);
+  }
+  return out;
+}
+
 /** SKILL.md / entry file first, then the rest alphabetically. */
 function orderFiles(files: string[], entryFile: string): string[] {
   const rest = files.filter((f) => f !== entryFile).sort();
@@ -77,9 +101,26 @@ async function metaFrom(type: EntryType, name: string, entrySource: string, bund
 }
 
 async function listSkills(): Promise<RegistryEntry[]> {
+  const out: RegistryEntry[] = [];
+  if (live()) {
+    const host = getGitHost();
+    for (const e of await host.listDir(registryRepo(), DIR.skill)) {
+      if (e.name.toLowerCase() === "readme.md") continue;
+      if (e.type === "dir") {
+        const source = await host.getFile(registryRepo(), `${DIR.skill}/${e.name}/${ENTRY_FILE}`);
+        if (source === undefined) continue;
+        const files = orderFiles(await walkLive(`${DIR.skill}/${e.name}`), ENTRY_FILE);
+        out.push(await metaFrom("skill", e.name, source, true, files));
+      } else if (e.name.endsWith(".md")) {
+        const name = e.name.replace(/\.md$/, "");
+        const source = (await host.getFile(registryRepo(), `${DIR.skill}/${e.name}`)) ?? "";
+        out.push(await metaFrom("skill", name, source, false, [`${name}.md`]));
+      }
+    }
+    return out.sort((a, b) => a.name.localeCompare(b.name));
+  }
   const dir = join(root(), DIR.skill);
   const ents = await readdir(dir, { withFileTypes: true }).catch(() => []);
-  const out: RegistryEntry[] = [];
   for (const e of ents) {
     if (e.name.toLowerCase() === "readme.md") continue;
     if (e.isDirectory()) {
@@ -98,9 +139,21 @@ async function listSkills(): Promise<RegistryEntry[]> {
 }
 
 async function listPlaybooks(): Promise<RegistryEntry[]> {
+  const out: RegistryEntry[] = [];
+  if (live()) {
+    const host = getGitHost();
+    const files = (await host.listDir(registryRepo(), DIR.playbook))
+      .filter((e) => e.type === "file" && e.name.endsWith(".md") && e.name.toLowerCase() !== "readme.md")
+      .sort((a, b) => a.name.localeCompare(b.name));
+    for (const e of files) {
+      const name = e.name.replace(/\.md$/, "");
+      const source = (await host.getFile(registryRepo(), `${DIR.playbook}/${e.name}`)) ?? "";
+      out.push(await metaFrom("playbook", name, source, false, [e.name]));
+    }
+    return out;
+  }
   const dir = join(root(), DIR.playbook);
   const files = (await readdir(dir).catch(() => [])).filter((f) => f.endsWith(".md") && f.toLowerCase() !== "readme.md");
-  const out: RegistryEntry[] = [];
   for (const file of files.sort()) {
     const name = file.replace(/\.md$/, "");
     const source = await readFile(join(dir, file), "utf8").catch(() => "");
@@ -132,6 +185,15 @@ async function resolvePath(type: EntryType, name: string, relPath?: string): Pro
 
 /** Read one file within an entry. Returns undefined if absent. */
 export async function readEntryFile(type: EntryType, name: string, relPath?: string): Promise<string | undefined> {
+  if (live()) {
+    const host = getGitHost();
+    if (type === "skill") {
+      const bundle = await host.getFile(registryRepo(), `${DIR.skill}/${safe(name)}/${safe(relPath ?? ENTRY_FILE)}`);
+      if (bundle !== undefined) return bundle;
+      return host.getFile(registryRepo(), `${DIR.skill}/${safe(name)}.md`);
+    }
+    return host.getFile(registryRepo(), `${DIR.playbook}/${safe(name)}.md`);
+  }
   const { path } = await resolvePath(type, name, relPath);
   return readFile(path, "utf8").catch(() => undefined);
 }
