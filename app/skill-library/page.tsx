@@ -11,6 +11,8 @@ interface Preview {
   body: string;
   raw: string;
   sourceUrl: string;
+  files: string[];
+  skipped: string[];
 }
 
 /**
@@ -24,7 +26,7 @@ export default function SkillLibraryPage() {
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState<{ name: string } | null>(null);
+  const [saved, setSaved] = useState<{ name: string; files?: string[] } | null>(null);
 
   async function call(action: "preview" | "save") {
     setBusy(true);
@@ -39,7 +41,7 @@ export default function SkillLibraryPage() {
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Failed."); return; }
       if (action === "preview") setPreview(data as Preview);
-      else setSaved({ name: data.name });
+      else setSaved({ name: data.name, files: data.files });
     } catch {
       setError("Request failed.");
     } finally {
@@ -101,7 +103,8 @@ export default function SkillLibraryPage() {
         {error && <div className="mt-2 text-xs text-destructive">{error}</div>}
         {saved && (
           <div className="mt-2 text-xs text-ok">
-            ✓ Imported as <Link href={`/catalog/skill/${saved.name}`} className="underline">{saved.name}</Link> — open it in the registry to review or adjust.
+            ✓ Imported as <Link href={`/catalog/skill/${saved.name}`} className="underline">{saved.name}</Link>
+            {saved.files && saved.files.length > 0 && <> — {saved.files.length} file{saved.files.length > 1 ? "s" : ""}</>} — open it in the registry to review or adjust.
           </div>
         )}
       </Card>
@@ -118,7 +121,21 @@ export default function SkillLibraryPage() {
             </button>
           </div>
           <div className="mt-1 text-[11px] text-muted-foreground">Source: <span className="font-mono break-all">{preview.sourceUrl}</span></div>
-          <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border bg-secondary/20 p-3 text-xs leading-relaxed">{preview.body}</pre>
+
+          {/* The whole package — SKILL.md plus every reference file / script / template. */}
+          <div className="mt-3">
+            <div className="text-xs font-medium">Bundle · {preview.files.length} file{preview.files.length > 1 ? "s" : ""}</div>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {preview.files.map((f) => (
+                <span key={f} className={`rounded border px-1.5 py-0.5 text-[11px] ${/(^|\/)SKILL\.md$/i.test(f) ? "bg-secondary font-medium" : "text-muted-foreground"}`}>{f}</span>
+              ))}
+            </div>
+            {preview.skipped.length > 0 && (
+              <p className="mt-1 text-[11px] text-warn">{preview.skipped.length} non-text file{preview.skipped.length > 1 ? "s" : ""} skipped (binary or over the size cap): {preview.skipped.join(", ")}</p>
+            )}
+          </div>
+
+          <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg border bg-secondary/20 p-3 text-xs leading-relaxed">{preview.body}</pre>
         </Card>
       )}
     </main>

@@ -130,12 +130,6 @@ export function resolveCandidates(ref: SkillReference): string[] {
   return paths.map((p) => `https://api.github.com/repos/${ref.owner}/${ref.repo}/contents/${p}`);
 }
 
-/** A human-facing provenance URL for a reference. */
-function provenanceUrl(ref: SkillReference): string {
-  if (ref.kind === "url") return ref.url;
-  return `https://github.com/${ref.owner}/${ref.repo}${ref.skill ? `#${ref.skill}` : ""}`;
-}
-
 export interface ParsedSkill {
   name?: string;
   description?: string;
@@ -180,12 +174,24 @@ export function ensureProvenance(raw: string, sourceUrl: string): string {
   return `---\nname: ${parsed.name ?? "imported-skill"}\nsource: ${sourceUrl}\n---\n\n${raw.trim()}\n`;
 }
 
+export interface SkillFile {
+  /** Entry-relative path within the skill bundle, e.g. "SKILL.md", "references/x.md". */
+  path: string;
+  content: string;
+}
+
 export interface FetchedSkill {
   sourceUrl: string;
   name: string;
   description?: string;
+  /** SKILL.md body, for preview. */
   body: string;
+  /** SKILL.md raw, for provenance stamping. */
   raw: string;
+  /** Every file in the skill bundle (incl. SKILL.md) — the whole package. */
+  files: SkillFile[];
+  /** Paths skipped (binary or over the size/count cap). */
+  skipped: string[];
 }
 
 const GH_HEADERS = { accept: "application/vnd.github+json", "user-agent": "digitalization-portal" } as const;
@@ -200,17 +206,37 @@ async function defaultBranch(owner: string, repo: string, env: Record<string, st
   return typeof data.default_branch === "string" && data.default_branch ? data.default_branch : "main";
 }
 
-/** All SKILL.md paths in a repo (recursive tree), at any depth. */
-async function skillPaths(owner: string, repo: string, branch: string, env: Record<string, string | undefined>, doFetch: typeof fetch): Promise<string[]> {
+/** Every blob path in a repo (recursive tree). */
+async function treeBlobs(owner: string, repo: string, branch: string, env: Record<string, string | undefined>, doFetch: typeof fetch): Promise<string[]> {
   const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`;
   if (!isAllowedSkillUrl(url, env)) return [];
   const res = await doFetch(url, { headers: GH_HEADERS });
   if (!res.ok) return [];
   const data = (await res.json().catch(() => ({}))) as { tree?: { path?: string; type?: string }[] };
   const tree = Array.isArray(data.tree) ? data.tree : [];
-  return tree
-    .filter((e) => e.type === "blob" && typeof e.path === "string" && /(^|\/)SKILL\.md$/i.test(e.path))
-    .map((e) => e.path as string);
+  return tree.filter((e) => e.type === "blob" && typeof e.path === "string").map((e) => e.path as string);
+}
+
+const MAX_FILES = 40;
+const MAX_TOTAL_BYTES = 1_000_000;
+
+/** Text file extensions we import (skill bundles are markdown + scripts + refs). */
+const TEXT_EXT = new Set([
+  "md", "markdown", "txt", "text", "rst", "py", "js", "mjs", "cjs", "ts", "tsx", "jsx", "sh", "bash", "zsh",
+  "json", "jsonc", "yaml", "yml", "toml", "ini", "cfg", "conf", "env", "sample", "csv", "tsv", "xml", "svg",
+  "html", "htm", "css", "scss", "sql", "rb", "go", "rs", "java", "kt", "php", "pl", "lua", "r", "c", "h",
+  "cpp", "hpp", "gitignore", "dockerignore", "editorconfig",
+]);
+
+function isTextPath(p: string): boolean {
+  const base = p.split("/").pop() ?? p;
+  if (!base.includes(".")) return true; // extensionless (LICENSE, Makefile) → text
+  return TEXT_EXT.has(base.split(".").pop()!.toLowerCase());
+}
+
+function dirOf(p: string): string {
+  const i = p.lastIndexOf("/");
+  return i === -1 ? "" : p.slice(0, i);
 }
 
 /** Pick the SKILL.md path for a skill from a repo's tree — matches at any depth. */
@@ -267,47 +293,71 @@ export async function fetchReferenceSkill(
   if (!ref) {
     throw new Error("Paste a `npx skills add owner/repo@skill` command, an owner/repo reference, or a raw SKILL.md URL.");
   }
-  const candidates = resolveCandidates(ref);
-  if (candidates.length === 0 || !candidates.some((c) => isAllowedSkillUrl(c, env))) {
-    throw new Error(`That source isn't allowed. Import from: ${allowedHosts(env).join(", ")} (extend via SKILL_IMPORT_HOSTS).`);
-  }
 
-  const asSkill = (text: string): FetchedSkill | undefined => {
-    const parsed = parseSkillMarkdown(text);
-    if (!parsed.name) return undefined;
+  // A raw/blob URL points at a single SKILL.md — no folder to walk.
+  if (ref.kind === "url") {
+    if (!isAllowedSkillUrl(ref.url, env)) {
+      throw new Error(`That source isn't allowed. Import from: ${allowedHosts(env).join(", ")} (extend via SKILL_IMPORT_HOSTS).`);
+    }
+    const text = await fetchOne(ref.url, env, doFetch);
+    const parsed = text ? parseSkillMarkdown(text) : undefined;
+    if (!text || !parsed?.name) throw new Error("That URL isn't a SKILL.md (no `name:` in its frontmatter).");
     return {
-      sourceUrl: provenanceUrl(ref),
+      sourceUrl: ref.url,
       name: parsed.name,
       ...(parsed.description ? { description: parsed.description } : {}),
       body: parsed.body,
       raw: text,
+      files: [{ path: "SKILL.md", content: text }],
+      skipped: [],
     };
+  }
+
+  // A repo reference: locate the skill's SKILL.md, then take its WHOLE folder so
+  // every reference file, script, and template comes along — the complete package.
+  const branch = await defaultBranch(ref.owner, ref.repo, env, doFetch);
+  const blobs = await treeBlobs(ref.owner, ref.repo, branch, env, doFetch);
+  if (blobs.length === 0) {
+    throw new Error("Couldn't read that repository (private, empty, or rate-limited). Paste the raw SKILL.md URL instead.");
+  }
+  const skillMd = blobs.filter((p) => /(^|\/)SKILL\.md$/i.test(p));
+  const skillPath = findSkillPath(skillMd, ref.skill);
+  if (!skillPath) {
+    if (!ref.skill && skillMd.length > 1) throw new Error(`That repo has ${skillMd.length} skills — specify one: owner/repo@skill.`);
+    throw new Error("Couldn't find that skill's SKILL.md. Check the name, or paste the raw SKILL.md URL directly.");
+  }
+
+  const dir = dirOf(skillPath);
+  const members = blobs
+    .filter((p) => (dir === "" ? !p.includes("/") : p === skillPath || p.startsWith(`${dir}/`)))
+    .sort();
+
+  const files: SkillFile[] = [];
+  const skipped: string[] = [];
+  let total = 0;
+  for (const p of members) {
+    const rel = dir === "" ? p : p.slice(dir.length + 1);
+    if (!isTextPath(p)) { skipped.push(rel); continue; }
+    if (files.length >= MAX_FILES) { skipped.push(rel); continue; }
+    const rawUrl = `https://raw.githubusercontent.com/${ref.owner}/${ref.repo}/${branch}/${p.split("/").map(encodeURIComponent).join("/")}`;
+    const content = await fetchOne(rawUrl, env, doFetch);
+    if (content === undefined) { skipped.push(rel); continue; }
+    total += content.length;
+    if (total > MAX_TOTAL_BYTES) { skipped.push(rel); continue; }
+    files.push({ path: rel, content });
+  }
+
+  const skillFile = files.find((f) => /(^|\/)SKILL\.md$/i.test(f.path));
+  const parsed = skillFile ? parseSkillMarkdown(skillFile.content) : undefined;
+  if (!skillFile || !parsed?.name) throw new Error("Fetched the folder but couldn't read a valid SKILL.md in it.");
+
+  return {
+    sourceUrl: `https://github.com/${ref.owner}/${ref.repo}/tree/${branch}/${dir}`,
+    name: parsed.name,
+    ...(parsed.description ? { description: parsed.description } : {}),
+    body: parsed.body,
+    raw: skillFile.content,
+    files,
+    skipped,
   };
-
-  // Fast path: the common fixed layouts.
-  for (const url of candidates) {
-    const text = await fetchOne(url, env, doFetch);
-    if (text === undefined) continue;
-    const found = asSkill(text);
-    if (found) return found;
-  }
-
-  // General path: walk the repo tree to find <skill>/SKILL.md at ANY depth
-  // (plugin repos and monorepos nest skills, e.g. <plugin>/skills/<skill>/SKILL.md).
-  if (ref.kind === "repo") {
-    const branch = await defaultBranch(ref.owner, ref.repo, env, doFetch);
-    const paths = await skillPaths(ref.owner, ref.repo, branch, env, doFetch);
-    const path = findSkillPath(paths, ref.skill);
-    if (path) {
-      const rawUrl = `https://raw.githubusercontent.com/${ref.owner}/${ref.repo}/${branch}/${path}`;
-      const text = await fetchOne(rawUrl, env, doFetch);
-      const found = text ? asSkill(text) : undefined;
-      if (found) return { ...found, sourceUrl: `https://github.com/${ref.owner}/${ref.repo}/blob/${branch}/${path}` };
-    }
-    if (!ref.skill && paths.length > 1) {
-      throw new Error(`That repo has ${paths.length} skills — specify one: owner/repo@skill.`);
-    }
-  }
-
-  throw new Error("Couldn't find that SKILL.md. Check the skill name, or paste the raw SKILL.md URL directly.");
 }

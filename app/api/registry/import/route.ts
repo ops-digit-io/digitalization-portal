@@ -44,21 +44,26 @@ export async function POST(req: Request) {
         body: fetched.body,
         raw: fetched.raw,
         sourceUrl: fetched.sourceUrl,
+        files: fetched.files.map((f) => f.path),
+        skipped: fetched.skipped,
       });
     }
 
     if (body.action === "save") {
       const name = slugify(body.name?.trim() || fetched.name);
       if (!name) return NextResponse.json({ error: "could not derive a skill name" }, { status: 400 });
-      const content = ensureProvenance(fetched.raw, fetched.sourceUrl);
+      // Save the WHOLE bundle; stamp provenance into the SKILL.md.
+      const files = fetched.files.map((f) =>
+        /(^|\/)SKILL\.md$/i.test(f.path) ? { path: f.path, content: ensureProvenance(f.content, fetched.sourceUrl) } : f,
+      );
       const result = await saveEntry({
         type: "skill",
         name,
         bundle: true,
-        files: [{ path: "SKILL.md", content }],
-        message: `Import reference skill ${name} from ${fetched.sourceUrl}`,
+        files,
+        message: `Import reference skill ${name} (${files.length} files) from ${fetched.sourceUrl}`,
       });
-      return NextResponse.json({ name, sourceUrl: fetched.sourceUrl, result });
+      return NextResponse.json({ name, sourceUrl: fetched.sourceUrl, files: files.map((f) => f.path), skipped: fetched.skipped, result });
     }
 
     return NextResponse.json({ error: "action must be 'preview' or 'save'" }, { status: 400 });
