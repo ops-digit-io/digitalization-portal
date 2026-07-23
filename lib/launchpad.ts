@@ -47,6 +47,7 @@ const I = {
   shield: "M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z M9 12l2 2 4-4",
   copy: "M9 9h11v11H9z M5 15H4V4h11v1",
   bell: "M18 9a6 6 0 1 0-12 0c0 6-3 7-3 7h18s-3-1-3-7 M13.7 21a2 2 0 0 1-3.4 0",
+  download: "M12 3v11 M8 11l4 4 4-4 M5 20h14",
 };
 
 // Tiles are pure entry points — no metrics rendered on them.
@@ -93,6 +94,7 @@ export const LAUNCHPAD: TileGroup[] = [
     tiles: [
       { id: "docs", title: "Specification", subtitle: "Governance & data model", href: "/board", icon: I.book, tone: "slate" },
       { id: "catalog", title: "Skills & Playbooks", subtitle: "Agent capabilities", href: "/catalog", icon: I.copy, tone: "info" },
+      { id: "skill-library", title: "Skill Library", subtitle: "Import reference skills (agentskills.io)", href: "/skill-library", icon: I.download, tone: "info" },
       { id: "traces", title: "Agent Traces", subtitle: "Replayable AI runs", href: "/assistant", icon: I.gauge, tone: "slate" },
       { id: "digest", title: "Review Digest", subtitle: "Due dates & staleness", href: "/board", icon: I.bell, tone: "slate", disabled: true },
       { id: "settings", title: "Administration", subtitle: "Roles, skills, playbooks", href: "/board", icon: I.cog, tone: "slate", disabled: true },

@@ -13,7 +13,13 @@ interface Preview {
   sourceUrl: string;
 }
 
-export default function ImportSkillPage() {
+/**
+ * Skill Library — a DEDICATED tool for importing reference skills from the open
+ * Agent Skills ecosystem. It is separate from the Skills & Playbooks registry on
+ * purpose: this tool ACQUIRES third-party skills (fetch, review, commit); the
+ * registry is where you then CHECK and ADJUST them under governance.
+ */
+export default function SkillLibraryPage() {
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -46,15 +52,14 @@ export default function ImportSkillPage() {
       <nav className="mb-2 text-sm text-muted-foreground">
         <Link href="/" className="hover:text-foreground">Home</Link>
         <span className="mx-1.5" aria-hidden>›</span>
-        <Link href="/catalog" className="hover:text-foreground">Skills &amp; Playbooks</Link>
-        <span className="mx-1.5" aria-hidden>›</span>
-        <span className="text-foreground">Import</span>
+        <span className="text-foreground">Skill Library</span>
       </nav>
-      <h1 className="text-lg font-semibold">Import a reference skill</h1>
+      <h1 className="text-lg font-semibold">Skill Library · import reference skills</h1>
       <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-        Skills are an open <code className="rounded border px-1">SKILL.md</code> standard, so a skill from the ecosystem
-        drops straight into your registry. Paste a raw <code className="rounded border px-1">SKILL.md</code> URL, review it,
-        and import — it lands in <span className="font-mono">du-agent-registry</span> as a normal, editable skill.
+        Bring in skills from the open <code className="rounded border px-1">SKILL.md</code> ecosystem. Paste a raw
+        skill URL, review it, and import — it lands in your{" "}
+        <Link href="/catalog" className="underline hover:text-foreground">Skills &amp; Playbooks registry</Link>, where you
+        check and adjust it under governance. This tool only acquires; the registry is where you curate.
       </p>
 
       {/* Where to browse */}
@@ -93,7 +98,7 @@ export default function ImportSkillPage() {
         {error && <div className="mt-2 text-xs text-destructive">{error}</div>}
         {saved && (
           <div className="mt-2 text-xs text-ok">
-            ✓ Imported as <Link href={`/catalog/skill/${saved.name}`} className="underline">{saved.name}</Link>. It's in the registry now.
+            ✓ Imported as <Link href={`/catalog/skill/${saved.name}`} className="underline">{saved.name}</Link> — open it in the registry to review or adjust.
           </div>
         )}
       </Card>
