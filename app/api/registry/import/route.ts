@@ -1,0 +1,68 @@
+import { NextResponse } from "next/server";
+import { can } from "@/lib/rbac";
+import { DEMO_SESSION } from "@/lib/seed";
+import { saveEntry } from "@/lib/registry-store";
+import { slugify } from "@/lib/poc/scaffold";
+import { fetchReferenceSkill, ensureProvenance } from "@/lib/skill-import";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/**
+ * Import a reference skill from the open Agent Skills ecosystem.
+ *   - action "preview": fetch + parse an allowlisted SKILL.md and return it for
+ *     REVIEW. Saves nothing, reaches no model.
+ *   - action "save": re-fetch (so the committed content is the source's, not a
+ *     client-edited copy), stamp provenance, and commit to the registry.
+ *
+ * External skill content is third-party — a human reviews it here before it ever
+ * governs an agent (constraint #5 / AI drafts, humans decide).
+ */
+export async function POST(req: Request) {
+  const session = DEMO_SESSION; // real deployment resolves this from the OIDC session
+  if (!can(session, "draft")) {
+    return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
+  }
+
+  let body: { action?: string; url?: string; name?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
+  }
+
+  const url = (body.url ?? "").trim();
+  if (!url) return NextResponse.json({ error: "a skill URL is required" }, { status: 400 });
+
+  try {
+    const fetched = await fetchReferenceSkill(url);
+
+    if (body.action === "preview" || !body.action) {
+      return NextResponse.json({
+        name: fetched.name,
+        description: fetched.description,
+        body: fetched.body,
+        raw: fetched.raw,
+        sourceUrl: fetched.sourceUrl,
+      });
+    }
+
+    if (body.action === "save") {
+      const name = slugify(body.name?.trim() || fetched.name);
+      if (!name) return NextResponse.json({ error: "could not derive a skill name" }, { status: 400 });
+      const content = ensureProvenance(fetched.raw, fetched.sourceUrl);
+      const result = await saveEntry({
+        type: "skill",
+        name,
+        bundle: true,
+        files: [{ path: "SKILL.md", content }],
+        message: `Import reference skill ${name} from ${fetched.sourceUrl}`,
+      });
+      return NextResponse.json({ name, sourceUrl: fetched.sourceUrl, result });
+    }
+
+    return NextResponse.json({ error: "action must be 'preview' or 'save'" }, { status: 400 });
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "import failed" }, { status: 400 });
+  }
+}

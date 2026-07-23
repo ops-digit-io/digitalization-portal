@@ -10,13 +10,14 @@ import type { RegistryRow } from "./registry.js";
 import type { Session } from "./rbac.js";
 
 /**
- * A demo session: portfolio forum (sees the whole portfolio, gate authority) plus
- * reviewer (draft capability, so the analyst can draft/simulate). Capabilities
- * union across roles — a realistic dual membership.
+ * A demo session: portfolio forum (whole portfolio + G2–G7 authority), triage
+ * (G1/G2 — the funnel's intake gates, so the demo operator can move a demand off
+ * S1), plus reviewer (draft) and champion. Capabilities union across roles — a
+ * realistic dual membership standing in until OIDC resolves real roles.
  */
 export const DEMO_SESSION: Session = {
   user: "demo.forum@example.com",
-  roles: ["portfolio_forum", "reviewer", "champion"],
+  roles: ["portfolio_forum", "triage", "reviewer", "champion"],
   scopes: ["DE-ALD"],
 };
 

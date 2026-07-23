@@ -2,12 +2,15 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac";
 import { DEMO_SESSION } from "@/lib/seed";
 import { getProvider } from "@/lib/agent/provider";
-import { loadIntakeGuideline, intakeSystemPrompt, SAVE_DEMAND_TOOL } from "@/lib/agent/intake-guideline";
+import { loadIntakeGuideline, intakeSystemPrompt, SAVE_DEMAND_TOOL, INTAKE_PLAYBOOK, INTAKE_SKILLS } from "@/lib/agent/intake-guideline";
 import { startIntake, submitAnswer, type ChatMessage, type IntakeState } from "@/lib/intake-agent";
 import { INTAKE_FIELDS, EMPTY_ANSWERS, type DemandAnswers } from "@/lib/demand";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/** What governs this agent — surfaced so the UI can show (and link) it. */
+const GOVERNED_BY = { playbook: INTAKE_PLAYBOOK, skills: [...INTAKE_SKILLS] };
 
 function coerce(a: unknown): DemandAnswers {
   const src = (a ?? {}) as Record<string, unknown>;
@@ -17,7 +20,12 @@ function coerce(a: unknown): DemandAnswers {
 }
 
 interface TurnBody { action?: "start" | "answer"; messages?: ChatMessage[]; userText?: string; state?: IntakeState }
-interface TurnResult { messages: ChatMessage[]; state: IntakeState; mode: "live" | "offline" }
+interface TurnResult {
+  messages: ChatMessage[];
+  state: IntakeState;
+  mode: "live" | "offline";
+  governedBy: { playbook: string; skills: string[] };
+}
 
 /**
  * One turn of the intake interview. The playbook `s1-intake` governs the agent:
@@ -39,8 +47,8 @@ export async function POST(req: Request) {
 
   // The deterministic agent — the offline path and the fallback.
   const runOffline = (): TurnResult => {
-    if (body.action === "start" || !body.state) return { ...startIntake(), mode: "offline" };
-    return { ...submitAnswer(body.state, String(body.userText ?? "")), mode: "offline" };
+    if (body.action === "start" || !body.state) return { ...startIntake(), mode: "offline", governedBy: GOVERNED_BY };
+    return { ...submitAnswer(body.state, String(body.userText ?? "")), mode: "offline", governedBy: GOVERNED_BY };
   };
 
   const provider = getProvider();
@@ -61,12 +69,12 @@ export async function POST(req: Request) {
       const answers = coerce(call.input);
       const state: IntakeState = { answers, step: INTAKE_FIELDS.length, done: true, nudged: [] };
       const text = res.text?.trim() || "Thanks — that's everything I need. I've written the demand page from what you told me; it's below.";
-      return NextResponse.json({ messages: [{ role: "assistant", text }], state, mode: "live" } satisfies TurnResult);
+      return NextResponse.json({ messages: [{ role: "assistant", text }], state, mode: "live", governedBy: GOVERNED_BY } satisfies TurnResult);
     }
 
     const prev: IntakeState = body.state ?? { answers: { ...EMPTY_ANSWERS }, step: 0, done: false, nudged: [] };
     const text = res.text?.trim() || "Could you tell me a bit more?";
-    return NextResponse.json({ messages: [{ role: "assistant", text }], state: { ...prev, done: false }, mode: "live" } satisfies TurnResult);
+    return NextResponse.json({ messages: [{ role: "assistant", text }], state: { ...prev, done: false }, mode: "live", governedBy: GOVERNED_BY } satisfies TurnResult);
   } catch {
     // Never break the interview — fall back to the deterministic agent.
     return NextResponse.json(runOffline());

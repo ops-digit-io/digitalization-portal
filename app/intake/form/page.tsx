@@ -5,11 +5,38 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { classifyDemand, missingRequired, INTAKE_FIELDS, FIELD_GROUPS, EMPTY_ANSWERS, type DemandField, type DemandAnswers } from "@/lib/demand";
 import { ToolHeader, SavedLinks, useIntakeSave } from "../shared";
+import { IntakeEnhancer } from "../enhancer";
 
 const LANE_LABEL: Record<string, string> = {
   run: "run", regulatory: "regulatory", continuous_improvement: "continuous improvement",
   transform: "transform", innovation: "innovation", data_ai: "data / AI", local: "local", unassigned: "unassigned",
 };
+
+const FIELD_CLASS = "mt-1 w-full rounded-md border bg-transparent px-2.5 py-1.5 text-sm outline-none focus:ring-1 focus:ring-ring";
+
+/**
+ * A single form field. Defined at MODULE scope (not inside the page component) so
+ * its element identity is stable across renders — otherwise React remounts the
+ * input on every keystroke and it loses focus after one character.
+ */
+function Field({ f, value, onChange }: { f: DemandField; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <label htmlFor={f.key} className="text-sm font-medium">{f.label}{f.required && <span className="text-warn"> *</span>}</label>
+      <p className="text-xs text-muted-foreground">{f.hint}</p>
+      {f.input === "textarea" ? (
+        <textarea id={f.key} rows={f.key === "problem" ? 3 : 2} value={value} onChange={(e) => onChange(e.target.value)} className={`${FIELD_CLASS} resize-none`} />
+      ) : f.input === "select" ? (
+        <select id={f.key} value={value} onChange={(e) => onChange(e.target.value)} className={FIELD_CLASS}>
+          <option value="">{f.required ? "Select…" : "— none —"}</option>
+          {f.options!.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+      ) : (
+        <input id={f.key} value={value} onChange={(e) => onChange(e.target.value)} className={FIELD_CLASS} />
+      )}
+    </div>
+  );
+}
 
 export default function FormTool() {
   const [answers, setAnswers] = useState<DemandAnswers>({ ...EMPTY_ANSWERS });
@@ -22,26 +49,6 @@ export default function FormTool() {
   const set = (k: keyof DemandAnswers, v: string) => setAnswers((a) => ({ ...a, [k]: v }));
   function restart() { setAnswers({ ...EMPTY_ANSWERS }); reset(); }
 
-  function Field({ f }: { f: DemandField }) {
-    const common = "mt-1 w-full rounded-md border bg-transparent px-2.5 py-1.5 text-sm outline-none focus:ring-1 focus:ring-ring";
-    return (
-      <div>
-        <label htmlFor={f.key} className="text-sm font-medium">{f.label}{f.required && <span className="text-warn"> *</span>}</label>
-        <p className="text-xs text-muted-foreground">{f.hint}</p>
-        {f.input === "textarea" ? (
-          <textarea id={f.key} rows={f.key === "problem" ? 3 : 2} value={answers[f.key]} onChange={(e) => set(f.key, e.target.value)} className={`${common} resize-none`} />
-        ) : f.input === "select" ? (
-          <select id={f.key} value={answers[f.key]} onChange={(e) => set(f.key, e.target.value)} className={common}>
-            <option value="">{f.required ? "Select…" : "— none —"}</option>
-            {f.options!.map((o) => <option key={o} value={o}>{o}</option>)}
-          </select>
-        ) : (
-          <input id={f.key} value={answers[f.key]} onChange={(e) => set(f.key, e.target.value)} className={common} />
-        )}
-      </div>
-    );
-  }
-
   return (
     <main className="mx-auto max-w-2xl px-4 py-3">
       <ToolHeader active="form" blurb="A plain form — fill the fields directly." />
@@ -51,10 +58,18 @@ export default function FormTool() {
           {FIELD_GROUPS.map((g) => (
             <fieldset key={g} className="space-y-3.5">
               <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{g}</legend>
-              {INTAKE_FIELDS.filter((f) => f.group === g).map((f) => <Field key={f.key} f={f} />)}
+              {INTAKE_FIELDS.filter((f) => f.group === g).map((f) => (
+                <Field key={f.key} f={f} value={answers[f.key]} onChange={(v) => set(f.key, v)} />
+              ))}
             </fieldset>
           ))}
         </div>
+
+        {!saved && (answers.problem.trim() !== "" || answers.title.trim() !== "") && (
+          <div className="mt-5">
+            <IntakeEnhancer answers={answers} onApply={(patch) => setAnswers((a) => ({ ...a, ...patch }))} />
+          </div>
+        )}
 
         <div className="mt-6 border-t pt-4">
           {error && <div className="mb-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-1.5 text-xs text-destructive">{error}</div>}
