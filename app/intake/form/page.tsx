@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { classifyDemand, missingRequired, INTAKE_FIELDS, FIELD_GROUPS, EMPTY_ANSWERS, type DemandField, type DemandAnswers } from "@/lib/demand";
 import { ToolHeader, SavedLinks, useIntakeSave } from "../shared";
+import { IntakeEnhancer } from "../enhancer";
 
 const LANE_LABEL: Record<string, string> = {
   run: "run", regulatory: "regulatory", continuous_improvement: "continuous improvement",
@@ -55,6 +56,12 @@ export default function FormTool() {
             </fieldset>
           ))}
         </div>
+
+        {!saved && (answers.problem.trim() !== "" || answers.title.trim() !== "") && (
+          <div className="mt-5">
+            <IntakeEnhancer answers={answers} onApply={(patch) => setAnswers((a) => ({ ...a, ...patch }))} />
+          </div>
+        )}
 
         <div className="mt-6 border-t pt-4">
           {error && <div className="mb-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-1.5 text-xs text-destructive">{error}</div>}
