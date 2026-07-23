@@ -4,8 +4,8 @@ import { Providers } from "@/components/providers";
 import { AppHeader } from "@/components/portal/app-header";
 
 export const metadata: Metadata = {
-  title: "Digital Unit Portal",
-  description: "The single front door and control plane for enterprise change demand.",
+  title: "Opsphere",
+  description: "Opsphere — the digital operations platform. The single front door and control plane for enterprise change demand.",
 };
 
 // Set the theme class before hydration to avoid a flash of the wrong theme.

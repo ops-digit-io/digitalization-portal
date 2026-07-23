@@ -28,8 +28,9 @@ export default function Launchpad() {
     <main className="mx-auto max-w-[1400px] px-4 py-6">
       <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-lg font-semibold">Digital Unit Portal</h1>
-          <p className="text-sm text-muted-foreground">{t("app.tagline")}</p>
+          <h1 className="text-lg font-semibold">Opsphere</h1>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">The digital operations platform</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t("app.tagline")}</p>
         </div>
         <div className="flex h-9 w-full items-center gap-2 rounded-md border px-3 text-sm md:w-72">
           <span className="text-muted-foreground" aria-hidden>⌕</span>

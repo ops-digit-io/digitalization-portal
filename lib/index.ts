@@ -1,5 +1,5 @@
 /**
- * Public library surface for the Digital Unit Portal core.
+ * Public library surface for the Opsphere core.
  *
  * The portal's route handlers and UI import from here. Everything below is pure,
  * server-safe logic — no route merges a pull request, no agent tool passes a gate.
