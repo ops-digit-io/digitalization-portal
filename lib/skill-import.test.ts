@@ -91,17 +91,34 @@ describe("normalizeSkillUrl / ensureProvenance", () => {
 });
 
 describe("fetchReferenceSkill", () => {
-  it("resolves an npx command via the GitHub contents API (base64)", async () => {
-    const b64 = Buffer.from(SKILL).toString("base64");
+  it("resolves an npx command and fetches the skill's whole folder", async () => {
+    const refDoc = "# Deep reference\n";
+    const script = "print('hi')\n";
     const fake = (async (u: string) => {
-      if (u === "https://api.github.com/repos/vercel/skills/contents/skills/pdf/SKILL.md") {
-        return new Response(JSON.stringify({ content: b64, encoding: "base64" }), { status: 200 });
+      if (u === "https://api.github.com/repos/vercel/skills") {
+        return new Response(JSON.stringify({ default_branch: "main" }), { status: 200 });
       }
+      if (u.includes("/git/trees/main")) {
+        return new Response(JSON.stringify({ tree: [
+          { path: "skills/pdf/SKILL.md", type: "blob" },
+          { path: "skills/pdf/references/deep.md", type: "blob" },
+          { path: "skills/pdf/scripts/run.py", type: "blob" },
+          { path: "skills/pdf/logo.png", type: "blob" }, // binary → skipped
+          { path: "README.md", type: "blob" }, // outside the skill dir
+        ] }), { status: 200 });
+      }
+      if (u.endsWith("/main/skills/pdf/SKILL.md")) return new Response(SKILL, { status: 200 });
+      if (u.endsWith("/main/skills/pdf/references/deep.md")) return new Response(refDoc, { status: 200 });
+      if (u.endsWith("/main/skills/pdf/scripts/run.py")) return new Response(script, { status: 200 });
       return new Response("", { status: 404 });
     }) as unknown as typeof fetch;
+
     const got = await fetchReferenceSkill("npx skills add vercel/skills@pdf -y", {}, fake);
     expect(got.name).toBe("pdf-extraction");
-    expect(got.sourceUrl).toBe("https://github.com/vercel/skills#pdf");
+    const paths = got.files.map((f) => f.path).sort();
+    expect(paths).toEqual(["SKILL.md", "references/deep.md", "scripts/run.py"]); // entry-relative, README excluded
+    expect(got.skipped).toContain("logo.png"); // binary skipped
+    expect(got.sourceUrl).toContain("tree/main/skills/pdf");
   });
 
   it("rejects a disallowed host without fetching", async () => {
@@ -148,7 +165,8 @@ describe("fetchReferenceSkill", () => {
       fake,
     );
     expect(got.name).toBe("pdf-extraction");
-    expect(got.sourceUrl).toContain(nested);
+    expect(got.sourceUrl).toContain("plugins/product-development/skills/product-brainstorming");
+    expect(got.files.map((f) => f.path)).toContain("SKILL.md");
   });
 });
 
