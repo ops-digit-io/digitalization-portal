@@ -18,6 +18,7 @@ interface EnhancementResult {
   assessment: { score: "weak" | "adequate" | "strong"; summary: string };
   provider: string;
   live: boolean;
+  playbook: string;
 }
 
 const SCORE_TONE: Record<string, string> = {
@@ -85,7 +86,12 @@ export function IntakeEnhancer({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold">✨ Sharpen with AI</h2>
-          <p className="text-xs text-muted-foreground">Clarifies vague input before triage. Drafts only — you choose what to apply. Not requirements engineering.</p>
+          <p className="text-xs text-muted-foreground">
+            Clarifies vague input before triage. Drafts only — you choose what to apply. Not requirements engineering.
+            {result && (
+              <> Governed by the <a href={`/catalog/playbook/${result.playbook}`} className="underline hover:text-foreground">{result.playbook}</a> playbook.</>
+            )}
+          </p>
         </div>
         <button
           type="button"

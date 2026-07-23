@@ -14,13 +14,25 @@
  *     text and raises an open question instead of fabricating one (constraint #8).
  *   - It DRAFTS; the human decides. Nothing here is applied without review.
  *
+ * The behaviour is NOT hard-coded here — it is governed by the git-managed
+ * playbook `s1-intake-enhance`, read at runtime from the registry (`du-agent-registry`
+ * live, or the local `playbooks/` tree). Edit the playbook — in `du-agent-registry`
+ * or the in-app catalog — to change how the enhancer behaves, no deploy. Code owns
+ * only the structural output contract (the JSON shape the parser depends on).
+ *
  * Live via the configured provider (Anthropic/OpenAI); with no key a deterministic
  * offline pass still tidies the text, flags gaps, and asks the right questions, so
  * the whole flow runs and demos without a model.
  */
 
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { INTAKE_FIELDS, type DemandAnswers } from "../demand.js";
+import { readEntryFile } from "../registry-store.js";
 import { getProvider, type ModelProvider } from "./provider.js";
+
+/** The git-managed playbook that governs this agent's behaviour. */
+export const ENHANCE_PLAYBOOK = "s1-intake-enhance";
 
 /** The prose fields the enhancer may sharpen (structured fields are left alone). */
 export const ENHANCE_KEYS = [
@@ -58,6 +70,8 @@ export interface EnhancementResult {
   /** The provider that produced the enhancement ("anthropic" | "openai" | "offline"). */
   provider: string;
   live: boolean;
+  /** The git-managed playbook that governed this run. */
+  playbook: string;
 }
 
 function label(key: EnhanceKey): string {
@@ -148,25 +162,24 @@ export function enhanceOffline(answers: DemandAnswers): EnhancementResult {
     assessment: assess(answers),
     provider: "offline",
     live: false,
+    playbook: ENHANCE_PLAYBOOK,
   };
 }
 
-const SYSTEM = `You sharpen a raw intake demand for an industrial digitalization portfolio.
-A demand is often vague: a terse line, no numbers, an implied outcome. Your job is
-to make each field CLEARER and better structured — the same information, expressed
-so a triage reviewer can act on it. This is NOT requirements engineering: do not
-invent epics, user stories, acceptance criteria, or a solution design.
+/**
+ * Minimal fallback guidance, used ONLY when the playbook can't be read (e.g. it
+ * was deleted). The real behaviour lives in the `s1-intake-enhance` playbook.
+ */
+const FALLBACK_GUIDANCE = `Sharpen a vague intake demand: make each field clearer and better
+structured without changing its meaning. Never invent facts or numbers — if a figure is
+missing, keep the text and raise an open question. This is not requirements engineering.`;
 
-Hard rules:
-- NEVER invent facts, numbers, systems, or names. If a figure is missing, keep the
-  text as-is and add an open question — do not fabricate a value.
-- Preserve the requester's meaning and any concrete detail they gave. You may
-  rephrase for clarity, fix grammar, and structure a run-on into clean sentences.
-- Keep each field to its purpose (a title stays a short title; the problem stays
-  the symptom, not a solution).
-- If a field is already clear, return it unchanged.
-
-Return ONLY a JSON object, no prose around it, of exactly this shape:
+/**
+ * The code-owned output contract. This is structural, not behavioural — the parser
+ * depends on this exact JSON shape — so it stays in code while the guidance lives in
+ * the editable playbook.
+ */
+const OUTPUT_CONTRACT = `Return ONLY a JSON object, no prose around it, of exactly this shape:
 {
   "fields": {
     "title": string, "problem": string, "currentPain": string,
@@ -176,8 +189,31 @@ Return ONLY a JSON object, no prose around it, of exactly this shape:
   "openQuestions": string[],
   "assessment": { "score": "weak"|"adequate"|"strong", "summary": string }
 }
-Include a field key only if the requester provided that field. openQuestions are the
-clarifications that would most strengthen the demand (max 4).`;
+Include a field key ONLY if the requester provided that field. openQuestions: max 4.`;
+
+/**
+ * Load the git-managed behaviour playbook. Prefers the registry copy — live from
+ * `du-agent-registry`, hot-editable via the in-app catalog (no deploy) — and falls
+ * back to the copy bundled in the portal repo when the registry doesn't have it
+ * yet, so a fresh deployment still runs on the full playbook rather than the stub.
+ */
+async function loadEnhanceGuidance(): Promise<string> {
+  const fromRegistry = await readEntryFile("playbook", ENHANCE_PLAYBOOK).catch(() => undefined);
+  if (fromRegistry && fromRegistry.trim()) return fromRegistry.trim();
+  const bundled = await readFile(join(process.cwd(), "playbooks", `${ENHANCE_PLAYBOOK}.md`), "utf8").catch(() => undefined);
+  return (bundled ?? "").trim() || FALLBACK_GUIDANCE;
+}
+
+/** Compose the system prompt: playbook behaviour + the code-owned output contract. */
+function enhanceSystemPrompt(guidance: string): string {
+  return [
+    `=== PLAYBOOK: ${ENHANCE_PLAYBOOK} ===`,
+    guidance.trim(),
+    "",
+    "=== OUTPUT CONTRACT ===",
+    OUTPUT_CONTRACT,
+  ].join("\n");
+}
 
 function buildUserMessage(answers: DemandAnswers): string {
   const lines: string[] = ["Here is the raw demand captured at intake. Sharpen it per your rules.\n"];
@@ -236,6 +272,7 @@ function fromModelJson(answers: DemandAnswers, parsed: unknown, providerName: st
     assessment: { score, summary },
     provider: providerName,
     live: true,
+    playbook: ENHANCE_PLAYBOOK,
   };
 }
 
@@ -250,8 +287,9 @@ export async function enhanceDemand(
 ): Promise<EnhancementResult> {
   if (!provider.live) return enhanceOffline(answers);
   try {
+    const guidance = await loadEnhanceGuidance();
     const res = await provider.complete({
-      system: SYSTEM,
+      system: enhanceSystemPrompt(guidance),
       messages: [{ role: "user", content: buildUserMessage(answers) }],
       maxTokens: 1500,
     });

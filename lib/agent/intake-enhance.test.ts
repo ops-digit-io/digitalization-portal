@@ -28,6 +28,7 @@ describe("enhanceOffline", () => {
     const res = enhanceOffline(vague);
     expect(res.live).toBe(false);
     expect(res.provider).toBe("offline");
+    expect(res.playbook).toBe("s1-intake-enhance");
     expect(res.assessment.score).toBe("weak");
     expect(res.openQuestions.length).toBeGreaterThan(0);
     // currentPain has no number → gap flagged.
