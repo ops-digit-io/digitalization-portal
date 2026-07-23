@@ -17,10 +17,47 @@ export interface ProviderHealth {
   ok: boolean;
   error?: string;
 }
+export interface UserStatus {
+  name: string;
+  email: string;
+  authenticated: boolean;
+  demo: boolean;
+  roles: string[];
+}
 export interface AppStatus {
   model: ModelStatus;
   git: { live: boolean };
   health?: ProviderHealth;
+  user?: UserStatus;
+}
+
+function initials(s: string): string {
+  const base = s.split("@")[0] ?? s;
+  const parts = base.split(/[.\-_ ]+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
+}
+
+function UserMenu({ user }: { user?: UserStatus }) {
+  if (!user) return null;
+  // OIDC enabled but not signed in → offer sign-in.
+  if (!user.authenticated && !user.demo) {
+    return (
+      <Link href="/login" className="rounded-md border px-3 py-1.5 text-xs font-medium hover:border-foreground/40">Sign in</Link>
+    );
+  }
+  const label = user.demo ? "Demo user" : user.name;
+  return (
+    <div className="ml-1 flex items-center gap-2 text-xs text-muted-foreground">
+      <span className="hidden md:inline" title={user.email}>{label}</span>
+      {user.demo && <span className="hidden rounded bg-secondary px-1.5 py-0.5 text-[10px] uppercase tracking-wide lg:inline">demo</span>}
+      <span className="grid size-7 place-items-center rounded-full bg-secondary text-[11px] font-medium text-secondary-foreground" title={user.email}>
+        {user.demo ? "DU" : initials(user.name || user.email)}
+      </span>
+      {user.authenticated && (
+        <a href="/api/auth/logout" className="rounded-md border px-2 py-1 text-[11px] hover:border-foreground/40" title="Sign out">Sign out</a>
+      )}
+    </div>
+  );
 }
 
 const PROVIDER_LABEL: Record<ModelStatus["provider"], string> = {
@@ -167,11 +204,8 @@ export function AppHeader() {
             )}
           </button>
 
-          {/* User */}
-          <div className="ml-1 flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="hidden md:inline">demo.forum@example.com</span>
-            <span className="grid size-7 place-items-center rounded-full bg-secondary text-[11px] font-medium text-secondary-foreground">DF</span>
-          </div>
+          {/* User / sign-in */}
+          <UserMenu user={status?.user} />
         </div>
       </div>
 

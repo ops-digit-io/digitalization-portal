@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac";
 import { saveEntry, type EntryType, type RegistryFile } from "@/lib/registry-store";
-import { DEMO_SESSION } from "@/lib/seed";
+import { getSession } from "@/lib/auth/current";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** Save registry files directly to main (GitHub) / the working tree (local). */
 export async function POST(req: Request) {
-  const session = DEMO_SESSION; // real deployment resolves this from the OIDC session
+  const session = await getSession(); // real deployment resolves this from the OIDC session
   if (!can(session, "draft")) {
     return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
   }

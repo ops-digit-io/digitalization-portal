@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac";
-import { DEMO_SESSION } from "@/lib/seed";
+import { getSession } from "@/lib/auth/current";
 import { saveEntry } from "@/lib/registry-store";
 import { slugify } from "@/lib/poc/scaffold";
 import { fetchReferenceSkill, ensureProvenance } from "@/lib/skill-import";
@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
  * governs an agent (constraint #5 / AI drafts, humans decide).
  */
 export async function POST(req: Request) {
-  const session = DEMO_SESSION; // real deployment resolves this from the OIDC session
+  const session = await getSession(); // real deployment resolves this from the OIDC session
   if (!can(session, "draft")) {
     return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
   }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac";
-import { DEMO_SESSION } from "@/lib/seed";
+import { getSession } from "@/lib/auth/current";
 import { syncBundledToRegistry } from "@/lib/registry-sync";
 
 export const runtime = "nodejs";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  * Writes the registry repo's main directly (never a gated repo, never a merge).
  */
 export async function POST(req: Request) {
-  const session = DEMO_SESSION; // real deployment resolves this from the OIDC session
+  const session = await getSession(); // real deployment resolves this from the OIDC session
   if (!can(session, "draft")) {
     return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
   }
