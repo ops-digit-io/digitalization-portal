@@ -2,14 +2,19 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { parseUseCase, parsePeople } from "@/lib/parse";
 import { canOpenGate } from "@/lib/gates";
-import { exitGate } from "@/lib/stages";
+import { exitGate, nextStage } from "@/lib/stages";
+import { hasGitHubCredentials } from "@/lib/git";
+import { readDemand } from "@/lib/demands-store";
 import { StageBadge } from "@/components/portal/stage-badge";
 import { GateTimeline, type GateNode } from "@/components/portal/gate-timeline";
 import { MarkdownDoc } from "@/components/portal/markdown-doc";
 import { GateAction } from "@/components/portal/gate-action";
+import { AdvanceStage } from "@/components/portal/advance-stage";
 import { HeatDot, LaneBadge, LevelBadge } from "@/components/portal/badges";
-import { SEED_README, SEED_ROWS, SEED_BUSINESS_CASE, buildStubReadme, DEMO_SESSION } from "@/lib/seed";
+import { SEED_README, SEED_ROWS, SEED_BUSINESS_CASE, buildStubReadme, DEMO_SESSION, DEMO_NOW } from "@/lib/seed";
 import type { Gate, Stage } from "@/lib/types";
+
+export const dynamic = "force-dynamic";
 
 const GATE_LABELS: Record<string, string> = {
   G1: "Intake accepted", G2: "Prioritized", G3: "Business case", G4: "POC proven/stop",
@@ -32,13 +37,32 @@ function proseSections(markdown: string): { title: string; body: string }[] {
   return out;
 }
 
-export default function UseCasePage({ params }: { params: { id: string } }) {
-  const row = SEED_ROWS.find((r) => r.id === params.id);
-  if (!row) notFound();
+/** Load a case's README: live from du-demands when configured, else the demo seed. */
+async function loadCase(id: string): Promise<{ markdown: string; live: boolean } | null> {
+  if (hasGitHubCredentials()) {
+    const md = await readDemand(id);
+    if (md !== undefined) return { markdown: md, live: true };
+  }
+  if (SEED_README[id]) return { markdown: SEED_README[id]!, live: false };
+  const row = SEED_ROWS.find((r) => r.id === id);
+  if (row) return { markdown: buildStubReadme(row), live: false };
+  return null;
+}
 
-  const markdown = SEED_README[params.id] ?? buildStubReadme(row);
+export default async function UseCasePage({ params }: { params: { id: string } }) {
+  const loaded = await loadCase(params.id);
+  if (!loaded) notFound();
+  const { markdown, live } = loaded;
+
   const uc = parseUseCase(markdown);
   const people = parsePeople(markdown);
+
+  const stage = uc.state.stage as Stage | undefined;
+  const plant = uc.state.plant;
+  const domain = uc.state.domain;
+  const since = uc.state.raw["since"] ?? uc.state.created;
+  const now = live ? new Date().toISOString() : DEMO_NOW;
+  const days = since ? Math.floor((Date.parse(now) - Date.parse(since)) / 86400000) : undefined;
 
   const gateNodes: GateNode[] = ALL_GATES.map((id) => {
     const g = uc.gates.find((x) => x.id === id);
@@ -50,34 +74,54 @@ export default function UseCasePage({ params }: { params: { id: string } }) {
   });
 
   const openGate = ALL_GATES.find((id) => uc.gates.find((x) => x.id === id)?.status === "open");
-  const targetGate = openGate ?? (uc.state.stage ? exitGate(uc.state.stage as Stage) : undefined);
+  const targetGate = openGate ?? (stage ? exitGate(stage) : undefined);
   const decision = targetGate
     ? canOpenGate(targetGate, { readme: uc, people, actor: DEMO_SESSION.user })
     : { permitted: false as const, reason: "No open gate." };
+  const toStage = stage ? nextStage(stage) : undefined;
+
+  const org = process.env.GITHUB_ORG ?? "org";
+  const demandsRepo = process.env.DEMANDS_REPO ?? "du-demands";
+  const editHref = live
+    ? `https://github.com/${org}/${demandsRepo}/edit/main/demands/${params.id}/README.md`
+    : `https://github.com/org/${params.id.toLowerCase()}/edit/main/README.md`;
 
   const sections = proseSections(markdown);
-  const days = row.since
-    ? Math.floor((Date.parse("2026-05-19T09:00:00Z") - Date.parse(row.since)) / 86400000)
-    : undefined;
+  const title = uc.title?.split(" · ").slice(1).join(" · ") || uc.title || params.id;
 
   return (
     <main className="mx-auto max-w-[1100px] px-4 py-6">
       <nav className="mb-3 text-sm text-muted-foreground">
         <Link href="/board" className="hover:text-foreground">Portfolio</Link>
         <span className="mx-1.5" aria-hidden>›</span>
-        <span className="text-foreground">{uc.title?.split(" · ")[0] ?? row.id}</span>
+        <span className="text-foreground">{params.id}</span>
       </nav>
 
-      <h1 className="text-xl font-semibold">{uc.title?.split(" · ").slice(1).join(" · ") ?? row.title}</h1>
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-xl font-semibold">{title}</h1>
+        <span
+          className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${live ? "bg-ok/10 text-ok" : "bg-secondary text-muted-foreground"}`}
+          title={live ? `Read live from ${demandsRepo}` : "Demo seed data"}
+        >
+          {live ? `● live · ${demandsRepo}` : "○ demo data"}
+        </span>
+      </div>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-        {uc.state.stage && <StageBadge stage={uc.state.stage as Stage} />}
+        {stage && <StageBadge stage={stage} />}
         {uc.state.lane && <LaneBadge lane={uc.state.lane} />}
-        {row.plant && <span>{row.plant}</span>}
-        {row.domain && <><span aria-hidden>·</span><span>{row.domain}</span></>}
+        {plant && <span>{plant}</span>}
+        {domain && <><span aria-hidden>·</span><span>{domain}</span></>}
         {uc.state.level && <LevelBadge level={uc.state.level} />}
         {uc.state.heat && <HeatDot heat={uc.state.heat} />}
-        {days !== undefined && <><span aria-hidden>·</span><span>{days} days</span></>}
+        {days !== undefined && <><span aria-hidden>·</span><span>{days} days in stage</span></>}
       </div>
+
+      {uc.needsAttention && (
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm">
+          <span className="text-destructive" aria-hidden>⚠</span>
+          <span>This case's state couldn't be fully read. Fix the <span className="font-mono">## State</span> section in GitHub.</span>
+        </div>
+      )}
 
       <div className="mt-6 grid grid-cols-1 gap-8 md:grid-cols-[1fr_300px]">
         <div className="min-w-0">
@@ -85,19 +129,37 @@ export default function UseCasePage({ params }: { params: { id: string } }) {
             <GateTimeline gates={gateNodes} />
           </div>
           <div>
+            {sections.length === 0 && (
+              <p className="text-sm text-muted-foreground">No prose sections in this case yet.</p>
+            )}
             {sections.map((s, i) => (
               <MarkdownDoc
                 key={s.title}
                 title={s.title}
                 body={s.body}
                 defaultOpen={i < 2}
-                editHref={`https://github.com/org/${row.id.toLowerCase()}/edit/main/README.md`}
+                editHref={editHref}
               />
             ))}
           </div>
         </div>
 
         <aside className="space-y-6">
+          {/* Stage movement — interactive for live funnel demands, informational for the demo. */}
+          {live ? (
+            <AdvanceStage
+              id={params.id}
+              from={stage ?? "—"}
+              to={toStage}
+              gate={targetGate}
+              gateLabel={targetGate ? GATE_LABELS[targetGate] : undefined}
+              permitted={decision.permitted}
+              reason={decision.permitted ? undefined : decision.reason}
+            />
+          ) : (
+            targetGate && <GateAction gate={targetGate} decision={decision} approvers="Portfolio forum" />
+          )}
+
           <div>
             <h2 className="mb-2 text-sm font-semibold">People</h2>
             <dl className="space-y-1.5 text-sm">
@@ -123,10 +185,6 @@ export default function UseCasePage({ params }: { params: { id: string } }) {
               <li>– Pilot KPI</li>
             </ul>
           </div>
-
-          {targetGate && (
-            <GateAction gate={targetGate} decision={decision} approvers="Portfolio forum" />
-          )}
 
           {SEED_BUSINESS_CASE[params.id] && (
             <Link
