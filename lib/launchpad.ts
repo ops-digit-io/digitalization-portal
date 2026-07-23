@@ -91,7 +91,6 @@ export const LAUNCHPAD: TileGroup[] = [
   {
     category: "Govern & operate",
     tiles: [
-      { id: "compliance", title: "EU AI Act", subtitle: "Classification & register", href: "/compliance", icon: I.shield, tone: "slate" },
       { id: "docs", title: "Specification", subtitle: "Governance & data model", href: "/board", icon: I.book, tone: "slate" },
       { id: "catalog", title: "Skills & Playbooks", subtitle: "Agent capabilities", href: "/catalog", icon: I.copy, tone: "info" },
       { id: "traces", title: "Agent Traces", subtitle: "Replayable AI runs", href: "/assistant", icon: I.gauge, tone: "slate" },

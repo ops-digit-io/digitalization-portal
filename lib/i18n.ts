@@ -80,8 +80,6 @@ const DE: Strings = {
   "tile.poc.subtitle": "Repo · Spec · Artefakt",
   "tile.handovers.title": "Übergaben",
   "tile.handovers.subtitle": "Run-Lane & G7",
-  "tile.compliance.title": "EU AI Act",
-  "tile.compliance.subtitle": "Klassifizierung & Register",
   "tile.docs.title": "Spezifikation",
   "tile.docs.subtitle": "Governance & Datenmodell",
   "tile.catalog.title": "Skills & Playbooks",

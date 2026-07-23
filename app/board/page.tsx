@@ -1,49 +1,144 @@
-import { assembleBoard } from "@/lib/board";
-import { STAGES } from "@/lib/types";
+import Link from "next/link";
+import { assembleBoard, type BoardCard, type BoardFilter } from "@/lib/board";
+import { STAGES, type Stage, type Lane } from "@/lib/types";
 import { SEED_ROWS, DEMO_SESSION, DEMO_NOW } from "@/lib/seed";
-import { StageColumn } from "@/components/portal/stage-column";
+import { can } from "@/lib/rbac";
+import { Card } from "@/components/ui/card";
+import { BoardColumn } from "@/components/portal/board-column";
 
-const FILTERS = ["Lane", "Plant", "Domain", "Heat"];
+export const dynamic = "force-dynamic";
 
-export default function BoardPage() {
-  const board = assembleBoard(SEED_ROWS, DEMO_SESSION, DEMO_NOW);
+const STAGE_LABEL: Record<Stage, string> = {
+  S1: "Demand", S2: "Shaping", S3: "Assess", S4: "POC", S5: "Pilot", S6: "Scale", S7: "Rollout", S8: "Steady ops",
+};
+const LANE_LABEL: Record<string, string> = {
+  run: "run", regulatory: "regulatory", continuous_improvement: "continuous improvement",
+  transform: "transform", innovation: "innovation", data_ai: "data / AI", local: "local",
+};
+
+type Group = "stage" | "lane" | "plant";
+interface Params { lane?: string; plant?: string; domain?: string; heat?: string; status?: string; group?: string }
+
+const eur = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+
+function hrefWith(params: Params, patch: Partial<Params>): string {
+  const merged: Record<string, string> = {};
+  for (const [k, v] of Object.entries({ ...params, ...patch })) if (v) merged[k] = v as string;
+  const qs = new URLSearchParams(merged).toString();
+  return qs ? `/board?${qs}` : "/board";
+}
+
+function Chips({ label, param, current, options, params }: { label: string; param: keyof Params; current?: string; options: string[]; params: Params }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="w-14 shrink-0 text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
+      <Link href={hrefWith(params, { [param]: undefined })} className={`rounded-full border px-2.5 py-0.5 text-xs ${!current ? "border-foreground bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>All</Link>
+      {options.map((o) => (
+        <Link key={o} href={hrefWith(params, { [param]: o })} className={`rounded-full border px-2.5 py-0.5 text-xs ${current === o ? "border-foreground bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>{LANE_LABEL[o] ?? o}</Link>
+      ))}
+    </div>
+  );
+}
+
+function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: string }) {
+  return (
+    <Card className="p-3">
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="mt-1 text-2xl font-semibold tabular-nums" style={tone ? { color: `hsl(var(${tone}))` } : undefined}>{value}</div>
+      {sub && <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div>}
+    </Card>
+  );
+}
+
+export default function BoardPage({ searchParams }: { searchParams: Params }) {
+  const group: Group = searchParams.group === "lane" ? "lane" : searchParams.group === "plant" ? "plant" : "stage";
+  const filter: BoardFilter = {
+    ...(searchParams.lane ? { lane: searchParams.lane } : {}),
+    ...(searchParams.plant ? { plant: searchParams.plant } : {}),
+    ...(searchParams.domain ? { domain: searchParams.domain } : {}),
+    ...(searchParams.heat ? { heat: searchParams.heat } : {}),
+    ...(searchParams.status ? { status: searchParams.status } : {}),
+  };
+
+  const board = assembleBoard(SEED_ROWS, DEMO_SESSION, DEMO_NOW, filter);
+
+  // Value KPIs are portfolio aggregates, shown only to view_all sessions.
+  const canValue = can(DEMO_SESSION, "view_all");
+  const visibleIds = new Set(board.cards.map((c) => c.id));
+  const visibleRows = SEED_ROWS.filter((r) => visibleIds.has(r.id));
+  const pipeline = canValue ? visibleRows.filter((r) => (r.status ?? "active") === "active").reduce((s, r) => s + (r.valueProjected ?? 0), 0) : 0;
+  const realized = canValue ? visibleRows.reduce((s, r) => s + (r.valueRealized ?? 0), 0) : 0;
+
+  const lanes = [...new Set(SEED_ROWS.map((r) => r.lane).filter(Boolean))] as string[];
+  const plants = [...new Set(SEED_ROWS.map((r) => r.plant).filter(Boolean))] as string[];
+  const domains = [...new Set(SEED_ROWS.map((r) => r.domain).filter(Boolean))] as string[];
+
+  // Build the columns for the chosen grouping.
+  const stageIdx = (s?: Stage) => (s ? STAGES.indexOf(s) : 99);
+  let columns: { title: string; subtitle?: string; colorVar?: string; cards: BoardCard[] }[];
+  if (group === "stage") {
+    columns = STAGES.map((s) => ({ title: `${s} ${STAGE_LABEL[s]}`, colorVar: `--stage-${s.toLowerCase()}`, cards: board.columns[s] }));
+  } else {
+    const key = group === "lane" ? (c: BoardCard) => (c.lane as string) ?? "—" : (c: BoardCard) => c.plant ?? "—";
+    const groups = new Map<string, BoardCard[]>();
+    for (const c of [...board.cards].sort((a, b) => stageIdx(a.stage) - stageIdx(b.stage))) {
+      const k = key(c);
+      (groups.get(k) ?? groups.set(k, []).get(k)!).push(c);
+    }
+    columns = [...groups.entries()].sort((a, b) => b[1].length - a[1].length).map(([k, cards]) => ({ title: LANE_LABEL[k] ?? k, cards }));
+  }
+
+  const groupTabs: { id: Group; label: string }[] = [{ id: "stage", label: "Stage" }, { id: "lane", label: "Lane" }, { id: "plant", label: "Plant" }];
 
   return (
-    <main className="mx-auto max-w-[1400px] px-4 py-6">
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h1 className="text-lg font-semibold">Portfolio</h1>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          {FILTERS.map((f) => (
-            <button
-              key={f}
-              className="inline-flex h-8 items-center gap-1 rounded-md border px-3 text-xs text-muted-foreground hover:text-foreground"
-            >
-              {f}
-              <span aria-hidden>▾</span>
-            </button>
-          ))}
-          <div className="inline-flex h-8 items-center rounded-md border px-3 text-xs text-muted-foreground">
-            ⌕ Search
-          </div>
+    <main className="mx-auto max-w-[1600px] px-6 py-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-semibold">Portfolio board</h1>
+          <p className="text-sm text-muted-foreground">Every demand the Digital Unit owns, by stage — flow, stalls, and health at a glance. Value is a portfolio aggregate; figures stay indicative until pilot.</p>
         </div>
+        <div className="flex overflow-hidden rounded-md border text-sm">
+          {groupTabs.map((t) => (
+            <Link key={t.id} href={hrefWith(searchParams, { group: t.id === "stage" ? undefined : t.id })} className={`px-3 py-1.5 ${group === t.id ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>{t.label}</Link>
+          ))}
+        </div>
+      </div>
+
+      {/* KPI strip */}
+      <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+        <Kpi label="Active" value={String(board.summary.active)} />
+        <Kpi label="Stalled" value={String(board.summary.stalled)} sub={`> ${30} days in stage`} tone={board.summary.stalled > 0 ? "--warn" : undefined} />
+        <Kpi label="Needs attention" value={String(board.summary.needsAttention)} tone={board.summary.needsAttention > 0 ? "--destructive" : undefined} />
+        <Kpi label="Parked / killed" value={`${board.summary.parked} / ${board.summary.killed}`} />
+        <Kpi label="Pipeline value" value={canValue ? eur(pipeline) : "—"} sub="indicative" tone="--info" />
+        <Kpi label="Realized value" value={canValue ? eur(realized) : "—"} sub="to date" tone="--ok" />
+      </div>
+
+      {/* Filters */}
+      <div className="mt-5 space-y-2 rounded-lg border bg-card/40 p-3">
+        <Chips label="Lane" param="lane" current={searchParams.lane} options={lanes} params={searchParams} />
+        <Chips label="Plant" param="plant" current={searchParams.plant} options={plants} params={searchParams} />
+        <Chips label="Domain" param="domain" current={searchParams.domain} options={domains} params={searchParams} />
+        <Chips label="Status" param="status" current={searchParams.status} options={["active", "parked", "killed"]} params={searchParams} />
+        <Chips label="Heat" param="heat" current={searchParams.heat} options={["high", "medium", "low"]} params={searchParams} />
       </div>
 
       {board.needsAttention.length > 0 && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-sm">
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-sm">
           <span className="text-warn" aria-hidden>⚠</span>
-          <span>
-            {board.needsAttention.length} use case
-            {board.needsAttention.length > 1 ? "s" : ""}{" "}
-            {board.needsAttention.length > 1 ? "need" : "needs"} attention — state could not be read.
-          </span>
+          <span>{board.needsAttention.length} use case{board.needsAttention.length > 1 ? "s" : ""} {board.needsAttention.length > 1 ? "need" : "needs"} attention — state could not be read.</span>
         </div>
       )}
 
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {STAGES.map((stage) => (
-          <StageColumn key={stage} stage={stage} cards={board.columns[stage]} />
-        ))}
-      </div>
+      {board.cards.length === 0 ? (
+        <Card className="mt-6 p-10 text-center text-sm text-muted-foreground">No use cases match the filter.</Card>
+      ) : (
+        <div className="mt-5 flex gap-4 overflow-x-auto pb-4">
+          {columns.map((col) => (
+            <BoardColumn key={col.title} title={col.title} subtitle={col.subtitle} colorVar={col.colorVar} cards={col.cards} />
+          ))}
+        </div>
+      )}
     </main>
   );
 }
