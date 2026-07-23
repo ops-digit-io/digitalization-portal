@@ -62,7 +62,16 @@ export class GitHubHost implements GitHost {
         "x-github-api-version": "2022-11-28",
       },
     });
-    if (!res.ok) throw new Error(`GitHub installation token ${res.status}: ${await res.text()}`);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      const hint =
+        res.status === 404
+          ? " — GITHUB_APP_INSTALLATION_ID looks wrong, or the App is not installed on the org. Copy the number from the App → Install App → Configure URL (…/settings/installations/<ID>); it is NOT the App ID or Client ID."
+          : res.status === 401
+            ? " — the App JWT was rejected; check that GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY belong to the same App and the key is pasted in full."
+            : "";
+      throw new Error(`GitHub installation token ${res.status}${hint} :: ${body.slice(0, 200)}`);
+    }
     const data = (await res.json()) as { token: string; expires_at: string };
     this.token = { value: data.token, expiresAt: Date.parse(data.expires_at) };
     return data.token;
