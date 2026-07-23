@@ -54,6 +54,7 @@ export default async function Catalog() {
         </div>
         <div className="ml-auto flex items-start gap-2">
           <SyncButton />
+          <Link href="/catalog/import" className="rounded-md border px-3 py-2 text-sm font-medium hover:border-foreground/40" title="Import a reference skill from agentskills.io / skills.sh">↓ Import skill</Link>
           <Link href="/catalog/new?type=skill" className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground">+ Skill</Link>
           <Link href="/catalog/new?type=playbook" className="rounded-md border px-3 py-2 text-sm font-medium">+ Playbook</Link>
         </div>
