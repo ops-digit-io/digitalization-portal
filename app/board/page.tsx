@@ -5,6 +5,7 @@ import { SEED_ROWS, DEMO_SESSION, DEMO_NOW } from "@/lib/seed";
 import { can } from "@/lib/rbac";
 import { Card } from "@/components/ui/card";
 import { BoardColumn } from "@/components/portal/board-column";
+import { FilterBar } from "@/components/portal/filter-bar";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ const LANE_LABEL: Record<string, string> = {
 };
 
 type Group = "stage" | "lane" | "plant";
-interface Params { lane?: string; plant?: string; domain?: string; heat?: string; status?: string; group?: string }
+interface Params { lane?: string; plant?: string; domain?: string; heat?: string; status?: string; q?: string; group?: string }
 
 const eur = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
 
@@ -26,18 +27,6 @@ function hrefWith(params: Params, patch: Partial<Params>): string {
   for (const [k, v] of Object.entries({ ...params, ...patch })) if (v) merged[k] = v as string;
   const qs = new URLSearchParams(merged).toString();
   return qs ? `/board?${qs}` : "/board";
-}
-
-function Chips({ label, param, current, options, params }: { label: string; param: keyof Params; current?: string; options: string[]; params: Params }) {
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="w-14 shrink-0 text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
-      <Link href={hrefWith(params, { [param]: undefined })} className={`rounded-full border px-2.5 py-0.5 text-xs ${!current ? "border-foreground bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>All</Link>
-      {options.map((o) => (
-        <Link key={o} href={hrefWith(params, { [param]: o })} className={`rounded-full border px-2.5 py-0.5 text-xs ${current === o ? "border-foreground bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>{LANE_LABEL[o] ?? o}</Link>
-      ))}
-    </div>
-  );
 }
 
 function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: string }) {
@@ -58,6 +47,7 @@ export default function BoardPage({ searchParams }: { searchParams: Params }) {
     ...(searchParams.domain ? { domain: searchParams.domain } : {}),
     ...(searchParams.heat ? { heat: searchParams.heat } : {}),
     ...(searchParams.status ? { status: searchParams.status } : {}),
+    ...(searchParams.q ? { q: searchParams.q } : {}),
   };
 
   const board = assembleBoard(SEED_ROWS, DEMO_SESSION, DEMO_NOW, filter);
@@ -114,13 +104,20 @@ export default function BoardPage({ searchParams }: { searchParams: Params }) {
         <Kpi label="Realized value" value={canValue ? eur(realized) : "—"} sub="to date" tone="--ok" />
       </div>
 
-      {/* Filters */}
-      <div className="mt-5 space-y-2 rounded-lg border bg-card/40 p-3">
-        <Chips label="Lane" param="lane" current={searchParams.lane} options={lanes} params={searchParams} />
-        <Chips label="Plant" param="plant" current={searchParams.plant} options={plants} params={searchParams} />
-        <Chips label="Domain" param="domain" current={searchParams.domain} options={domains} params={searchParams} />
-        <Chips label="Status" param="status" current={searchParams.status} options={["active", "parked", "killed"]} params={searchParams} />
-        <Chips label="Heat" param="heat" current={searchParams.heat} options={["high", "medium", "low"]} params={searchParams} />
+      {/* Filters — search + dropdowns */}
+      <div className="mt-5">
+        <FilterBar
+          path="/board"
+          current={searchParams as Record<string, string | undefined>}
+          search={{ param: "q", placeholder: "Search id or title…" }}
+          selects={[
+            { param: "lane", label: "Lane", options: lanes, labels: LANE_LABEL },
+            { param: "plant", label: "Plant", options: plants },
+            { param: "domain", label: "Domain", options: domains },
+            { param: "status", label: "Status", options: ["active", "parked", "killed"] },
+            { param: "heat", label: "Heat", options: ["high", "medium", "low"] },
+          ]}
+        />
       </div>
 
       {board.needsAttention.length > 0 && (

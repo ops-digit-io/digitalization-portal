@@ -3,10 +3,16 @@ import { analyzeFunnel } from "@/lib/analysis/funnel";
 import { SEED_ROWS, DEMO_NOW } from "@/lib/seed";
 import { Card } from "@/components/ui/card";
 import { LaneBadge } from "@/components/portal/badges";
+import { FilterBar } from "@/components/portal/filter-bar";
 import type { Lane } from "@/lib/types";
 import type { RegistryRow } from "@/lib/registry";
 
 export const dynamic = "force-dynamic";
+
+const LANE_LABEL: Record<string, string> = {
+  run: "run", regulatory: "regulatory", continuous_improvement: "continuous improvement",
+  transform: "transform", innovation: "innovation", data_ai: "data / AI", local: "local",
+};
 
 function Tile({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: string }) {
   return (
@@ -15,19 +21,6 @@ function Tile({ label, value, sub, tone }: { label: string; value: string; sub?:
       <div className="mt-1 text-2xl font-semibold tabular-nums" style={tone ? { color: `hsl(var(${tone}))` } : undefined}>{value}</div>
       {sub && <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div>}
     </Card>
-  );
-}
-
-function FilterChips({ label, param, current, options }: { label: string; param: string; current?: string; options: string[] }) {
-  const href = (v?: string) => (v ? `/funnel?${param}=${encodeURIComponent(v)}` : "/funnel");
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
-      <Link href={href()} className={`rounded-full border px-2.5 py-0.5 text-xs ${!current ? "border-foreground bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>All</Link>
-      {options.map((o) => (
-        <Link key={o} href={href(o)} className={`rounded-full border px-2.5 py-0.5 text-xs ${current === o ? "border-foreground bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}>{o}</Link>
-      ))}
-    </div>
   );
 }
 
@@ -52,10 +45,14 @@ export default function Funnel({ searchParams }: { searchParams: { lane?: string
           <h1 className="text-lg font-semibold">Use-case funnel</h1>
           <p className="text-sm text-muted-foreground">Demand narrowing S1→S8 — conversion, drop-off, dwell, and kill rate by gate. A count of demands is not a portfolio; stage progression is.</p>
         </div>
-        <div className="flex flex-col items-end gap-1.5">
-          <FilterChips label="Lane" param="lane" current={searchParams.lane} options={lanes} />
-          <FilterChips label="Plant" param="plant" current={searchParams.plant} options={plants} />
-        </div>
+        <FilterBar
+          path="/funnel"
+          current={searchParams as Record<string, string | undefined>}
+          selects={[
+            { param: "lane", label: "Lane", options: lanes, labels: LANE_LABEL },
+            { param: "plant", label: "Plant", options: plants },
+          ]}
+        />
       </div>
 
       {f.flags.map((flag) => (

@@ -68,6 +68,8 @@ export interface BoardFilter {
   domain?: string;
   heat?: string;
   status?: string;
+  /** Free-text search over id + title. */
+  q?: string;
 }
 
 function matchesFilter(row: RegistryRow, filter: BoardFilter): boolean {
@@ -76,6 +78,7 @@ function matchesFilter(row: RegistryRow, filter: BoardFilter): boolean {
   if (filter.domain && row.domain !== filter.domain) return false;
   if (filter.heat && row.heat !== filter.heat) return false;
   if (filter.status && (row.status ?? "active") !== filter.status) return false;
+  if (filter.q && !`${row.id} ${row.title}`.toLowerCase().includes(filter.q.toLowerCase())) return false;
   return true;
 }
 
