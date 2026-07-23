@@ -31,14 +31,15 @@ function StatusChip({ status }: { status: AppStatus | null }) {
     `GitHub App: ${git.live ? "connected" : "local workspace"}`,
   ].join("\n");
   return (
-    <span
-      className="hidden items-center gap-1.5 rounded-md border px-2 py-1 text-xs text-muted-foreground sm:inline-flex"
-      title={title}
+    <Link
+      href="/settings"
+      className="hidden items-center gap-1.5 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:text-foreground sm:inline-flex"
+      title={`${title}\n\nOpen Settings`}
     >
       <span className="size-2 rounded-full" style={{ background: dot }} aria-hidden />
       <span>{model.live ? PROVIDER_LABEL[model.provider] : "Offline"}</span>
       {git.live && <span className="text-[10px] uppercase tracking-wide text-ok">· git</span>}
-    </span>
+    </Link>
   );
 }
 
