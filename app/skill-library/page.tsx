@@ -4,6 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { REFERENCE_SOURCES } from "@/lib/skill-import";
+import { BASELINE_TASKS } from "@/lib/skill-search";
+
+interface Hit {
+  name: string;
+  description?: string;
+  reference: string;
+  source?: string;
+}
 
 interface Preview {
   name: string;
@@ -27,6 +35,55 @@ export default function SkillLibraryPage() {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<{ name: string; files?: string[] } | null>(null);
+
+  // Marketplace search → build a baseline library, one task at a time.
+  const [query, setQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [hits, setHits] = useState<Hit[] | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [importing, setImporting] = useState<string | null>(null);
+  const [imported, setImported] = useState<Record<string, { name: string; files: number }>>({});
+
+  async function search(q: string) {
+    setQuery(q);
+    if (q.trim() === "") return;
+    setSearching(true);
+    setSearchError(null);
+    setHits(null);
+    try {
+      const res = await fetch("/api/registry/search", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query: q }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setSearchError(data.error ?? "Search failed."); return; }
+      setHits((data.hits ?? []) as Hit[]);
+    } catch {
+      setSearchError("Request failed.");
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  async function importHit(ref: string) {
+    setImporting(ref);
+    setSearchError(null);
+    try {
+      const res = await fetch("/api/registry/import", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "save", url: ref }),
+      });
+      const data = await res.json();
+      if (res.ok) setImported((m) => ({ ...m, [ref]: { name: data.name, files: (data.files?.length ?? 1) as number } }));
+      else setSearchError(data.error ?? "Import failed.");
+    } catch {
+      setSearchError("Import failed.");
+    } finally {
+      setImporting(null);
+    }
+  }
 
   async function call(action: "preview" | "save") {
     setBusy(true);
@@ -85,8 +142,63 @@ export default function SkillLibraryPage() {
         </div>
       </div>
 
+      {/* Search the marketplace — build a baseline, one task at a time. */}
       <Card className="mt-5 p-4">
-        <label htmlFor="skill-url" className="text-sm font-medium">Install command, reference, or URL</label>
+        <div className="flex items-center justify-between gap-2">
+          <label htmlFor="skill-q" className="text-sm font-medium">Search the marketplace</label>
+          <span className="text-[11px] text-muted-foreground">via SkillsMP</span>
+        </div>
+        <div className="mt-1 flex gap-2">
+          <input
+            id="skill-q"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") search(query); }}
+            placeholder="e.g. requirements analysis, business case, market research…"
+            className="flex-1 rounded-md border bg-transparent px-2.5 py-1.5 text-sm outline-none focus:ring-1 focus:ring-ring"
+          />
+          <button onClick={() => search(query)} disabled={searching || query.trim() === ""} className="rounded-md border px-3 py-1.5 text-sm font-medium hover:border-foreground/40 disabled:opacity-50">
+            {searching ? "Searching…" : "Search"}
+          </button>
+        </div>
+
+        {/* One chip per baseline task — cover the whole overview. */}
+        <div className="mt-2 flex flex-wrap gap-1">
+          {BASELINE_TASKS.map((t) => (
+            <button key={t} onClick={() => search(t)} className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground hover:border-foreground/40 hover:text-foreground">{t}</button>
+          ))}
+        </div>
+
+        {searchError && <div className="mt-2 text-xs text-destructive">{searchError}</div>}
+
+        {hits && (
+          <div className="mt-3 space-y-2">
+            {hits.length === 0 && <p className="text-xs text-muted-foreground">No results. Try another term, or paste a reference below.</p>}
+            {hits.map((h) => {
+              const done = imported[h.reference];
+              return (
+                <div key={h.reference} className="flex items-start justify-between gap-3 rounded-md border p-2.5">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">{h.name}</div>
+                    {h.description && <div className="line-clamp-2 text-xs text-muted-foreground">{h.description}</div>}
+                    <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">{h.source ?? h.reference}</div>
+                  </div>
+                  {done ? (
+                    <Link href={`/catalog/skill/${done.name}`} className="shrink-0 text-[11px] text-ok underline">✓ imported ({done.files})</Link>
+                  ) : (
+                    <button onClick={() => importHit(h.reference)} disabled={importing === h.reference} className="shrink-0 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50">
+                      {importing === h.reference ? "Importing…" : "Import"}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
+      <Card className="mt-4 p-4">
+        <label htmlFor="skill-url" className="text-sm font-medium">Or import by install command, reference, or URL</label>
         <div className="mt-1 flex gap-2">
           <input
             id="skill-url"
