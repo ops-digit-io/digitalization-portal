@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buildDemand, classifyDemand } from "@/lib/demand";
 import type { ChatMessage, IntakeState } from "@/lib/intake-agent";
 import { ToolHeader, SavedLinks, useIntakeSave } from "../shared";
+
+interface GovernedBy { playbook: string; skills: string[] }
 
 const LANE_LABEL: Record<string, string> = {
   run: "run", regulatory: "regulatory", continuous_improvement: "continuous improvement",
@@ -28,6 +31,8 @@ export default function ChatTool() {
   const [state, setState] = useState<IntakeState | null>(null);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<"live" | "offline" | null>(null);
+  const [governedBy, setGovernedBy] = useState<GovernedBy | null>(null);
   const { saving, saved, error, save, reset } = useIntakeSave();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -42,8 +47,10 @@ export default function ChatTool() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: payload.action, userText: payload.userText, messages: payload.msgs, state: payload.st }),
       });
-      const data = (await res.json()) as { messages: ChatMessage[]; state: IntakeState };
+      const data = (await res.json()) as { messages: ChatMessage[]; state: IntakeState; mode?: "live" | "offline"; governedBy?: GovernedBy };
       setState(data.state);
+      if (data.mode) setMode(data.mode);
+      if (data.governedBy) setGovernedBy(data.governedBy);
       setMessages((prev) => [...prev, ...(data.messages ?? [])]);
     } catch {
       setMessages((prev) => [...prev, { role: "assistant", text: "Sorry — something went wrong. Try again." }]);
@@ -91,7 +98,30 @@ export default function ChatTool() {
 
   return (
     <main className="mx-auto flex h-[calc(100vh-3.5rem)] max-w-2xl flex-col overflow-hidden px-4 py-3">
-      <ToolHeader active="chat" blurb="An AI interview — one short question at a time, run from the s1-intake playbook." />
+      <ToolHeader active="chat" blurb="An AI interview — one short question at a time, strictly governed by a playbook and skills." />
+
+      {/* Governance strip — what drives this interview, editable in the catalog. */}
+      <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+        {mode && (
+          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ${mode === "live" ? "bg-ok/10 text-ok" : "bg-secondary text-muted-foreground"}`}>
+            {mode === "live" ? "● live model" : "○ offline engine"}
+          </span>
+        )}
+        {governedBy && (
+          <span>
+            Governed by{" "}
+            <Link href={`/catalog/playbook/${governedBy.playbook}`} className="underline hover:text-foreground">{governedBy.playbook}</Link>
+            {governedBy.skills.length > 0 && (
+              <> · skills: {governedBy.skills.map((s, i) => (
+                <span key={s}>
+                  {i > 0 && ", "}
+                  <Link href={`/catalog/skill/${s}`} className="underline hover:text-foreground">{s}</Link>
+                </span>
+              ))}</>
+            )}
+          </span>
+        )}
+      </div>
 
       <Card className="flex min-h-0 flex-1 flex-col p-0">
         <div ref={scrollRef} className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-4">

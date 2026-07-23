@@ -10,11 +10,22 @@ describe("intake guideline", () => {
     expect(g.interview).toContain("Intake interview");
   });
 
-  it("builds a system prompt from the playbook — so the playbook governs the agent", async () => {
+  it("loads the governing skills strictly", async () => {
+    const g = await loadIntakeGuideline();
+    const names = g.skills.map((s) => s.name);
+    expect(names).toContain("intake-conversation");
+    expect(names).toContain("demand-classification");
+    expect(g.skills.every((s) => s.body.trim() !== "")).toBe(true);
+  });
+
+  it("builds a system prompt from the playbook + skills — so they govern the agent", async () => {
     const g = await loadIntakeGuideline();
     const prompt = intakeSystemPrompt(g);
     expect(prompt).toContain("PLAYBOOK: s1-intake");
     expect(prompt).toContain(g.playbook.trim().slice(0, 80)); // the actual playbook text is embedded
+    expect(prompt).toContain("SKILL: intake-conversation");
+    expect(prompt).toContain("SKILL: demand-classification");
+    expect(prompt).toMatch(/EXACTLY ONE question per turn/i); // the strict operating contract
     expect(prompt).toContain("save_demand");
     // every field is listed for the model to collect
     for (const f of INTAKE_FIELDS) expect(prompt).toContain(f.key);
