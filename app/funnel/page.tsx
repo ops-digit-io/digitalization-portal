@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { analyzeFunnel } from "@/lib/analysis/funnel";
-import { SEED_ROWS, DEMO_NOW } from "@/lib/seed";
+import { loadPortfolioRows } from "@/lib/portfolio";
 import { Card } from "@/components/ui/card";
 import { LaneBadge } from "@/components/portal/badges";
 import { FilterBar } from "@/components/portal/filter-bar";
@@ -24,13 +24,15 @@ function Tile({ label, value, sub, tone }: { label: string; value: string; sub?:
   );
 }
 
-export default function Funnel({ searchParams }: { searchParams: { lane?: string; plant?: string } }) {
-  const lanes = [...new Set(SEED_ROWS.map((r) => r.lane).filter(Boolean))] as string[];
-  const plants = [...new Set(SEED_ROWS.map((r) => r.plant).filter(Boolean))] as string[];
-  const rows: RegistryRow[] = SEED_ROWS.filter(
+export default async function Funnel({ searchParams }: { searchParams: { lane?: string; plant?: string } }) {
+  // Live from the du-demands funnel when the GitHub App is configured, else demo seed.
+  const { rows: allRows, now, live, source } = await loadPortfolioRows();
+  const lanes = [...new Set(allRows.map((r) => r.lane).filter(Boolean))] as string[];
+  const plants = [...new Set(allRows.map((r) => r.plant).filter(Boolean))] as string[];
+  const rows: RegistryRow[] = allRows.filter(
     (r) => (!searchParams.lane || r.lane === searchParams.lane) && (!searchParams.plant || r.plant === searchParams.plant),
   );
-  const f = analyzeFunnel(rows, { now: DEMO_NOW });
+  const f = analyzeFunnel(rows, { now });
   const maxLane = Math.max(...f.laneBalance.map((x) => x.count), 1);
 
   return (
@@ -42,7 +44,15 @@ export default function Funnel({ searchParams }: { searchParams: { lane?: string
       </nav>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold">Use-case funnel</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-semibold">Use-case funnel</h1>
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${live ? "bg-ok/10 text-ok" : "bg-secondary text-muted-foreground"}`}
+              title={live ? `Read live from ${source}` : "Demo seed data — configure the GitHub App to read the live funnel"}
+            >
+              {live ? `● live · ${source}` : "○ demo data"}
+            </span>
+          </div>
           <p className="text-sm text-muted-foreground">Demand narrowing S1→S8 — conversion, drop-off, dwell, and kill rate by gate. A count of demands is not a portfolio; stage progression is.</p>
         </div>
         <FilterBar

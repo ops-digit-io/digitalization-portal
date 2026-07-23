@@ -21,9 +21,10 @@
 
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { parseUseCase } from "./parse.js";
+import { parseUseCase, parsePeople, type ParsedUseCase } from "./parse.js";
 import { getGitHost, hasGitHubCredentials, type RepoRef } from "./git/index.js";
 import { LocalHost } from "./git/local-host.js";
+import type { RegistryRow } from "./registry.js";
 import type { Lane, Stage, Status } from "./types.js";
 
 const DIR = "demands";
@@ -129,6 +130,24 @@ export async function readArtifact(id: string, name: string, baseDir = root()): 
   return readFile(join(baseDir, artifactPath(id, name)), "utf8").catch(() => undefined);
 }
 
+/** Case title with the `UC-… · ` id prefix stripped, falling back to the id. */
+function demandTitle(p: ParsedUseCase, id: string): string {
+  return p.title?.replace(/^UC-\d{4}-\d+\s*·\s*/, "") ?? id;
+}
+
+/**
+ * Whether a parsed demand should be flagged "needs attention". A missing/unknown
+ * stage or any unreadable `## State` key qualifies — except a deliberately
+ * "unassigned" lane, which is a valid pre-triage state, not a parse failure.
+ */
+function demandNeedsAttention(p: ParsedUseCase): boolean {
+  const laneRaw = (p.state.raw["lane"] ?? "").toLowerCase();
+  const otherErrors = p.parseErrors.filter(
+    (e) => !(e.section === "state" && laneRaw === "unassigned" && /lane/i.test(e.message)),
+  );
+  return p.state.stage === undefined || otherErrors.some((e) => e.section === "state");
+}
+
 /** Parse every case into a board-ready summary; unreadable ones surface, never vanish. */
 export async function listDemands(baseDir = root()): Promise<DemandSummary[]> {
   const ids = await listDemandIds(baseDir);
@@ -138,24 +157,59 @@ export async function listDemands(baseDir = root()): Promise<DemandSummary[]> {
     if (md === undefined) continue;
     const p = parseUseCase(md);
     const laneRaw = (p.state.raw["lane"] ?? "").toLowerCase();
-    const otherErrors = p.parseErrors.filter(
-      (e) => !(e.section === "state" && laneRaw === "unassigned" && /lane/i.test(e.message)),
-    );
-    const needsAttention = p.state.stage === undefined || otherErrors.some((e) => e.section === "state");
     out.push({
       id,
-      title: p.title?.replace(/^UC-\d{4}-\d+\s*·\s*/, "") ?? id,
+      title: demandTitle(p, id),
       ...(p.state.stage ? { stage: p.state.stage } : {}),
       lane: (p.state.lane ?? (laneRaw === "unassigned" ? "unassigned" : undefined)) as DemandSummary["lane"],
       ...(p.state.status ? { status: p.state.status } : {}),
       ...(p.state.plant ? { plant: p.state.plant } : {}),
       ...(p.state.domain ? { domain: p.state.domain } : {}),
       ...(p.state.created ? { created: p.state.created } : {}),
-      needsAttention,
+      needsAttention: demandNeedsAttention(p),
       artifacts: await listArtifacts(id, baseDir),
     });
   }
   return out;
+}
+
+/**
+ * Parse every case into a `RegistryRow` — the shape the portfolio board and
+ * funnel consume. This is what wires those views to the live `du-demands` funnel
+ * instead of static seed data: the same reconciler-style mapping the registry
+ * cache would produce, computed on demand from each case's `README.md`.
+ *
+ * `since` falls back to `Created` so stage-age / dwell works for freshly captured
+ * demands (which carry `Created`, not yet a stage-entry `Since`). Value figures
+ * are left absent until a business case is drafted — the board renders them as
+ * indicative/empty, never as committed (constraint #8).
+ */
+export async function listDemandRows(baseDir = root()): Promise<RegistryRow[]> {
+  const ids = await listDemandIds(baseDir);
+  const rows: RegistryRow[] = [];
+  for (const id of ids) {
+    const md = await readDemand(id, baseDir);
+    if (md === undefined) continue;
+    const p = parseUseCase(md);
+    const people = parsePeople(md);
+    const since = p.state.raw["since"] ?? p.state.created;
+    rows.push({
+      id,
+      title: demandTitle(p, id),
+      ...(p.state.stage ? { stage: p.state.stage } : {}),
+      ...(p.state.lane ? { lane: p.state.lane } : {}),
+      ...(p.state.status ? { status: p.state.status } : {}),
+      ...(p.state.plant ? { plant: p.state.plant } : {}),
+      ...(p.state.domain ? { domain: p.state.domain } : {}),
+      ...(p.state.level ? { level: p.state.level } : {}),
+      ...(p.state.heat ? { heat: p.state.heat } : {}),
+      ...(people.sponsor ? { sponsor: people.sponsor } : {}),
+      ...(since ? { since } : {}),
+      ...(p.state.confidential ? { confidential: true } : {}),
+      ...(demandNeedsAttention(p) ? { needsAttention: true } : {}),
+    });
+  }
+  return rows;
 }
 
 export interface DemandSaveResult {
