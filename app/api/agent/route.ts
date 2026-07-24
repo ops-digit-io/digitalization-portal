@@ -8,6 +8,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { can } from "@/lib/rbac";
 import { runAgent } from "@/lib/agent/loop";
 import { getProvider } from "@/lib/agent/provider";
 import { createDefaultRegistry } from "@/lib/agent/registry";
@@ -38,7 +39,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
   }
 
-  const session = await getSession(); // demo: real deployment resolves this from the OIDC session
+  // Authentication/authorization is the session's (constraint #3): getSession resolves
+  // the OIDC session when configured, else the demo session, else ANONYMOUS (no roles).
+  // Defense-in-depth alongside the middleware guard — the analyst needs view_board;
+  // each tool then enforces its own capability inside the loop.
+  const session = await getSession();
+  if (!can(session, "view_board")) {
+    return NextResponse.json({ error: "authentication required" }, { status: 401 });
+  }
   const provider = getProvider();
   const registry = createDefaultRegistry()
     .register(makeImplementationAnalysisTool(SEED_ROWS))
