@@ -19,7 +19,7 @@ import { factsBlock } from "@/lib/agent/prompt";
 import { loadAnalystGuideline, analystSystemPrompt, ANALYST_GOVERNED_BY } from "@/lib/agent/analyst-guideline";
 import { wrapExternal } from "@/lib/agent/wrap";
 import { parseBusinessCase, toSimulationInput } from "@/lib/businesscase";
-import { DEMO_NOW, SEED_ROWS, SEED_BUSINESS_CASE } from "@/lib/seed";
+import { listDemandRowsWithValue, readArtifact } from "@/lib/demands-store";
 import { getSession } from "@/lib/auth/current";
 
 export const runtime = "nodejs";
@@ -48,9 +48,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "authentication required" }, { status: 401 });
   }
   const provider = getProvider();
+  // Real funnel rows (with real business-case value), never seed.
+  const rows = await listDemandRowsWithValue();
   const registry = createDefaultRegistry()
-    .register(makeImplementationAnalysisTool(SEED_ROWS))
-    .register(makeStartPocTool(SEED_ROWS));
+    .register(makeImplementationAnalysisTool(rows))
+    .register(makeStartPocTool(rows));
 
   const task = body.task ?? "chat";
   let userMessage = body.message ?? "";
@@ -58,7 +60,7 @@ export async function POST(req: Request) {
   let link: string | undefined;
 
   if (task === "simulate" && body.useCaseId) {
-    const bc = SEED_BUSINESS_CASE[body.useCaseId];
+    const bc = await readArtifact(body.useCaseId, "business-case");
     if (!bc) return NextResponse.json({ error: "no business case for that use case" }, { status: 404 });
     const facts = parseBusinessCase(bc);
     toolNames = ["simulate-value"];
@@ -96,7 +98,7 @@ export async function POST(req: Request) {
       registry,
       system,
       userMessage,
-      now: DEMO_NOW,
+      now: new Date().toISOString(),
       traceId: `trace-${task}-${body.useCaseId ?? "chat"}`,
       enabled: agentToolsEnabled(),
       ...(toolNames ? { toolNames } : {}),

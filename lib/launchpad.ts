@@ -85,7 +85,7 @@ export const LAUNCHPAD: TileGroup[] = [
   {
     category: "Build & deliver",
     tiles: [
-      { id: "poc", title: "Agentic PoC Builder", subtitle: "Repo · spec · artifact", href: "/build", icon: I.wrench, tone: "violet" },
+      { id: "poc", title: "Agentic PoC Builder", subtitle: "Repo · spec · artifact", href: "/build", icon: I.wrench, tone: "violet", disabled: true },
       { id: "handovers", title: "Handovers", subtitle: "Run-lane & G7 records", href: "/handovers", icon: I.swap, tone: "violet" },
     ],
   },

@@ -19,27 +19,33 @@
 
 import type { RegistryRow } from "./registry.js";
 import { hasGitHubCredentials } from "./git/index.js";
-import { listDemandRows } from "./demands-store.js";
-import { SEED_ROWS, DEMO_NOW } from "./seed.js";
+import { listDemandRowsWithValue } from "./demands-store.js";
 
 export interface PortfolioData {
   rows: RegistryRow[];
   /** ISO reference instant for stage-age / dwell computations. */
   now: string;
-  /** True when rows came from the live `du-demands` funnel, false for the demo seed. */
+  /** True when rows came from the live `du-demands` funnel (GitHub), false for the local working tree. */
   live: boolean;
-  /** The funnel repo the rows came from, when live. */
-  source?: string;
+  /** Where the rows came from — the funnel repo (live) or the local workspace. */
+  source: string;
 }
 
 /**
- * Load the portfolio rows for board / funnel rendering. Live from `du-demands`
- * when the GitHub App is configured, else the demo seed.
+ * Load the portfolio rows for every board / funnel / analysis / value view.
+ *
+ * ALWAYS the real funnel — the demands the portal actually holds (`du-demands`
+ * over GitHub when configured, else the local working tree). There is NO seed
+ * fallback: an empty or thin funnel renders empty or thin, never fabricated. Value
+ * figures come from real `business-case.md` artifacts (absent until a case has one).
  */
 export async function loadPortfolioRows(): Promise<PortfolioData> {
-  if (hasGitHubCredentials()) {
-    const rows = await listDemandRows();
-    return { rows, now: new Date().toISOString(), live: true, source: process.env.DEMANDS_REPO ?? "du-demands" };
-  }
-  return { rows: [...SEED_ROWS], now: DEMO_NOW, live: false };
+  const github = hasGitHubCredentials();
+  const rows = await listDemandRowsWithValue();
+  return {
+    rows,
+    now: new Date().toISOString(),
+    live: github,
+    source: github ? (process.env.DEMANDS_REPO ?? "du-demands") : "local workspace",
+  };
 }

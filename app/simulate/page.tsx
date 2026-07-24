@@ -1,14 +1,26 @@
 import Link from "next/link";
-import { SEED_ROWS, SEED_BUSINESS_CASE } from "@/lib/seed";
+import { listDemands, readArtifact } from "@/lib/demands-store";
 import { simulateBusinessCase } from "@/lib/businesscase";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
+export const dynamic = "force-dynamic";
+
 const EUR = (n: number) =>
   new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
 
-export default function SimulateIndex() {
-  const ids = Object.keys(SEED_BUSINESS_CASE);
+export default async function SimulateIndex() {
+  // Real funnel — only cases that actually have a business-case.md, no seed.
+  const demands = await listDemands();
+  const withBc = demands.filter((d) => d.artifacts.includes("business-case"));
+  const items = await Promise.all(
+    withBc.map(async (d) => {
+      const bc = (await readArtifact(d.id, "business-case")) ?? "";
+      const { simulation } = simulateBusinessCase(bc);
+      return { id: d.id, title: d.title, simulation };
+    }),
+  );
+
   return (
     <main className="mx-auto max-w-[900px] px-4 py-6">
       <h1 className="text-lg font-semibold">Business Case Simulation</h1>
@@ -18,27 +30,28 @@ export default function SimulateIndex() {
       </p>
 
       <div className="mt-5 space-y-2">
-        {ids.map((id) => {
-          const row = SEED_ROWS.find((r) => r.id === id);
-          const { simulation } = simulateBusinessCase(SEED_BUSINESS_CASE[id]!);
-          return (
-            <Link key={id} href={`/uc/${id}/simulate`}>
-              <Card className="flex flex-wrap items-center gap-4 p-4 transition-colors hover:border-foreground/20">
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs text-muted-foreground">{id}</div>
-                  <div className="truncate font-medium">{row?.title ?? id}</div>
+        {items.length === 0 && (
+          <Card className="p-8 text-center text-sm text-muted-foreground">
+            No business cases yet. A <span className="font-mono">business-case.md</span> is drafted from G2 onward — until a demand has one, there is nothing to simulate.
+          </Card>
+        )}
+        {items.map((it) => (
+          <Link key={it.id} href={`/uc/${it.id}/simulate`}>
+            <Card className="flex flex-wrap items-center gap-4 p-4 transition-colors hover:border-foreground/20">
+              <div className="min-w-0 flex-1">
+                <div className="text-xs text-muted-foreground">{it.id}</div>
+                <div className="truncate font-medium">{it.title}</div>
+              </div>
+              <div className="text-right text-sm">
+                <div className="tabular-nums">
+                  {EUR(it.simulation.p10)} <span className="text-muted-foreground">→</span> {EUR(it.simulation.p90)}
                 </div>
-                <div className="text-right text-sm">
-                  <div className="tabular-nums">
-                    {EUR(simulation.p10)} <span className="text-muted-foreground">→</span> {EUR(simulation.p90)}
-                  </div>
-                  <div className="text-xs text-muted-foreground">P10 → base</div>
-                </div>
-                <Badge variant="secondary" className="font-normal">indicative</Badge>
-              </Card>
-            </Link>
-          );
-        })}
+                <div className="text-xs text-muted-foreground">P10 → base</div>
+              </div>
+              <Badge variant="secondary" className="font-normal">indicative</Badge>
+            </Card>
+          </Link>
+        ))}
       </div>
     </main>
   );

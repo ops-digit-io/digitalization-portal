@@ -51,7 +51,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Params
     ...(searchParams.q ? { q: searchParams.q } : {}),
   };
 
-  // Live from the du-demands funnel when the GitHub App is configured, else demo seed.
+  // Real funnel — live from du-demands when the GitHub App is configured, else the local workspace.
   const session = await getSession();
   const { rows, now, live, source } = await loadPortfolioRows();
   const board = assembleBoard(rows, session, now, filter);
@@ -92,9 +92,9 @@ export default async function BoardPage({ searchParams }: { searchParams: Params
             <h1 className="text-lg font-semibold">Portfolio board</h1>
             <span
               className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${live ? "bg-ok/10 text-ok" : "bg-secondary text-muted-foreground"}`}
-              title={live ? `Read live from ${source}` : "Demo seed data — configure the GitHub App to read the live funnel"}
+              title={live ? `Read live from ${source}` : `Read from the ${source} — configure the GitHub App to read the live du-demands funnel`}
             >
-              {live ? `● live · ${source}` : "○ demo data"}
+              {live ? `● live · ${source}` : `○ ${source}`}
             </span>
           </div>
           <p className="text-sm text-muted-foreground">Every demand the Digital Unit owns, by stage — flow, stalls, and health at a glance. Value is a portfolio aggregate; figures stay indicative until pilot.</p>
