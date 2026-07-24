@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { classifyDemand, missingRequired, INTAKE_FIELDS, FIELD_GROUPS, EMPTY_ANSWERS, type DemandField, type DemandAnswers } from "@/lib/demand";
-import { ToolHeader, SavedLinks, useIntakeSave } from "../shared";
+import { ToolHeader, SavedLinks, useIntakeSave, useDraft } from "../shared";
 import { IntakeEnhancer } from "../enhancer";
 
 const LANE_LABEL: Record<string, string> = {
@@ -39,15 +39,18 @@ function Field({ f, value, onChange }: { f: DemandField; value: string; onChange
 }
 
 export default function FormTool() {
-  const [answers, setAnswers] = useState<DemandAnswers>({ ...EMPTY_ANSWERS });
+  const [answers, setAnswers, clearDraft] = useDraft<DemandAnswers>("intake:form:v1", { ...EMPTY_ANSWERS });
   const { saving, saved, error, save, reset } = useIntakeSave();
 
   const classification = useMemo(() => classifyDemand(answers), [answers]);
   const missing = useMemo(() => missingRequired(answers), [answers]);
   const canSave = missing.length === 0 && !saved;
 
+  // A saved demand is no longer a draft — drop it so a later refresh starts clean.
+  useEffect(() => { if (saved) clearDraft(); }, [saved, clearDraft]);
+
   const set = (k: keyof DemandAnswers, v: string) => setAnswers((a) => ({ ...a, [k]: v }));
-  function restart() { setAnswers({ ...EMPTY_ANSWERS }); reset(); }
+  function restart() { setAnswers({ ...EMPTY_ANSWERS }); clearDraft(); reset(); }
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-3">

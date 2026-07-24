@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { blankDemandMarkdown, parseDemandToAnswers, classifyDemand, missingRequired } from "@/lib/demand";
-import { ToolHeader, SavedLinks, useIntakeSave } from "../shared";
+import { ToolHeader, SavedLinks, useIntakeSave, useDraft } from "../shared";
 
 const LANE_LABEL: Record<string, string> = {
   run: "run", regulatory: "regulatory", continuous_improvement: "continuous improvement",
@@ -13,8 +13,11 @@ const LANE_LABEL: Record<string, string> = {
 
 export default function MarkdownTool() {
   const template = useMemo(() => blankDemandMarkdown(), []);
-  const [text, setText] = useState(template);
+  const [text, setText, clearDraft] = useDraft<string>("intake:md:v1", template);
   const { saving, saved, error, save, reset } = useIntakeSave();
+
+  // A saved demand is no longer a draft — drop it so a later refresh starts clean.
+  useEffect(() => { if (saved) clearDraft(); }, [saved, clearDraft]);
 
   // Parse the edited markdown the same way the server will, so "still needed" and
   // the proposed lane match exactly what saving produces.
@@ -23,7 +26,7 @@ export default function MarkdownTool() {
   const missing = useMemo(() => missingRequired(answers), [answers]);
   const canSave = missing.length === 0 && !saved;
 
-  function restart() { setText(template); reset(); }
+  function restart() { setText(template); clearDraft(); reset(); }
 
   return (
     <main className="mx-auto flex h-[calc(100vh-3.5rem)] max-w-3xl flex-col overflow-hidden px-4 py-3">

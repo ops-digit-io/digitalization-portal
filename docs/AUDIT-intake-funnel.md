@@ -187,7 +187,31 @@ should warn that they are non-durable.
 
 ---
 
-## 8. One-line summary for the requester
+## 8. Resolution — fixes applied in this branch
+
+The P0/P1 items and two P2 items were implemented and shipped on
+`claude/portal-demand-intake-audit-1m3w3t` (typecheck clean, 238 tests pass,
+production build green):
+
+| Finding | Fix |
+|---|---|
+| #1 Triage can't see/accept demands | `/triage` now reads the **live funnel** (`listDemandRows()`), not `SEED_ROWS`; the **Accept** action is wired to the existing `/api/demands/[id]/advance` route, so accepting records the real G1 (S1→S2) gate passage under `canOpenGate` enforcement. Lane-reassign / reject are shown **disabled** (honest) until their write paths land, instead of dead `<span>`s. (`app/triage/page.tsx`, `app/triage/actions.tsx`) |
+| #2 Demands list is a dead end | List rows now **link to `/uc/[id]`**. (`app/demands/page.tsx`) |
+| #3 Detail gated on GitHub creds | `/uc/[id]` reads a captured demand via `readDemand()` in **every mode** (working tree or GitHub), so it's openable offline. (`app/uc/[id]/page.tsx`) |
+| #4 Enhancement absent from Chat | `IntakeEnhancer` now appears on the **Chat done screen**; applying updates the answers and re-renders the preview. (`app/intake/chat/page.tsx`) |
+| #5 Offline enhancement looks inert | Panel relabelled "Review & strengthen"; an **explicit note** now explains offline mode assesses + asks questions but doesn't rewrite fields (set a model key for rewrites). (`app/intake/enhancer.tsx`) |
+| #6 No draft persistence | New `useDraft` hook autosaves **Form** and **Markdown** intake to `localStorage`, restores on load, clears on save. (`app/intake/shared.tsx`, `form`, `md`) |
+| #7 Live chat un-saveable "done" | Turn route now **guards `save_demand`**: if required fields are missing it keeps collecting and asks for them rather than reaching a done-but-rejectable state. (`app/api/intake/turn/route.ts`) |
+
+**Deliberately not changed (documented, not yet fixed):** lane re-assignment and
+reasoned rejection write paths (#1 remainder); Chat-tool draft persistence (its
+auto-start flow needs a restore path); the deployment persistence warning (§5) and
+requester-from-session default (I6 — deferred because auto-setting the requester to
+the demo actor would trip the self-approval rule and block Accept in the demo).
+
+---
+
+## 9. One-line summary for the requester
 
 Intake *capture* is well-built and genuinely reproducible; the **funnel is not yet
 connected past "Save"** — Triage is a static mock, captured demands can't be opened

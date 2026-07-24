@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth/current";
 import { getProvider } from "@/lib/agent/provider";
 import { loadIntakeGuideline, intakeSystemPrompt, SAVE_DEMAND_TOOL, INTAKE_PLAYBOOK, INTAKE_SKILLS } from "@/lib/agent/intake-guideline";
 import { startIntake, submitAnswer, type ChatMessage, type IntakeState } from "@/lib/intake-agent";
-import { INTAKE_FIELDS, EMPTY_ANSWERS, type DemandAnswers } from "@/lib/demand";
+import { INTAKE_FIELDS, EMPTY_ANSWERS, missingRequired, type DemandAnswers } from "@/lib/demand";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,6 +67,23 @@ export async function POST(req: Request) {
 
     if (call) {
       const answers = coerce(call.input);
+      // Guard: the model may call save_demand before every REQUIRED field is real.
+      // Don't let the interview reach a "done" state the save route would 400 on —
+      // keep collecting and ask for exactly what's missing.
+      const missing = missingRequired(answers);
+      if (missing.length > 0) {
+        const prev: IntakeState = body.state ?? { answers: { ...EMPTY_ANSWERS }, step: 0, done: false, nudged: [] };
+        const merged = { ...prev.answers, ...answers };
+        const text =
+          res.text?.trim() ||
+          `Almost there — I still need ${missing.map((f) => f.label.toLowerCase()).join(", ")} before I can write the demand. ${missing[0]!.question}`;
+        return NextResponse.json({
+          messages: [{ role: "assistant", text }],
+          state: { ...prev, answers: merged, done: false },
+          mode: "live",
+          governedBy: GOVERNED_BY,
+        } satisfies TurnResult);
+      }
       const state: IntakeState = { answers, step: INTAKE_FIELDS.length, done: true, nudged: [] };
       const text = res.text?.trim() || "Thanks — that's everything I need. I've written the demand page from what you told me; it's below.";
       return NextResponse.json({ messages: [{ role: "assistant", text }], state, mode: "live", governedBy: GOVERNED_BY } satisfies TurnResult);

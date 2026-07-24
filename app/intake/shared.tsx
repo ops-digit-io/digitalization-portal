@@ -1,7 +1,46 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import Link from "next/link";
+
+/**
+ * A useState that survives a page refresh by mirroring to localStorage, so an
+ * in-progress intake isn't lost to an accidental reload or navigation. SSR-safe:
+ * storage is read only after mount, and the initial value is never written back
+ * over a restored draft.
+ */
+export function useDraft<T>(key: string, initial: T): [T, Dispatch<SetStateAction<T>>, () => void] {
+  const [value, setValue] = useState<T>(initial);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (raw !== null) setValue(JSON.parse(raw) as T);
+    } catch {
+      /* ignore corrupt/unavailable storage */
+    }
+    setLoaded(true);
+  }, [key]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    try {
+      window.localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      /* ignore quota/unavailable storage */
+    }
+  }, [key, value, loaded]);
+
+  const clear = () => {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      /* ignore */
+    }
+  };
+  return [value, setValue, clear];
+}
 
 export interface SaveResponse {
   id: string;

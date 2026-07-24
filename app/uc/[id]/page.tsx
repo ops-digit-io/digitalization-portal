@@ -38,12 +38,15 @@ function proseSections(markdown: string): { title: string; body: string }[] {
   return out;
 }
 
-/** Load a case's README: live from du-demands when configured, else the demo seed. */
+/**
+ * Load a case's README from the funnel store — `readDemand` reads du-demands when
+ * the GitHub App is configured, else the local working tree, so a demand captured
+ * through intake is openable in EVERY mode (not only when GitHub is wired). Falls
+ * back to the demo seed for ids that have no funnel record.
+ */
 async function loadCase(id: string): Promise<{ markdown: string; live: boolean } | null> {
-  if (hasGitHubCredentials()) {
-    const md = await readDemand(id);
-    if (md !== undefined) return { markdown: md, live: true };
-  }
+  const md = await readDemand(id);
+  if (md !== undefined) return { markdown: md, live: hasGitHubCredentials() };
   if (SEED_README[id]) return { markdown: SEED_README[id]!, live: false };
   const row = SEED_ROWS.find((r) => r.id === id);
   if (row) return { markdown: buildStubReadme(row), live: false };
