@@ -92,10 +92,10 @@ export const LAUNCHPAD: TileGroup[] = [
   {
     category: "Govern & operate",
     tiles: [
-      { id: "docs", title: "Specification", subtitle: "Governance & data model", href: "/board", icon: I.book, tone: "slate" },
+      { id: "docs", title: "Specification", subtitle: "Governance & data model", href: "/board", icon: I.book, tone: "slate", disabled: true },
       { id: "catalog", title: "Skills & Playbooks", subtitle: "Agent capabilities", href: "/catalog", icon: I.copy, tone: "info" },
       { id: "skill-library", title: "Skill Library", subtitle: "Import reference skills (agentskills.io)", href: "/skill-library", icon: I.download, tone: "info" },
-      { id: "traces", title: "Agent Traces", subtitle: "Replayable AI runs", href: "/assistant", icon: I.gauge, tone: "slate" },
+      { id: "traces", title: "Agent Traces", subtitle: "Replayable AI runs", href: "/assistant", icon: I.gauge, tone: "slate", disabled: true },
       { id: "digest", title: "Review Digest", subtitle: "Due dates & staleness", href: "/board", icon: I.bell, tone: "slate", disabled: true },
       { id: "settings", title: "Administration", subtitle: "Roles, skills, playbooks", href: "/board", icon: I.cog, tone: "slate", disabled: true },
     ],

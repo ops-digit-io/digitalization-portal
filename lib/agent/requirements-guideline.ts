@@ -8,12 +8,15 @@
  * playbook → change how the agent analyses.
  */
 
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { knowledgeFor } from "../domain-knowledge.js";
+import { loadGoverning } from "./governing.js";
 
-export async function loadRequirementsGuideline(baseDir = process.cwd()): Promise<string> {
-  return readFile(join(baseDir, "playbooks/requirements-analysis.md"), "utf8").catch(() => "");
+/** The library playbook that governs this agent's behaviour. */
+export const REQUIREMENTS_PLAYBOOK = "requirements-analysis";
+
+/** Load the requirements playbook dynamically from the library (registry, then bundled). */
+export async function loadRequirementsGuideline(): Promise<string> {
+  return loadGoverning("playbook", REQUIREMENTS_PLAYBOOK);
 }
 
 /**

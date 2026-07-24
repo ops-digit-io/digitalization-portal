@@ -8,14 +8,17 @@
  * plus the baseline, honestly labelled as having no live sources. Never throws.
  */
 
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import type { DemandAnswers } from "../demand.js";
 import { seedResearchBrief, buildResearchMarkdown, type ResearchMeta } from "../research.js";
 import { getProvider } from "./provider.js";
+import { loadGoverning } from "./governing.js";
 
-async function loadResearchPlaybook(baseDir = process.cwd()): Promise<string> {
-  return readFile(join(baseDir, "playbooks/domain-research.md"), "utf8").catch(() => "");
+/** The library playbook that governs this agent's behaviour. */
+export const RESEARCH_PLAYBOOK = "domain-research";
+
+/** Load the research playbook dynamically from the library (registry, then bundled). */
+async function loadResearchPlaybook(): Promise<string> {
+  return loadGoverning("playbook", RESEARCH_PLAYBOOK);
 }
 
 function researchSystemPrompt(playbook: string): string {
