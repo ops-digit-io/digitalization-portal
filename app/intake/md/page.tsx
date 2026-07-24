@@ -3,13 +3,21 @@
 import { useEffect, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { blankDemandMarkdown, parseDemandToAnswers, classifyDemand, missingRequired } from "@/lib/demand";
+import { blankDemandMarkdown, parseDemandToAnswers, classifyDemand, missingRequired, type DemandField } from "@/lib/demand";
 import { ToolHeader, SavedLinks, useIntakeSave, useDraft } from "../shared";
 
 const LANE_LABEL: Record<string, string> = {
   run: "run", regulatory: "regulatory", continuous_improvement: "continuous improvement",
   transform: "transform", innovation: "innovation", data_ai: "data / AI", local: "local", unassigned: "unassigned",
 };
+
+/** Point a missing required field at the exact markdown location to fill. */
+function whereToFill(f: DemandField): string {
+  if (f.section) return `## ${f.section}`;
+  if (f.key === "title") return "the top “# UC-… · Title” line";
+  if (f.key === "plant") return "the “**Plant:**” line in ## State";
+  return "## State";
+}
 
 export default function MarkdownTool() {
   const template = useMemo(() => blankDemandMarkdown(), []);
@@ -54,7 +62,7 @@ export default function MarkdownTool() {
           {!saved ? (
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-muted-foreground">
-                {canSave ? "Ready to save." : `Still needed: ${missing.map((m) => m.label).join(", ")} — fill the matching section(s).`}
+                {canSave ? "Ready to save." : `Still needed: ${missing.map((m) => `${m.label} → ${whereToFill(m)}`).join(", ")}`}
               </span>
               <div className="flex gap-2">
                 <button onClick={restart} className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Reset</button>

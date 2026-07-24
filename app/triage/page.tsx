@@ -53,7 +53,7 @@ export default async function Triage() {
               </div>
               {r.stage && <StageBadge stage={r.stage as Stage} />}
               {r.lane ? <LaneBadge lane={r.lane as Lane} /> : <Badge variant="outline" className="font-normal text-muted-foreground">unassigned</Badge>}
-              <TriageActions id={r.id} gate={gate} gateLabel={gate ? GATE_LABELS[gate] : undefined} />
+              <TriageActions id={r.id} gate={gate} gateLabel={gate ? GATE_LABELS[gate] : undefined} currentLane={r.lane} />
             </Card>
           );
         })}

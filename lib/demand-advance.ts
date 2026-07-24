@@ -33,7 +33,7 @@ function splitCells(line: string): string[] {
 }
 
 /** Set (or insert) a `- **Key:** value` line inside the `## State` section. */
-function setStateField(md: string, key: string, value: string): string {
+export function setStateField(md: string, key: string, value: string): string {
   const re = new RegExp(`^(\\s*[-*+]\\s+\\*\\*${key}:\\*\\*\\s*).*$`, "m");
   if (re.test(md)) return md.replace(re, `$1${value}`);
   // Not present — insert after the Stage line if there is one, else after the heading.
@@ -62,7 +62,7 @@ function setGateRow(md: string, gate: Gate, patch: { status?: GateStatus; date?:
 }
 
 /** Append a bullet to the `## History` section (creating it if absent). */
-function appendHistory(md: string, entry: string): string {
+export function appendHistory(md: string, entry: string): string {
   const bullet = `- ${entry}`;
   const idx = md.search(/##\s+History/i);
   if (idx === -1) return `${md.trimEnd()}\n\n## History\n\n${bullet}\n`;

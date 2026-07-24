@@ -11,6 +11,9 @@ import { IntakeEnhancer } from "../enhancer";
 
 interface GovernedBy { playbook: string; skills: string[] }
 
+/** localStorage key for an in-progress chat, so a refresh doesn't restart the interview. */
+const CHAT_DRAFT = "intake:chat:v1";
+
 const LANE_LABEL: Record<string, string> = {
   run: "run", regulatory: "regulatory", continuous_improvement: "continuous improvement",
   transform: "transform", innovation: "innovation", data_ai: "data / AI", local: "local", unassigned: "unassigned",
@@ -60,7 +63,42 @@ export default function ChatTool() {
     }
   }
 
-  useEffect(() => { void turn({ action: "start", msgs: [], st: null }); }, []);
+  const [hydrated, setHydrated] = useState(false);
+
+  // Restore an in-progress interview if one was saved; only start fresh when there
+  // is nothing to restore. Runs once — the whole conversation survives a refresh.
+  useEffect(() => {
+    let restored = false;
+    try {
+      const raw = window.localStorage.getItem(CHAT_DRAFT);
+      if (raw) {
+        const d = JSON.parse(raw) as { messages?: ChatMessage[]; state?: IntakeState | null; mode?: "live" | "offline"; governedBy?: GovernedBy };
+        if (d.messages && d.messages.length > 0) {
+          setMessages(d.messages);
+          setState(d.state ?? null);
+          if (d.mode) setMode(d.mode);
+          if (d.governedBy) setGovernedBy(d.governedBy);
+          restored = true;
+        }
+      }
+    } catch {
+      /* ignore corrupt/unavailable storage */
+    }
+    setHydrated(true);
+    if (!restored) void turn({ action: "start", msgs: [], st: null });
+  }, []);
+
+  // Persist the interview as it progresses; drop it once the demand is saved.
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      if (saved) { window.localStorage.removeItem(CHAT_DRAFT); return; }
+      window.localStorage.setItem(CHAT_DRAFT, JSON.stringify({ messages, state, mode, governedBy }));
+    } catch {
+      /* ignore quota/unavailable storage */
+    }
+  }, [hydrated, messages, state, mode, governedBy, saved]);
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, busy]);
@@ -90,6 +128,7 @@ export default function ChatTool() {
   }
 
   function restart() {
+    try { window.localStorage.removeItem(CHAT_DRAFT); } catch { /* ignore */ }
     setMessages([]);
     setState(null);
     setInput("");

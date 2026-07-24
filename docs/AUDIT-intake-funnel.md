@@ -203,11 +203,20 @@ production build green):
 | #6 No draft persistence | New `useDraft` hook autosaves **Form** and **Markdown** intake to `localStorage`, restores on load, clears on save. (`app/intake/shared.tsx`, `form`, `md`) |
 | #7 Live chat un-saveable "done" | Turn route now **guards `save_demand`**: if required fields are missing it keeps collecting and asks for them rather than reaching a done-but-rejectable state. (`app/api/intake/turn/route.ts`) |
 
-**Deliberately not changed (documented, not yet fixed):** lane re-assignment and
-reasoned rejection write paths (#1 remainder); Chat-tool draft persistence (its
-auto-start flow needs a restore path); the deployment persistence warning (§5) and
-requester-from-session default (I6 — deferred because auto-setting the requester to
-the demo actor would trip the self-approval rule and block Accept in the demo).
+### Second round — triage fully functional + resilience polish
+
+| Finding | Fix |
+|---|---|
+| #1 remainder — lane-assign & reasoned reject | New pure mutations `assignLane` / `rejectDemand` (`lib/demand-triage.ts`, unit-tested) behind `POST /api/demands/[id]/triage`. Triage now has all three acts: **Accept** (G1/G2), **Assign lane** (a select, `assign_lane` authority), and **Reject** (requires a reason, parks + reroutes to backlog, `park` authority) — a blank reason is refused, so closure is never silent. (`app/triage/actions.tsx`) |
+| I1 remainder — Chat draft persistence | The chat now hydrates an in-progress interview from `localStorage` on load and only starts fresh when there's nothing to restore; persists each turn, clears on save/restart. (`app/intake/chat/page.tsx`) |
+| §5 — non-durable offline saves | `SavedLinks` now warns when a save landed in the **local workspace**, pointing at the GitHub App for durable storage. (`app/intake/shared.tsx`) |
+| I5 — Markdown "still needed" mapping | Each missing field now names **where to fill it** (its `## Section`, or the title/State line). (`app/intake/md/page.tsx`) |
+
+**Still deferred (intentional):** requester-from-session default (I6 — auto-setting
+the requester to the demo actor would trip the self-approval rule and block Accept in
+the demo; revisit once real OIDC is wired); a proactive weak-score nudge (E4) and
+in-place answering of the enhancer's open questions (E5) — both quality-of-life, not
+funnel-blocking.
 
 ---
 

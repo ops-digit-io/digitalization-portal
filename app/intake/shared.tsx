@@ -83,11 +83,18 @@ export function useIntakeSave() {
 /** After a successful save — same links for every tool. */
 export function SavedLinks({ id, host, onRestart }: { id: string; host: string; onRestart: () => void }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-sm text-ok">Saved as <span className="font-mono">{id}</span> ({host}).</span>
-      <Link href="/demands" className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground">Open demands →</Link>
-      <Link href="/funnel" className="rounded-md border px-3 py-1.5 text-xs">Funnel →</Link>
-      <button onClick={onRestart} className="rounded-md border px-3 py-1.5 text-xs">Capture another</button>
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-ok">Saved as <span className="font-mono">{id}</span> ({host}).</span>
+        <Link href="/demands" className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground">Open demands →</Link>
+        <Link href="/funnel" className="rounded-md border px-3 py-1.5 text-xs">Funnel →</Link>
+        <button onClick={onRestart} className="rounded-md border px-3 py-1.5 text-xs">Capture another</button>
+      </div>
+      {host === "local" && (
+        <p className="text-[11px] text-muted-foreground">
+          Written to the local workspace. Configure the GitHub App for durable, shared storage — local writes aren't persisted on ephemeral (serverless) deployments.
+        </p>
+      )}
     </div>
   );
 }
