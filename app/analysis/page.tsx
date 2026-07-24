@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { analyzePortfolio, HORIZON_WEEKS, type Horizon } from "@/lib/analysis/portfolio";
-import { SEED_ROWS } from "@/lib/seed";
+import { loadPortfolioRows } from "@/lib/portfolio";
 import { Card } from "@/components/ui/card";
+
+export const dynamic = "force-dynamic";
 
 const EUR = (n: number) =>
   new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
@@ -18,11 +20,15 @@ function Tile({ label, value, sub }: { label: string; value: string; sub?: strin
   );
 }
 
-export default function AnalysisPage({ searchParams }: { searchParams: { horizon?: string } }) {
+export default async function AnalysisPage({ searchParams }: { searchParams: { horizon?: string } }) {
   const horizon: Horizon = searchParams.horizon === "year" ? "year" : "quarter";
   const horizonWeeks = HORIZON_WEEKS[horizon];
   const capacity = TEAM_SIZE * horizonWeeks;
-  const a = analyzePortfolio(SEED_ROWS, {
+
+  // Real funnel — active demands only. No seed; a thin funnel analyses thin.
+  const { rows } = await loadPortfolioRows();
+  const active = rows.filter((r) => r.status !== "killed" && r.status !== "parked");
+  const a = analyzePortfolio(active, {
     horizon,
     parallelism: TEAM_SIZE,
     capacityPersonWeeks: capacity,
@@ -126,6 +132,9 @@ export default function AnalysisPage({ searchParams }: { searchParams: { horizon
               </tr>
             </thead>
             <tbody>
+              {a.ranked.length === 0 && (
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No active demands in the funnel yet. <Link href="/intake" className="underline">Capture one</Link> to see it analysed.</td></tr>
+              )}
               {a.ranked.map((it) => (
                 <tr key={it.id} className="border-b last:border-0">
                   <td className="px-4 py-2">

@@ -1,17 +1,23 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { simulateBusinessCase } from "@/lib/businesscase";
-import { SEED_BUSINESS_CASE, SEED_ROWS } from "@/lib/seed";
+import { readDemand, readArtifact } from "@/lib/demands-store";
+import { parseUseCase } from "@/lib/parse";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+
+export const dynamic = "force-dynamic";
 
 const EUR = (n: number) =>
   new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
 
-export default function SimulatePage({ params }: { params: { id: string } }) {
-  const row = SEED_ROWS.find((r) => r.id === params.id);
-  const bc = SEED_BUSINESS_CASE[params.id];
-  if (!row || !bc) notFound();
+export default async function SimulatePage({ params }: { params: { id: string } }) {
+  // Real business case for this demand, from the funnel — no seed.
+  const bc = await readArtifact(params.id, "business-case");
+  if (!bc) notFound();
+  const md = await readDemand(params.id);
+  const title = (md ? parseUseCase(md).title?.replace(/^UC-\d{4}-\d+\s*·\s*/, "") : undefined) ?? params.id;
+  const row = { title };
 
   const { facts, simulation } = simulateBusinessCase(bc);
   const max = Math.max(simulation.p90, 1);

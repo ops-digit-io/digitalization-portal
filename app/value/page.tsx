@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { SEED_ROWS } from "@/lib/seed";
+import { loadPortfolioRows } from "@/lib/portfolio";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { RegistryRow } from "@/lib/registry";
+
+export const dynamic = "force-dynamic";
 
 const EUR = (n: number) =>
   new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
@@ -16,10 +18,12 @@ function layers(rows: readonly RegistryRow[]) {
   return { pipeline, committed, realized };
 }
 
-export default function ValueCockpit() {
-  const l = layers(SEED_ROWS);
+export default async function ValueCockpit() {
+  // Real funnel; value comes from actual business-case.md artifacts, not seed.
+  const { rows } = await loadPortfolioRows();
+  const l = layers(rows);
   const portfolio = l.committed + l.realized; // headline = committed + realized ONLY
-  const s8 = SEED_ROWS.filter((r) => r.stage === "S8");
+  const s8 = rows.filter((r) => r.stage === "S8");
 
   const cards = [
     { label: "Pipeline", sub: "indicative · S3–S4", value: l.pipeline, tone: "--info", note: "Not counted as expected value." },

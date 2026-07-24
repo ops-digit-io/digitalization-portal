@@ -48,9 +48,9 @@ export default async function Funnel({ searchParams }: { searchParams: { lane?: 
             <h1 className="text-lg font-semibold">Use-case funnel</h1>
             <span
               className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${live ? "bg-ok/10 text-ok" : "bg-secondary text-muted-foreground"}`}
-              title={live ? `Read live from ${source}` : "Demo seed data — configure the GitHub App to read the live funnel"}
+              title={live ? `Read live from ${source}` : `Read from the ${source} — configure the GitHub App to read the live du-demands funnel`}
             >
-              {live ? `● live · ${source}` : "○ demo data"}
+              {live ? `● live · ${source}` : `○ ${source}`}
             </span>
           </div>
           <p className="text-sm text-muted-foreground">Demand narrowing S1→S8 — conversion, drop-off, dwell, and kill rate by gate. A count of demands is not a portfolio; stage progression is.</p>

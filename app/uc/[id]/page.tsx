@@ -4,14 +4,14 @@ import { parseUseCase, parsePeople } from "@/lib/parse";
 import { canOpenGate } from "@/lib/gates";
 import { exitGate, nextStage } from "@/lib/stages";
 import { hasGitHubCredentials } from "@/lib/git";
-import { readDemand } from "@/lib/demands-store";
+import { readDemand, readArtifact } from "@/lib/demands-store";
 import { StageBadge } from "@/components/portal/stage-badge";
 import { GateTimeline, type GateNode } from "@/components/portal/gate-timeline";
 import { MarkdownDoc } from "@/components/portal/markdown-doc";
 import { GateAction } from "@/components/portal/gate-action";
 import { AdvanceStage } from "@/components/portal/advance-stage";
 import { HeatDot, LaneBadge, LevelBadge } from "@/components/portal/badges";
-import { SEED_README, SEED_ROWS, SEED_BUSINESS_CASE, buildStubReadme, DEMO_NOW } from "@/lib/seed";
+import { SEED_README, SEED_ROWS, buildStubReadme, DEMO_NOW } from "@/lib/seed";
 import { getSession } from "@/lib/auth/current";
 import type { Gate, Stage } from "@/lib/types";
 
@@ -61,6 +61,8 @@ export default async function UseCasePage({ params }: { params: { id: string } }
 
   const uc = parseUseCase(markdown);
   const people = parsePeople(markdown);
+  // Real business case for this demand (never seed) — gates the simulate link.
+  const hasBusinessCase = (await readArtifact(params.id, "business-case")) !== undefined;
 
   const stage = uc.state.stage as Stage | undefined;
   const plant = uc.state.plant;
@@ -191,7 +193,7 @@ export default async function UseCasePage({ params }: { params: { id: string } }
             </ul>
           </div>
 
-          {SEED_BUSINESS_CASE[params.id] && (
+          {hasBusinessCase && (
             <Link
               href={`/uc/${params.id}/simulate`}
               className="flex items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-3 text-sm font-medium hover:border-foreground/40"

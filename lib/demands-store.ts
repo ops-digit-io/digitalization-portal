@@ -22,6 +22,7 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { parseUseCase, parsePeople, type ParsedUseCase } from "./parse.js";
+import { parseBusinessCase } from "./businesscase.js";
 import { getGitHost, hasGitHubCredentials, type RepoRef } from "./git/index.js";
 import { LocalHost } from "./git/local-host.js";
 import type { RegistryRow } from "./registry.js";
@@ -209,6 +210,29 @@ export async function listDemandRows(baseDir = root()): Promise<RegistryRow[]> {
       ...(demandNeedsAttention(p) ? { needsAttention: true } : {}),
     });
   }
+  return rows;
+}
+
+/**
+ * Portfolio rows enriched with REAL value from each case's `business-case.md`, when
+ * one exists. A demand carries no value until a business case is drafted — so this
+ * reads the actual artifact (never a seeded figure): its annual-gross becomes
+ * `valueRealized` when the case's confidence is "realized", else `valueProjected`.
+ * Cases without a business case simply have no value, which is the honest state of
+ * a fresh funnel.
+ */
+export async function listDemandRowsWithValue(baseDir = root()): Promise<RegistryRow[]> {
+  const rows = await listDemandRows(baseDir);
+  await Promise.all(
+    rows.map(async (r) => {
+      const bc = await readArtifact(r.id, "business-case", baseDir).catch(() => undefined);
+      if (!bc) return;
+      const facts = parseBusinessCase(bc);
+      if (facts.annualGross === undefined) return;
+      if (facts.confidence === "realized") r.valueRealized = facts.annualGross;
+      else r.valueProjected = facts.annualGross;
+    }),
+  );
   return rows;
 }
 
