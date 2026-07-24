@@ -202,12 +202,17 @@ export default async function UseCasePage({ params }: { params: { id: string } }
             </Link>
           )}
 
-          <Link
-            href={`/uc/${params.id}/poc`}
-            className="flex items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-3 text-sm font-medium hover:border-foreground/40"
+          {/* The agentic PoC builder still runs on seed use cases, not the real
+              funnel — surfaced as "soon" rather than a flow that can't act on this
+              demand. */}
+          <div
+            className="relative flex items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-3 text-sm font-medium text-muted-foreground opacity-60"
+            aria-disabled
+            title="The agentic PoC builder is not yet wired to the real funnel"
           >
             🛠 Build PoC with agents
-          </Link>
+            <span className="absolute right-3 text-[10px] uppercase tracking-wide">soon</span>
+          </div>
         </aside>
       </div>
     </main>
