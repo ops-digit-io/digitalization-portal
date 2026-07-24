@@ -11,7 +11,6 @@ import { MarkdownDoc } from "@/components/portal/markdown-doc";
 import { GateAction } from "@/components/portal/gate-action";
 import { AdvanceStage } from "@/components/portal/advance-stage";
 import { HeatDot, LaneBadge, LevelBadge } from "@/components/portal/badges";
-import { SEED_README, SEED_ROWS, buildStubReadme, DEMO_NOW } from "@/lib/seed";
 import { getSession } from "@/lib/auth/current";
 import type { Gate, Stage } from "@/lib/types";
 
@@ -39,17 +38,13 @@ function proseSections(markdown: string): { title: string; body: string }[] {
 }
 
 /**
- * Load a case's README from the funnel store — `readDemand` reads du-demands when
- * the GitHub App is configured, else the local working tree, so a demand captured
- * through intake is openable in EVERY mode (not only when GitHub is wired). Falls
- * back to the demo seed for ids that have no funnel record.
+ * Load a case's README from the real funnel store — `readDemand` reads du-demands
+ * when the GitHub App is configured, else the local working tree. No seed fallback:
+ * an id with no funnel record is a 404, never fabricated content.
  */
 async function loadCase(id: string): Promise<{ markdown: string; live: boolean } | null> {
   const md = await readDemand(id);
   if (md !== undefined) return { markdown: md, live: hasGitHubCredentials() };
-  if (SEED_README[id]) return { markdown: SEED_README[id]!, live: false };
-  const row = SEED_ROWS.find((r) => r.id === id);
-  if (row) return { markdown: buildStubReadme(row), live: false };
   return null;
 }
 
@@ -68,7 +63,7 @@ export default async function UseCasePage({ params }: { params: { id: string } }
   const plant = uc.state.plant;
   const domain = uc.state.domain;
   const since = uc.state.raw["since"] ?? uc.state.created;
-  const now = live ? new Date().toISOString() : DEMO_NOW;
+  const now = new Date().toISOString();
   const days = since ? Math.floor((Date.parse(now) - Date.parse(since)) / 86400000) : undefined;
 
   const gateNodes: GateNode[] = ALL_GATES.map((id) => {
@@ -108,9 +103,9 @@ export default async function UseCasePage({ params }: { params: { id: string } }
         <h1 className="text-xl font-semibold">{title}</h1>
         <span
           className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${live ? "bg-ok/10 text-ok" : "bg-secondary text-muted-foreground"}`}
-          title={live ? `Read live from ${demandsRepo}` : "Demo seed data"}
+          title={live ? `Read live from ${demandsRepo}` : "Read from the local workspace"}
         >
-          {live ? `● live · ${demandsRepo}` : "○ demo data"}
+          {live ? `● live · ${demandsRepo}` : "○ local workspace"}
         </span>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">

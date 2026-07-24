@@ -10,5 +10,6 @@ captured answers always render the same sections in the same order
 (`lib/demand.ts`). A demand page is the future use-case `README.md`, so it uses the
 same `## State` / `## Gates` structure the parser already reads.
 
-Files here are demo seed content. In a live deployment this directory is the
-`du-demands` repository the portal reads and writes.
+This directory starts empty — the funnel fills only with demands captured through
+the portal's intake, never with seeded sample data. In a live deployment this
+directory is the `du-demands` repository the portal reads and writes.
