@@ -85,9 +85,9 @@ export function IntakeEnhancer({
     <div className="rounded-lg border border-dashed p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-sm font-semibold">✨ Sharpen with AI</h2>
+          <h2 className="text-sm font-semibold">✨ Review &amp; strengthen with AI</h2>
           <p className="text-xs text-muted-foreground">
-            Clarifies vague input before triage. Drafts only — you choose what to apply. Not requirements engineering.
+            Assesses the demand and, with a model configured, drafts clearer field text — you choose what to apply. Not requirements engineering.
             {result && (
               <> Governed by the <a href={`/catalog/playbook/${result.playbook}`} className="underline hover:text-foreground">{result.playbook}</a> playbook.</>
             )}
@@ -99,11 +99,19 @@ export function IntakeEnhancer({
           disabled={loading}
           className="rounded-md border px-3 py-1.5 text-sm font-medium hover:border-foreground/40 disabled:opacity-50"
         >
-          {loading ? "Sharpening…" : result ? "Re-run" : "Sharpen"}
+          {loading ? "Working…" : result ? "Re-run" : "Review"}
         </button>
       </div>
 
       {error && <div className="mt-3 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-1.5 text-xs text-destructive">{error}</div>}
+
+      {/* Offline mode assesses and asks questions but does not rewrite field text —
+          say so, so an empty change-list doesn't read as "it did nothing". */}
+      {result && !result.live && changed.length === 0 && (
+        <div className="mt-3 rounded-md border border-info/40 bg-info/5 px-3 py-2 text-xs text-muted-foreground">
+          Offline mode reviews the demand and raises the questions below, but doesn't rewrite field text. Set <span className="font-mono">ANTHROPIC_API_KEY</span> (or <span className="font-mono">OPENAI_API_KEY</span>) to get AI-drafted rewrites you can apply.
+        </div>
+      )}
 
       {result && (
         <div className="mt-3 space-y-3">

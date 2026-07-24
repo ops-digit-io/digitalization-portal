@@ -8,13 +8,15 @@
  */
 
 import { NextResponse } from "next/server";
+import { can } from "@/lib/rbac";
 import { runAgent } from "@/lib/agent/loop";
 import { getProvider } from "@/lib/agent/provider";
 import { createDefaultRegistry } from "@/lib/agent/registry";
 import { makeImplementationAnalysisTool } from "@/lib/agent/tools/implementation-analysis";
 import { makeStartPocTool } from "@/lib/agent/tools/start-poc";
 import { agentToolsEnabled } from "@/lib/agent/tools";
-import { SYSTEM_PROMPT, factsBlock } from "@/lib/agent/prompt";
+import { factsBlock } from "@/lib/agent/prompt";
+import { loadAnalystGuideline, analystSystemPrompt, ANALYST_GOVERNED_BY } from "@/lib/agent/analyst-guideline";
 import { wrapExternal } from "@/lib/agent/wrap";
 import { parseBusinessCase, toSimulationInput } from "@/lib/businesscase";
 import { DEMO_NOW, SEED_ROWS, SEED_BUSINESS_CASE } from "@/lib/seed";
@@ -37,7 +39,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
   }
 
-  const session = await getSession(); // demo: real deployment resolves this from the OIDC session
+  // Authentication/authorization is the session's (constraint #3): getSession resolves
+  // the OIDC session when configured, else the demo session, else ANONYMOUS (no roles).
+  // Defense-in-depth alongside the middleware guard — the analyst needs view_board;
+  // each tool then enforces its own capability inside the loop.
+  const session = await getSession();
+  if (!can(session, "view_board")) {
+    return NextResponse.json({ error: "authentication required" }, { status: 401 });
+  }
   const provider = getProvider();
   const registry = createDefaultRegistry()
     .register(makeImplementationAnalysisTool(SEED_ROWS))
@@ -76,12 +85,16 @@ export async function POST(req: Request) {
     ].join("\n");
   }
 
+  // Behaviour comes from the library (portfolio-query playbook + portfolio-analysis
+  // skill), loaded dynamically — never a hardcoded prompt.
+  const system = analystSystemPrompt(await loadAnalystGuideline());
+
   try {
     const result = await runAgent({
       session,
       provider,
       registry,
-      system: SYSTEM_PROMPT,
+      system,
       userMessage,
       now: DEMO_NOW,
       traceId: `trace-${task}-${body.useCaseId ?? "chat"}`,
@@ -92,6 +105,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       text: result.text,
       ...(link ? { link } : {}),
+      governedBy: ANALYST_GOVERNED_BY,
       provider: { name: provider.name, live: provider.live },
       trace: {
         toolsOffered: result.trace.toolsOffered,

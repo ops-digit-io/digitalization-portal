@@ -49,7 +49,7 @@ export default async function Demands() {
             {demands.map((d) => (
               <tr key={d.id} className="border-b last:border-0 hover:bg-secondary/30">
                 <td className="px-4 py-2.5">
-                  <div className="font-medium">{d.title}</div>
+                  <Link href={`/uc/${d.id}`} className="font-medium hover:underline">{d.title}</Link>
                   <div className="font-mono text-xs text-muted-foreground">{d.id}</div>
                   {d.needsAttention && <Badge variant="outline" className="mt-1 border-warn/50 font-normal text-warn">needs attention</Badge>}
                 </td>

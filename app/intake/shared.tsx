@@ -1,7 +1,46 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import Link from "next/link";
+
+/**
+ * A useState that survives a page refresh by mirroring to localStorage, so an
+ * in-progress intake isn't lost to an accidental reload or navigation. SSR-safe:
+ * storage is read only after mount, and the initial value is never written back
+ * over a restored draft.
+ */
+export function useDraft<T>(key: string, initial: T): [T, Dispatch<SetStateAction<T>>, () => void] {
+  const [value, setValue] = useState<T>(initial);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (raw !== null) setValue(JSON.parse(raw) as T);
+    } catch {
+      /* ignore corrupt/unavailable storage */
+    }
+    setLoaded(true);
+  }, [key]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    try {
+      window.localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      /* ignore quota/unavailable storage */
+    }
+  }, [key, value, loaded]);
+
+  const clear = () => {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      /* ignore */
+    }
+  };
+  return [value, setValue, clear];
+}
 
 export interface SaveResponse {
   id: string;
@@ -44,11 +83,18 @@ export function useIntakeSave() {
 /** After a successful save — same links for every tool. */
 export function SavedLinks({ id, host, onRestart }: { id: string; host: string; onRestart: () => void }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-sm text-ok">Saved as <span className="font-mono">{id}</span> ({host}).</span>
-      <Link href="/demands" className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground">Open demands →</Link>
-      <Link href="/funnel" className="rounded-md border px-3 py-1.5 text-xs">Funnel →</Link>
-      <button onClick={onRestart} className="rounded-md border px-3 py-1.5 text-xs">Capture another</button>
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-ok">Saved as <span className="font-mono">{id}</span> ({host}).</span>
+        <Link href="/demands" className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground">Open demands →</Link>
+        <Link href="/funnel" className="rounded-md border px-3 py-1.5 text-xs">Funnel →</Link>
+        <button onClick={onRestart} className="rounded-md border px-3 py-1.5 text-xs">Capture another</button>
+      </div>
+      {host === "local" && (
+        <p className="text-[11px] text-muted-foreground">
+          Written to the local workspace. Configure the GitHub App for durable, shared storage — local writes aren't persisted on ephemeral (serverless) deployments.
+        </p>
+      )}
     </div>
   );
 }

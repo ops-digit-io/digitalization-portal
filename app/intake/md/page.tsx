@@ -1,20 +1,31 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { blankDemandMarkdown, parseDemandToAnswers, classifyDemand, missingRequired } from "@/lib/demand";
-import { ToolHeader, SavedLinks, useIntakeSave } from "../shared";
+import { blankDemandMarkdown, parseDemandToAnswers, classifyDemand, missingRequired, type DemandField } from "@/lib/demand";
+import { ToolHeader, SavedLinks, useIntakeSave, useDraft } from "../shared";
 
 const LANE_LABEL: Record<string, string> = {
   run: "run", regulatory: "regulatory", continuous_improvement: "continuous improvement",
   transform: "transform", innovation: "innovation", data_ai: "data / AI", local: "local", unassigned: "unassigned",
 };
 
+/** Point a missing required field at the exact markdown location to fill. */
+function whereToFill(f: DemandField): string {
+  if (f.section) return `## ${f.section}`;
+  if (f.key === "title") return "the top “# UC-… · Title” line";
+  if (f.key === "plant") return "the “**Plant:**” line in ## State";
+  return "## State";
+}
+
 export default function MarkdownTool() {
   const template = useMemo(() => blankDemandMarkdown(), []);
-  const [text, setText] = useState(template);
+  const [text, setText, clearDraft] = useDraft<string>("intake:md:v1", template);
   const { saving, saved, error, save, reset } = useIntakeSave();
+
+  // A saved demand is no longer a draft — drop it so a later refresh starts clean.
+  useEffect(() => { if (saved) clearDraft(); }, [saved, clearDraft]);
 
   // Parse the edited markdown the same way the server will, so "still needed" and
   // the proposed lane match exactly what saving produces.
@@ -23,7 +34,7 @@ export default function MarkdownTool() {
   const missing = useMemo(() => missingRequired(answers), [answers]);
   const canSave = missing.length === 0 && !saved;
 
-  function restart() { setText(template); reset(); }
+  function restart() { setText(template); clearDraft(); reset(); }
 
   return (
     <main className="mx-auto flex h-[calc(100vh-3.5rem)] max-w-3xl flex-col overflow-hidden px-4 py-3">
@@ -51,7 +62,7 @@ export default function MarkdownTool() {
           {!saved ? (
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-muted-foreground">
-                {canSave ? "Ready to save." : `Still needed: ${missing.map((m) => m.label).join(", ")} — fill the matching section(s).`}
+                {canSave ? "Ready to save." : `Still needed: ${missing.map((m) => `${m.label} → ${whereToFill(m)}`).join(", ")}`}
               </span>
               <div className="flex gap-2">
                 <button onClick={restart} className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Reset</button>
