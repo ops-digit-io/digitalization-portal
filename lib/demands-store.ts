@@ -23,6 +23,7 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { parseUseCase, parsePeople, type ParsedUseCase } from "./parse.js";
 import { parseBusinessCase } from "./businesscase.js";
+import { mapPool } from "./pool.js";
 import { getGitHost, hasGitHubCredentials, type RepoRef } from "./git/index.js";
 import { LocalHost } from "./git/local-host.js";
 import type { RegistryRow } from "./registry.js";
@@ -149,16 +150,20 @@ function demandNeedsAttention(p: ParsedUseCase): boolean {
   return p.state.stage === undefined || otherErrors.some((e) => e.section === "state");
 }
 
+/** How many funnel cases to fetch from GitHub at once (bounded to respect rate limits). */
+const FETCH_CONCURRENCY = 8;
+
 /** Parse every case into a board-ready summary; unreadable ones surface, never vanish. */
 export async function listDemands(baseDir = root()): Promise<DemandSummary[]> {
   const ids = await listDemandIds(baseDir);
-  const out: DemandSummary[] = [];
-  for (const id of ids) {
+  // Fan out per-case reads with bounded concurrency (was a serial N+1 loop).
+  const summaries = await mapPool(ids, FETCH_CONCURRENCY, async (id): Promise<DemandSummary | null> => {
     const md = await readDemand(id, baseDir);
-    if (md === undefined) continue;
+    if (md === undefined) return null;
     const p = parseUseCase(md);
     const laneRaw = (p.state.raw["lane"] ?? "").toLowerCase();
-    out.push({
+    const artifacts = await listArtifacts(id, baseDir);
+    return {
       id,
       title: demandTitle(p, id),
       ...(p.state.stage ? { stage: p.state.stage } : {}),
@@ -168,10 +173,10 @@ export async function listDemands(baseDir = root()): Promise<DemandSummary[]> {
       ...(p.state.domain ? { domain: p.state.domain } : {}),
       ...(p.state.created ? { created: p.state.created } : {}),
       needsAttention: demandNeedsAttention(p),
-      artifacts: await listArtifacts(id, baseDir),
-    });
-  }
-  return out;
+      artifacts,
+    };
+  });
+  return summaries.filter((s): s is DemandSummary => s !== null);
 }
 
 /**
@@ -187,14 +192,14 @@ export async function listDemands(baseDir = root()): Promise<DemandSummary[]> {
  */
 export async function listDemandRows(baseDir = root()): Promise<RegistryRow[]> {
   const ids = await listDemandIds(baseDir);
-  const rows: RegistryRow[] = [];
-  for (const id of ids) {
+  // Fan out per-case reads with bounded concurrency (was a serial N+1 loop).
+  const parsed = await mapPool(ids, FETCH_CONCURRENCY, async (id): Promise<RegistryRow | null> => {
     const md = await readDemand(id, baseDir);
-    if (md === undefined) continue;
+    if (md === undefined) return null;
     const p = parseUseCase(md);
     const people = parsePeople(md);
     const since = p.state.raw["since"] ?? p.state.created;
-    rows.push({
+    return {
       id,
       title: demandTitle(p, id),
       ...(p.state.stage ? { stage: p.state.stage } : {}),
@@ -208,9 +213,9 @@ export async function listDemandRows(baseDir = root()): Promise<RegistryRow[]> {
       ...(since ? { since } : {}),
       ...(p.state.confidential ? { confidential: true } : {}),
       ...(demandNeedsAttention(p) ? { needsAttention: true } : {}),
-    });
-  }
-  return rows;
+    };
+  });
+  return parsed.filter((r): r is RegistryRow => r !== null);
 }
 
 /**
@@ -223,16 +228,14 @@ export async function listDemandRows(baseDir = root()): Promise<RegistryRow[]> {
  */
 export async function listDemandRowsWithValue(baseDir = root()): Promise<RegistryRow[]> {
   const rows = await listDemandRows(baseDir);
-  await Promise.all(
-    rows.map(async (r) => {
-      const bc = await readArtifact(r.id, "business-case", baseDir).catch(() => undefined);
-      if (!bc) return;
-      const facts = parseBusinessCase(bc);
-      if (facts.annualGross === undefined) return;
-      if (facts.confidence === "realized") r.valueRealized = facts.annualGross;
-      else r.valueProjected = facts.annualGross;
-    }),
-  );
+  await mapPool(rows, FETCH_CONCURRENCY, async (r) => {
+    const bc = await readArtifact(r.id, "business-case", baseDir).catch(() => undefined);
+    if (!bc) return;
+    const facts = parseBusinessCase(bc);
+    if (facts.annualGross === undefined) return;
+    if (facts.confidence === "realized") r.valueRealized = facts.annualGross;
+    else r.valueProjected = facts.annualGross;
+  });
   return rows;
 }
 
