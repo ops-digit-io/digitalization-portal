@@ -3,8 +3,9 @@ import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { listDemands, listDemandRows, readDemand, saveDemand, saveArtifact, readArtifact, listArtifacts } from "./demands-store.js";
+import { listDemands, listDemandRows, readDemand, saveDemand, saveArtifact, readArtifact, listArtifacts, saveNewDemand } from "./demands-store.js";
 import { buildDemand, EMPTY_ANSWERS } from "./demand.js";
+import { FileExistsError } from "./git/index.js";
 
 let dir: string;
 
@@ -87,5 +88,40 @@ describe("demands-store (case folders)", () => {
 
     const list = await listDemands(dir);
     expect(list[0]!.artifacts).toEqual(["analysis", "requirements"]);
+  });
+
+  describe("collision-free id allocation", () => {
+    it("createOnly refuses to overwrite an existing demand", async () => {
+      await saveDemand("UC-2026-0001", demand("UC-2026-0001", "transform"), { baseDir: dir, createOnly: true });
+      await expect(
+        saveDemand("UC-2026-0001", demand("UC-2026-0001", "data_ai"), { baseDir: dir, createOnly: true }),
+      ).rejects.toBeInstanceOf(FileExistsError);
+      // The original is intact — not clobbered.
+      expect(await readDemand("UC-2026-0001", dir)).toContain("Lane:** transform");
+    });
+
+    it("saveNewDemand allocates sequential unique ids", async () => {
+      const a = await saveNewDemand(2026, (id) => demand(id, "transform"), { baseDir: dir });
+      const b = await saveNewDemand(2026, (id) => demand(id, "transform"), { baseDir: dir });
+      expect(a.id).toBe("UC-2026-0001");
+      expect(b.id).toBe("UC-2026-0002");
+      expect((await listDemands(dir)).map((d) => d.id)).toEqual(["UC-2026-0001", "UC-2026-0002"]);
+    });
+
+    it("saveNewDemand retries past an id taken concurrently, never overwriting it", async () => {
+      // Simulate a racing writer that already grabbed the id this call would compute.
+      await seedCase("UC-2026-0001", demand("UC-2026-0001", "data_ai"));
+      const res = await saveNewDemand(2026, (id) => demand(id, "transform"), { baseDir: dir });
+      expect(res.id).toBe("UC-2026-0002"); // skipped the taken id
+      expect(await readDemand("UC-2026-0001", dir)).toContain("Lane:** data_ai"); // untouched
+    });
+
+    it("concurrent saveNewDemand calls never collide", async () => {
+      const results = await Promise.all(
+        Array.from({ length: 8 }, () => saveNewDemand(2026, (id) => demand(id, "transform"), { baseDir: dir })),
+      );
+      const ids = results.map((r) => r.id);
+      expect(new Set(ids).size).toBe(8); // all unique
+    });
   });
 });

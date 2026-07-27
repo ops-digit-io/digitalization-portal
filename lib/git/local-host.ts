@@ -8,7 +8,7 @@
 
 import { mkdir, writeFile, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { DirEntry, FileWrite, GitHost, PullRequestRef, RepoRef } from "./host.js";
+import { FileExistsError, type DirEntry, type FileWrite, type GitHost, type PullRequestRef, type PutFileOptions, type RepoRef } from "./host.js";
 
 export class LocalHost implements GitHost {
   readonly kind = "local" as const;
@@ -34,12 +34,19 @@ export class LocalHost implements GitHost {
     return { owner: this.owner, name, url: dir, local: true };
   }
 
-  async putFile(repo: RepoRef, file: FileWrite, _message: string, branch: string): Promise<void> {
+  async putFile(repo: RepoRef, file: FileWrite, _message: string, branch: string, opts?: PutFileOptions): Promise<void> {
     // Branches map to subfolders under .branches/, main writes to the repo root.
     const base = branch === "main" ? repo.url : join(repo.url, ".branches", branch);
     const full = join(base, file.path);
     await mkdir(join(full, ".."), { recursive: true });
-    await writeFile(full, file.content);
+    // createOnly uses the atomic O_CREAT|O_EXCL ("wx") flag, so a concurrent writer
+    // can never both pass a check and clobber — one wins, the rest get EEXIST.
+    try {
+      await writeFile(full, file.content, opts?.createOnly ? { flag: "wx" } : undefined);
+    } catch (err) {
+      if (opts?.createOnly && (err as NodeJS.ErrnoException).code === "EEXIST") throw new FileExistsError(file.path);
+      throw err;
+    }
   }
 
   async getFile(repo: RepoRef, path: string, _ref?: string): Promise<string | undefined> {

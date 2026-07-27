@@ -23,8 +23,9 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { parseUseCase, parsePeople, type ParsedUseCase } from "./parse.js";
 import { parseBusinessCase } from "./businesscase.js";
+import { nextDemandId } from "./demand.js";
 import { mapPool } from "./pool.js";
-import { getGitHost, hasGitHubCredentials, type RepoRef } from "./git/index.js";
+import { getGitHost, hasGitHubCredentials, FileExistsError, type RepoRef } from "./git/index.js";
 import { LocalHost } from "./git/local-host.js";
 import type { RegistryRow } from "./registry.js";
 import type { Lane, Stage, Status } from "./types.js";
@@ -247,23 +248,62 @@ export interface DemandSaveResult {
   path: string;
 }
 
-/** Write a file at `path` (relative to the funnel repo) to GitHub main or the working tree. */
-async function writeToFunnel(path: string, content: string, message: string, baseDir?: string): Promise<DemandSaveResult> {
+/**
+ * Write a file at `path` (relative to the funnel repo) to GitHub main or the working
+ * tree. `createOnly` refuses to overwrite an existing path (throws `FileExistsError`)
+ * — the guard the id allocator relies on so a race can never clobber a demand.
+ */
+async function writeToFunnel(path: string, content: string, message: string, baseDir?: string, createOnly?: boolean): Promise<DemandSaveResult> {
   const host = getGitHost();
   if (host instanceof LocalHost) {
     const abs = join(baseDir ?? root(), path);
     await mkdir(dirname(abs), { recursive: true });
-    await writeFile(abs, content);
+    // createOnly → atomic O_CREAT|O_EXCL so a race can't clobber (see LocalHost.putFile).
+    try {
+      await writeFile(abs, content, createOnly ? { flag: "wx" } : undefined);
+    } catch (err) {
+      if (createOnly && (err as NodeJS.ErrnoException).code === "EEXIST") throw new FileExistsError(path);
+      throw err;
+    }
     return { host: "local", target: "working tree", repo: demandsRepoName(), path };
   }
   const repo = funnelRepo();
-  await host.putFile(repo, { path, content }, message, "main");
+  await host.putFile(repo, { path, content }, message, "main", { createOnly: createOnly ?? false });
   return { host: "github", target: "main", repo: repo.name, path };
 }
 
-/** Persist a case record (README.md) to the funnel repo. */
-export async function saveDemand(id: string, markdown: string, opts?: { baseDir?: string; message?: string }): Promise<DemandSaveResult> {
-  return writeToFunnel(readmePath(id), markdown, opts?.message ?? `Capture demand ${id}`, opts?.baseDir);
+/** Persist a case record (README.md) to the funnel repo. `createOnly` refuses to overwrite. */
+export async function saveDemand(id: string, markdown: string, opts?: { baseDir?: string; message?: string; createOnly?: boolean }): Promise<DemandSaveResult> {
+  return writeToFunnel(readmePath(id), markdown, opts?.message ?? `Capture demand ${id}`, opts?.baseDir, opts?.createOnly);
+}
+
+/**
+ * Allocate a unique id and write a NEW demand, retrying on collision. Two concurrent
+ * captures can compute the same `UC-YYYY-NNNN`; a create-only write makes the loser
+ * fail with `FileExistsError` instead of silently overwriting the winner, and we
+ * re-allocate against the now-larger id set. Converges in a couple of rounds even
+ * under heavy concurrency; throws if it can't after `maxAttempts`.
+ */
+export async function saveNewDemand(
+  year: number,
+  build: (id: string) => string,
+  opts?: { baseDir?: string; maxAttempts?: number },
+): Promise<{ id: string; result: DemandSaveResult; markdown: string }> {
+  const maxAttempts = opts?.maxAttempts ?? 12;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const existing = await listDemandIds(opts?.baseDir);
+    const id = nextDemandId(existing, year);
+    const markdown = build(id);
+    try {
+      const result = await saveDemand(id, markdown, { baseDir: opts?.baseDir, createOnly: true, message: `Capture demand ${id}` });
+      return { id, result, markdown };
+    } catch (err) {
+      if (err instanceof FileExistsError) { lastErr = err; continue; } // id race — retry with a fresh id
+      throw err;
+    }
+  }
+  throw new Error(`Could not allocate a unique demand id after ${maxAttempts} attempts: ${lastErr instanceof Error ? lastErr.message : "unknown"}`);
 }
 
 /** Persist a standardized artifact (requirements / analysis / …) to the case folder. */

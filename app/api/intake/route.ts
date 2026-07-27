@@ -5,12 +5,11 @@ import {
   buildDemand,
   classifyDemand,
   missingRequired,
-  nextDemandId,
   parseDemandToAnswers,
   EMPTY_ANSWERS,
   type DemandAnswers,
 } from "@/lib/demand";
-import { listDemandIds, saveDemand } from "@/lib/demands-store";
+import { saveNewDemand } from "@/lib/demands-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,11 +63,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `missing required: ${missing.join(", ")}`, missing }, { status: 400 });
     }
     try {
-      const existing = await listDemandIds();
-      const id = nextDemandId(existing, INTAKE_YEAR);
+      // Collision-free allocation: create-only write + retry, so two concurrent
+      // captures can never be assigned the same id and overwrite each other.
       const createdOn = new Date().toISOString().slice(0, 10);
-      const markdown = buildDemand({ id, createdOn, lane: classification.lane }, answers);
-      const result = await saveDemand(id, markdown);
+      const { id, result, markdown } = await saveNewDemand(INTAKE_YEAR, (id) =>
+        buildDemand({ id, createdOn, lane: classification.lane }, answers),
+      );
       return NextResponse.json({ id, result, classification, markdown });
     } catch (err) {
       return NextResponse.json({ error: err instanceof Error ? err.message : "save failed" }, { status: 500 });

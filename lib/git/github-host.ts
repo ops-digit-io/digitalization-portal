@@ -12,7 +12,7 @@
  */
 
 import { createSign } from "node:crypto";
-import type { DirEntry, FileWrite, GitHost, PullRequestRef, RepoRef } from "./host.js";
+import { FileExistsError, type DirEntry, type FileWrite, type GitHost, type PullRequestRef, type PutFileOptions, type RepoRef } from "./host.js";
 
 const API = "https://api.github.com";
 
@@ -135,27 +135,38 @@ export class GitHubHost implements GitHost {
     return { owner: this.cfg.org, name, url: data.html_url, local: false };
   }
 
-  async putFile(repo: RepoRef, file: FileWrite, message: string, branch: string): Promise<void> {
-    // Look up an existing sha (update) — ignore 404 (create).
+  async putFile(repo: RepoRef, file: FileWrite, message: string, branch: string, opts?: PutFileOptions): Promise<void> {
+    // createOnly: never look up a sha, so an existing path is NOT overwritten —
+    // GitHub rejects the sha-less PUT (422) and we surface it as FileExistsError.
     let sha: string | undefined;
-    try {
-      const existing = await this.api<{ sha: string }>(
-        `/repos/${repo.owner}/${repo.name}/contents/${encodeURI(file.path)}?ref=${branch}`,
-        { method: "GET" },
-      );
-      sha = existing.sha;
-    } catch {
-      /* new file */
+    if (!opts?.createOnly) {
+      try {
+        const existing = await this.api<{ sha: string }>(
+          `/repos/${repo.owner}/${repo.name}/contents/${encodeURI(file.path)}?ref=${branch}`,
+          { method: "GET" },
+        );
+        sha = existing.sha;
+      } catch {
+        /* new file */
+      }
     }
-    await this.api(`/repos/${repo.owner}/${repo.name}/contents/${encodeURI(file.path)}`, {
-      method: "PUT",
-      body: JSON.stringify({
-        message,
-        content: Buffer.from(file.content).toString("base64"),
-        branch,
-        ...(sha ? { sha } : {}),
-      }),
-    });
+    try {
+      await this.api(`/repos/${repo.owner}/${repo.name}/contents/${encodeURI(file.path)}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          message,
+          content: Buffer.from(file.content).toString("base64"),
+          branch,
+          ...(sha ? { sha } : {}),
+        }),
+      });
+    } catch (err) {
+      // A sha-less PUT onto an existing path fails 422 (or 409 on a ref race).
+      if (opts?.createOnly && /→ (422|409):/.test(err instanceof Error ? err.message : "")) {
+        throw new FileExistsError(file.path);
+      }
+      throw err;
+    }
   }
 
   async getFile(repo: RepoRef, path: string, ref?: string): Promise<string | undefined> {

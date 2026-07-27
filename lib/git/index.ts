@@ -9,7 +9,7 @@ import { hasGitHubCredentials, type GitHost } from "./host.js";
 import { GitHubHost } from "./github-host.js";
 import { LocalHost } from "./local-host.js";
 
-export { type GitHost, type RepoRef, type PullRequestRef, hasGitHubCredentials } from "./host.js";
+export { type GitHost, type RepoRef, type PullRequestRef, type PutFileOptions, FileExistsError, hasGitHubCredentials } from "./host.js";
 export { LocalHost } from "./local-host.js";
 export { GitHubHost } from "./github-host.js";
 
