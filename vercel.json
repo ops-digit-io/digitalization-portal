@@ -3,5 +3,5 @@
   "framework": "nextjs",
   "regions": ["fra1"],
   "git": { "deploymentEnabled": { "main": true } },
-  "crons": [{ "path": "/api/cron/flush", "schedule": "* * * * *" }]
+  "crons": [{ "path": "/api/cron/flush", "schedule": "0 3 * * *" }]
 }

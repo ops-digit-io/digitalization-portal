@@ -127,11 +127,24 @@ git directly), and turns on by setting `KV_REST_API_*` + the webhook.
   the read model **merges pending rows**, so a capture is visible instantly
   (read-your-writes). (`lib/pending/*`)
 - **Freshness & flush** — `POST /api/webhooks/github` (HMAC) reconciles on push;
-  `GET/POST /api/cron/flush` (`CRON_SECRET`) drains the buffer to git then reconciles,
-  scheduled every minute in `vercel.json`.
+  `GET/POST /api/cron/flush` (`CRON_SECRET`) drains the buffer to git then reconciles.
+
+### Flushing the buffer (two-tier)
+
+The flush endpoint is idempotent, so triggering it more than once is harmless.
+
+- **Primary — GitHub Actions every ~10 min** (`.github/workflows/flush.yml`): POSTs
+  `/api/cron/flush` with `Bearer $CRON_SECRET`. Works on any Vercel plan. Requires
+  two **repo secrets**: `PORTAL_URL` (production base URL) and `CRON_SECRET` (same
+  value as the deployed env var). Scheduled runs fire only from `main` after merge
+  and may be delayed under load (~10 min, best-effort); `workflow_dispatch` runs it
+  on demand.
+- **Safety net — daily Vercel cron** (`vercel.json`, `0 3 * * *`): once/day is the
+  Hobby plan's max cron frequency, so this both keeps the deploy valid and processes
+  any backoff retries / dead-letters.
+- **Vercel Pro option:** set the `vercel.json` cron to `* * * * *` for tight draining
+  and the GitHub Action becomes optional.
 
 **To operate at scale:** provision Vercel KV (`KV_REST_API_*`), set `GITHUB_WEBHOOK_SECRET`
-+ a `du-demands` push webhook → `/api/webhooks/github`, and `CRON_SECRET`. No code change.
-
-Remaining: the Phase-4 UX (a "My demands" default view, pagination/search on the pages,
-duplicate-at-capture) — the query API is ready to wire.
++ a `du-demands` push webhook → `/api/webhooks/github`, set `CRON_SECRET` (Vercel env
++ the `CRON_SECRET`/`PORTAL_URL` repo secrets for the Action). No code change.

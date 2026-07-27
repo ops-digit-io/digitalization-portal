@@ -1,0 +1,55 @@
+name: Flush intake buffer
+
+# Drains the interim demand buffer to git (the system of record) and rebuilds the
+# read-model projection, by calling the CRON_SECRET-gated /api/cron/flush endpoint.
+#
+# This is the PRIMARY ~10-minute trigger (Vercel Hobby caps its own cron at once/day;
+# the daily Vercel cron in vercel.json is a safety net). The endpoint is idempotent,
+# so overlapping/duplicate runs are harmless.
+#
+# Requires two repo secrets:
+#   PORTAL_URL   — production base URL, e.g. https://digitalization-portal.vercel.app
+#   CRON_SECRET  — same value as the deployed CRON_SECRET env var
+#
+# Note: scheduled workflows only fire from the DEFAULT branch (main) after merge,
+# and GitHub may delay scheduled runs under load — treat ~10 min as best-effort.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+# No repository access needed — the job only calls an external URL.
+permissions: {}
+
+concurrency:
+  group: flush-intake-buffer
+  cancel-in-progress: false
+
+jobs:
+  flush:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST /api/cron/flush
+        env:
+          PORTAL_URL: ${{ secrets.PORTAL_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$PORTAL_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::error::PORTAL_URL and CRON_SECRET repo secrets must be set."
+            exit 1
+          fi
+          url="${PORTAL_URL%/}/api/cron/flush"
+          for attempt in 1 2 3; do
+            echo "Attempt $attempt → $url"
+            if curl -sS --fail-with-body -m 60 -X POST "$url" \
+                 -H "authorization: Bearer $CRON_SECRET"; then
+              echo
+              echo "Flush OK"
+              exit 0
+            fi
+            echo "Attempt $attempt failed; retrying after backoff…"
+            sleep $((attempt * 5))
+          done
+          echo "::error::Flush endpoint did not return success after 3 attempts."
+          exit 1
