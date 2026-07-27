@@ -8,6 +8,7 @@ import { buildDemand, classifyDemand } from "@/lib/demand";
 import type { ChatMessage, IntakeState } from "@/lib/intake-agent";
 import { ToolHeader, SavedLinks, useIntakeSave } from "../shared";
 import { IntakeEnhancer } from "../enhancer";
+import { SimilarDemands } from "../similar";
 
 interface GovernedBy { playbook: string; skills: string[] }
 
@@ -176,6 +177,13 @@ export default function ChatTool() {
                 {classification.domain && <Badge variant="outline" className="font-normal">{classification.domain}</Badge>}
               </div>
               <pre className="whitespace-pre-wrap rounded-lg border bg-secondary/20 p-3 text-xs leading-relaxed">{preview}</pre>
+
+              {/* Duplicate check before saving — link an existing demand instead of adding one. */}
+              {!saved && state && state.answers.title.trim().length >= 3 && (
+                <div className="mt-3">
+                  <SimilarDemands query={state.answers.title} />
+                </div>
+              )}
 
               {/* Same AI review the Form offers — sharpen the captured answers before
                   saving. Applying updates the answers, so the preview above re-renders. */}
