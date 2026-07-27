@@ -23,6 +23,12 @@ export interface PendingDemand {
   createdAt: string;
   attempts: number;
   lastError?: string;
+  /** Earliest ISO time this entry may be flushed again (backoff). Unset = due now. */
+  nextAttemptAt?: string;
+  /** "failed" = dead-lettered after max attempts; skipped by flush, surfaced in stats. */
+  status?: "pending" | "failed";
+  /** Content fingerprint for idempotent capture (dedupes double-submits). */
+  dedupKey?: string;
 }
 
 /** What `enqueue` builds once it knows the allocated id. */
@@ -31,10 +37,15 @@ export interface PendingBuild {
   createdAt: string;
 }
 
+export interface EnqueueOptions {
+  /** When set, an identical still-pending entry is returned instead of a new one. */
+  dedupKey?: string;
+}
+
 export interface PendingStore {
   readonly kind: "kv" | "local";
-  /** Allocate a unique id and persist the built demand atomically. */
-  enqueue(year: number, build: (id: string) => PendingBuild): Promise<PendingDemand>;
+  /** Allocate a unique id and persist the built demand atomically (or return a dedup hit). */
+  enqueue(year: number, build: (id: string) => PendingBuild, opts?: EnqueueOptions): Promise<PendingDemand>;
   /** All buffered (not-yet-committed) demands. */
   list(): Promise<PendingDemand[]>;
   /** Persist a mutated entry (e.g. bump attempts after a failed flush). */
@@ -58,8 +69,14 @@ export class LocalPendingStore implements PendingStore {
     return join(this.dir(), `${id}.json`);
   }
 
-  async enqueue(year: number, build: (id: string) => PendingBuild): Promise<PendingDemand> {
+  async enqueue(year: number, build: (id: string) => PendingBuild, opts?: EnqueueOptions): Promise<PendingDemand> {
     await mkdir(this.dir(), { recursive: true });
+    // Dedup: an identical still-pending capture (double-submit / retry) returns the
+    // existing entry instead of adding a duplicate.
+    if (opts?.dedupKey) {
+      const hit = (await this.list()).find((d) => d.dedupKey === opts.dedupKey && d.status !== "failed");
+      if (hit) return hit;
+    }
     const pendingIds = (await readdir(this.dir()).catch(() => []))
       .filter((f) => f.endsWith(".json"))
       .map((f) => f.replace(/\.json$/, ""));
@@ -67,7 +84,7 @@ export class LocalPendingStore implements PendingStore {
       const gitIds = await listDemandIds(this.baseDir);
       const id = nextDemandId([...gitIds, ...pendingIds], year);
       const built = build(id);
-      const demand: PendingDemand = { id, markdown: built.markdown, createdAt: built.createdAt, attempts: 0 };
+      const demand: PendingDemand = { id, markdown: built.markdown, createdAt: built.createdAt, attempts: 0, ...(opts?.dedupKey ? { dedupKey: opts.dedupKey } : {}) };
       try {
         await writeFile(this.file(id), JSON.stringify(demand), { flag: "wx" }); // atomic create-only
         return demand;
@@ -125,7 +142,22 @@ export class KvPendingStore implements PendingStore {
     return `funnel:seq:${year}`;
   }
 
-  async enqueue(year: number, build: (id: string) => PendingBuild): Promise<PendingDemand> {
+  async enqueue(year: number, build: (id: string) => PendingBuild, opts?: EnqueueOptions): Promise<PendingDemand> {
+    // Dedup: return the still-pending entry for an identical capture (best-effort;
+    // the hash key carries a TTL so it self-expires once the entry is flushed).
+    if (opts?.dedupKey) {
+      const existing = await this.cmd<string | null>("GET", `funnel:pending:hash:${opts.dedupKey}`);
+      if (existing) {
+        const raw = await this.cmd<string | null>("GET", `funnel:pending:${existing}`);
+        if (raw) {
+          try {
+            return JSON.parse(raw) as PendingDemand;
+          } catch {
+            /* fall through to allocate */
+          }
+        }
+      }
+    }
     // Seed the sequence above any id already in git (once; SETNX is a no-op after).
     const gitIds = await listDemandIds();
     const gitMax = gitIds.reduce((m, id) => {
@@ -136,9 +168,10 @@ export class KvPendingStore implements PendingStore {
     const n = await this.cmd<number>("INCR", this.seqKey(year));
     const id = `UC-${year}-${String(n).padStart(4, "0")}`;
     const built = build(id);
-    const demand: PendingDemand = { id, markdown: built.markdown, createdAt: built.createdAt, attempts: 0 };
+    const demand: PendingDemand = { id, markdown: built.markdown, createdAt: built.createdAt, attempts: 0, ...(opts?.dedupKey ? { dedupKey: opts.dedupKey } : {}) };
     await this.cmd("SET", `funnel:pending:${id}`, JSON.stringify(demand));
     await this.cmd("SADD", "funnel:pending:ids", id);
+    if (opts?.dedupKey) await this.cmd("SET", `funnel:pending:hash:${opts.dedupKey}`, id, "EX", "3600");
     return demand;
   }
 

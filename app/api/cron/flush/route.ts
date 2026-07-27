@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { flushPending } from "@/lib/pending/service";
+import { flushPending, pendingStats } from "@/lib/pending/service";
 import { reconcileFunnel } from "@/lib/projection/reconcile";
 
 export const runtime = "nodejs";
@@ -19,7 +19,8 @@ async function run(req: Request): Promise<NextResponse> {
   try {
     const flushed = await flushPending();
     const projection = await reconcileFunnel();
-    return NextResponse.json({ ok: true, ...flushed, projected: projection.projected, projectionRows: projection.rows });
+    const stats = await pendingStats();
+    return NextResponse.json({ ok: true, ...flushed, stats, projected: projection.projected, projectionRows: projection.rows });
   } catch (err) {
     return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : "flush failed" }, { status: 500 });
   }
