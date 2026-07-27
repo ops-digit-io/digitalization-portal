@@ -191,31 +191,37 @@ export async function listDemands(baseDir = root()): Promise<DemandSummary[]> {
  * are left absent until a business case is drafted — the board renders them as
  * indicative/empty, never as committed (constraint #8).
  */
+/** Map one demand's markdown to a board/funnel row. Reused for git cases and the
+ *  interim buffer, so a pending demand renders identically to a committed one. */
+export function demandRowFromMarkdown(id: string, md: string): RegistryRow {
+  const p = parseUseCase(md);
+  const people = parsePeople(md);
+  const since = p.state.raw["since"] ?? p.state.created;
+  return {
+    id,
+    title: demandTitle(p, id),
+    ...(p.state.stage ? { stage: p.state.stage } : {}),
+    ...(p.state.lane ? { lane: p.state.lane } : {}),
+    ...(p.state.status ? { status: p.state.status } : {}),
+    ...(p.state.plant ? { plant: p.state.plant } : {}),
+    ...(p.state.domain ? { domain: p.state.domain } : {}),
+    ...(p.state.level ? { level: p.state.level } : {}),
+    ...(p.state.heat ? { heat: p.state.heat } : {}),
+    ...(people.sponsor ? { sponsor: people.sponsor } : {}),
+    ...(people.requester ? { requester: people.requester } : {}),
+    ...(since ? { since } : {}),
+    ...(p.state.confidential ? { confidential: true } : {}),
+    ...(demandNeedsAttention(p) ? { needsAttention: true } : {}),
+  };
+}
+
 export async function listDemandRows(baseDir = root()): Promise<RegistryRow[]> {
   const ids = await listDemandIds(baseDir);
   // Fan out per-case reads with bounded concurrency (was a serial N+1 loop).
   const parsed = await mapPool(ids, FETCH_CONCURRENCY, async (id): Promise<RegistryRow | null> => {
     const md = await readDemand(id, baseDir);
     if (md === undefined) return null;
-    const p = parseUseCase(md);
-    const people = parsePeople(md);
-    const since = p.state.raw["since"] ?? p.state.created;
-    return {
-      id,
-      title: demandTitle(p, id),
-      ...(p.state.stage ? { stage: p.state.stage } : {}),
-      ...(p.state.lane ? { lane: p.state.lane } : {}),
-      ...(p.state.status ? { status: p.state.status } : {}),
-      ...(p.state.plant ? { plant: p.state.plant } : {}),
-      ...(p.state.domain ? { domain: p.state.domain } : {}),
-      ...(p.state.level ? { level: p.state.level } : {}),
-      ...(p.state.heat ? { heat: p.state.heat } : {}),
-      ...(people.sponsor ? { sponsor: people.sponsor } : {}),
-      ...(people.requester ? { requester: people.requester } : {}),
-      ...(since ? { since } : {}),
-      ...(p.state.confidential ? { confidential: true } : {}),
-      ...(demandNeedsAttention(p) ? { needsAttention: true } : {}),
-    };
+    return demandRowFromMarkdown(id, md);
   });
   return parsed.filter((r): r is RegistryRow => r !== null);
 }

@@ -9,7 +9,7 @@ import {
   EMPTY_ANSWERS,
   type DemandAnswers,
 } from "@/lib/demand";
-import { saveNewDemand } from "@/lib/demands-store";
+import { enqueueDemand, pendingSaveResult } from "@/lib/pending/service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,15 +63,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `missing required: ${missing.join(", ")}`, missing }, { status: 400 });
     }
     try {
-      // Collision-free allocation: create-only write + retry, so two concurrent
-      // captures can never be assigned the same id and overwrite each other.
+      // Persist to the interim buffer and return immediately — the submit does NOT
+      // wait on git. A background flush commits it to du-demands (the SoR); ids are
+      // allocated collision-free by the buffer, and reads merge it in the meantime.
       const createdOn = new Date().toISOString().slice(0, 10);
-      const { id, result, markdown } = await saveNewDemand(INTAKE_YEAR, (id) =>
-        buildDemand({ id, createdOn, lane: classification.lane }, answers),
+      const { id, markdown, kind } = await enqueueDemand(INTAKE_YEAR, (uid) =>
+        buildDemand({ id: uid, createdOn, lane: classification.lane }, answers),
       );
+      const repo = process.env.DEMANDS_REPO ?? "du-demands";
+      const result = pendingSaveResult(id, kind, repo, `demands/${id}/README.md`);
       return NextResponse.json({ id, result, classification, markdown });
     } catch (err) {
-      return NextResponse.json({ error: err instanceof Error ? err.message : "save failed" }, { status: 500 });
+      return NextResponse.json({ error: err instanceof Error ? err.message : "capture failed" }, { status: 500 });
     }
   }
 

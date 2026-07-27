@@ -39,6 +39,8 @@ export interface RegistryRow {
   confidential?: boolean;
   /** True when the source README could not be parsed cleanly. */
   needsAttention?: boolean;
+  /** True when the demand is captured in the interim buffer, not yet committed to git. */
+  pending?: boolean;
 }
 
 const COLUMN_ALIASES: Record<keyof RegistryRow, string[]> = {
@@ -58,6 +60,7 @@ const COLUMN_ALIASES: Record<keyof RegistryRow, string[]> = {
   since: ["since"],
   confidential: ["confidential"],
   needsAttention: ["needs attention"],
+  pending: ["pending"],
 };
 
 function parseNumber(cell: string | undefined): number | undefined {

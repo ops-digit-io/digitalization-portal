@@ -110,3 +110,28 @@ still O(N)). At thousands of demands that is too much regardless of concurrency.
 5. **Write-queue** only if submission spikes exceed the direct path.
 
 Steps 1–3 are what turn "works for a demo funnel" into "works for 14k."
+
+## Implemented so far
+
+The split is built and unit-tested; it is inert-but-ready without KV (local/dev read
+git directly), and turns on by setting `KV_REST_API_*` + the webhook.
+
+- **Collision-free ids** — `putFile` create-only (`FileExistsError`) + `saveNewDemand`
+  retry; atomic `wx` locally, sha-less PUT (422) on GitHub. (`lib/git/*`, `lib/demands-store.ts`)
+- **Read model** — `ProjectionStore` (KV, else null→direct) + `lib/funnel/query.ts`
+  (`getFunnelRows`, pure `scope|filter|paginate`, aggregates). All portfolio views
+  read through it.
+- **Interim write buffer (outbox)** — intake `enqueueDemand` persists to the buffer
+  (KV, else a local `.pending-demands/` dir) and returns immediately; it never blocks
+  on git. `flushPending` commits buffered demands to git create-only (idempotent) and
+  the read model **merges pending rows**, so a capture is visible instantly
+  (read-your-writes). (`lib/pending/*`)
+- **Freshness & flush** — `POST /api/webhooks/github` (HMAC) reconciles on push;
+  `GET/POST /api/cron/flush` (`CRON_SECRET`) drains the buffer to git then reconciles,
+  scheduled every minute in `vercel.json`.
+
+**To operate at scale:** provision Vercel KV (`KV_REST_API_*`), set `GITHUB_WEBHOOK_SECRET`
++ a `du-demands` push webhook → `/api/webhooks/github`, and `CRON_SECRET`. No code change.
+
+Remaining: the Phase-4 UX (a "My demands" default view, pagination/search on the pages,
+duplicate-at-capture) — the query API is ready to wire.

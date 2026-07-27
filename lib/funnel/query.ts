@@ -13,6 +13,7 @@
 import type { RegistryRow } from "../registry.js";
 import { getProjectionStore } from "../projection/store.js";
 import { listDemandRowsWithValue } from "../demands-store.js";
+import { pendingRows } from "../pending/service.js";
 
 /** Who is asking / what slice they want. Keeps every page small at any funnel size. */
 export type FunnelScope = "all" | "mine" | "triage";
@@ -46,8 +47,7 @@ export interface FunnelPage {
 
 export const DEFAULT_PAGE_SIZE = 25;
 
-/** Read the projected rows, or fall back to a direct git read. */
-export async function getFunnelRows(): Promise<{ rows: RegistryRow[]; projected: boolean }> {
+async function loadBase(): Promise<{ rows: RegistryRow[]; projected: boolean }> {
   const store = getProjectionStore();
   if (store) {
     const rows = await store.readRows();
@@ -55,6 +55,18 @@ export async function getFunnelRows(): Promise<{ rows: RegistryRow[]; projected:
     // Projection configured but not built yet — read git so views aren't empty.
   }
   return { rows: await listDemandRowsWithValue(), projected: false };
+}
+
+/**
+ * The rows every view reads: committed rows (projection or direct git) MERGED with
+ * the interim buffer, so a demand a user just captured shows immediately — before
+ * the flush commits it to git (read-your-writes). Committed wins on id collision.
+ */
+export async function getFunnelRows(): Promise<{ rows: RegistryRow[]; projected: boolean }> {
+  const [base, pending] = await Promise.all([loadBase(), pendingRows()]);
+  if (pending.length === 0) return base;
+  const seen = new Set(base.rows.map((r) => r.id));
+  return { rows: [...base.rows, ...pending.filter((p) => !seen.has(p.id))], projected: base.projected };
 }
 
 /** Apply scope: the personal / role slices that keep pages small. Pure. */
