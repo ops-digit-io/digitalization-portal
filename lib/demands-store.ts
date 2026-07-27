@@ -211,6 +211,7 @@ export async function listDemandRows(baseDir = root()): Promise<RegistryRow[]> {
       ...(p.state.level ? { level: p.state.level } : {}),
       ...(p.state.heat ? { heat: p.state.heat } : {}),
       ...(people.sponsor ? { sponsor: people.sponsor } : {}),
+      ...(people.requester ? { requester: people.requester } : {}),
       ...(since ? { since } : {}),
       ...(p.state.confidential ? { confidential: true } : {}),
       ...(demandNeedsAttention(p) ? { needsAttention: true } : {}),
