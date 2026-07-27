@@ -179,10 +179,141 @@ export const DOMAIN_KB: Record<string, DomainKnowledge> = {
     standards: ["internal engineering standards"],
     patterns: ["design-of-experiments", "golden-batch comparison", "parameter optimisation"],
   },
+
+  // ── Enterprise-wide digital domains (beyond the shop floor) ──────────────────
+  // A digital use case can live anywhere in the business. These keep the same shape
+  // as the manufacturing domains so the analysis is grounded regardless of area.
+  it: {
+    domain: "it",
+    personas: ["end user", "IT service owner", "system administrator"],
+    epics: [
+      { title: "Service visibility", description: "Make system health, usage, and incidents visible." },
+      { title: "Self-service & automation", description: "Let users resolve common needs without a ticket." },
+      { title: "Governance & security", description: "Keep access, data, and change under control." },
+    ],
+    nfrs: [
+      { category: "Security", requirement: "Access is role-based and least-privilege; secrets never reach the client." },
+      { category: "Reliability", requirement: "The service meets its agreed availability and recovery objectives." },
+      { category: "Auditability", requirement: "Access and changes are logged and reviewable." },
+    ],
+    dataSources: ["ITSM / ticketing", "identity provider", "monitoring / logs"],
+    standards: ["ISO 27001 (information security)", "internal IT policy"],
+    patterns: ["self-service portal", "automated provisioning", "observability dashboard"],
+  },
+  data: {
+    domain: "data",
+    personas: ["data analyst", "data engineer", "business owner"],
+    epics: [
+      { title: "Trusted data foundation", description: "Model and govern the data others depend on." },
+      { title: "Analytics & insight", description: "Turn data into decisions people act on." },
+      { title: "Access & literacy", description: "Make data discoverable and usable by its audience." },
+    ],
+    nfrs: [
+      { category: "Data quality", requirement: "Quality rules are defined, measured, and reported per domain." },
+      { category: "Lineage", requirement: "Every figure is traceable to its source and transformations." },
+      { category: "Governance", requirement: "Ownership, access, and retention are defined and enforced." },
+    ],
+    dataSources: ["data warehouse / lakehouse", "source systems", "BI / semantic layer"],
+    standards: ["internal data governance", "GDPR (where personal data)"],
+    patterns: ["semantic layer + BI", "data quality framework", "master-data management"],
+  },
+  finance: {
+    domain: "finance",
+    personas: ["controller", "financial analyst", "budget owner"],
+    epics: [
+      { title: "Reporting & close", description: "Produce trusted figures faster and with less manual work." },
+      { title: "Planning & forecasting", description: "Support budgeting, forecasting, and variance analysis." },
+      { title: "Controls & compliance", description: "Keep figures auditable and controls enforced." },
+    ],
+    nfrs: [
+      { category: "Correctness", requirement: "Figures reconcile to the system of record and are defensible in audit." },
+      { category: "Auditability", requirement: "Every number traces to its source and calculation." },
+      { category: "Segregation of duties", requirement: "Preparation and approval are separated and enforced." },
+    ],
+    dataSources: ["ERP / general ledger", "planning system", "sub-ledgers"],
+    standards: ["IFRS / local GAAP", "internal controls (SOX-style)"],
+    patterns: ["automated reconciliation", "driver-based forecasting", "controls dashboard"],
+  },
+  hr: {
+    domain: "hr",
+    personas: ["employee", "HR business partner", "people manager"],
+    epics: [
+      { title: "Employee self-service", description: "Let people handle common HR needs themselves." },
+      { title: "People analytics", description: "Surface workforce insight without profiling individuals." },
+      { title: "Process & compliance", description: "Run HR processes reliably and within the law." },
+    ],
+    nfrs: [
+      { category: "Privacy", requirement: "Personal data is minimised, access-controlled, and retained per policy." },
+      { category: "Fairness", requirement: "No analysis ranks or profiles individuals; aggregates only." },
+      { category: "Compliance", requirement: "Processes meet labour law and works-council agreements." },
+    ],
+    dataSources: ["HRIS", "payroll", "learning system"],
+    standards: ["GDPR", "local labour law", "works-council agreements"],
+    patterns: ["employee self-service portal", "aggregate workforce dashboard", "case management"],
+  },
+  customer: {
+    domain: "customer",
+    personas: ["customer", "sales representative", "service agent"],
+    epics: [
+      { title: "Customer visibility", description: "Give a trustworthy, unified view of the customer." },
+      { title: "Engagement & service", description: "Help teams respond and sell faster and better." },
+      { title: "Self-service", description: "Let customers help themselves where they prefer to." },
+    ],
+    nfrs: [
+      { category: "Privacy", requirement: "Customer data is consent-based, access-controlled, and retained per policy." },
+      { category: "Usability", requirement: "Customer-facing flows work first time, on the customer's device." },
+      { category: "Reliability", requirement: "Customer-facing services meet their availability targets." },
+    ],
+    dataSources: ["CRM", "e-commerce / web", "service / ticketing"],
+    standards: ["GDPR", "accessibility (WCAG)", "internal data governance"],
+    patterns: ["360° customer view", "assistant-in-the-loop service", "customer self-service portal"],
+  },
+  sustainability: {
+    domain: "sustainability",
+    personas: ["sustainability manager", "site energy/EHS lead", "reporting owner"],
+    epics: [
+      { title: "Data collection", description: "Gather emissions, energy, and resource data reliably." },
+      { title: "Reporting & disclosure", description: "Produce auditable ESG/regulatory reports." },
+      { title: "Reduction tracking", description: "Set targets and track reduction actions to impact." },
+    ],
+    nfrs: [
+      { category: "Auditability", requirement: "Every reported figure traces to a verifiable source and method." },
+      { category: "Accuracy", requirement: "Factors and baselines are versioned and defensible." },
+      { category: "Traceability", requirement: "Claims are reproducible from raw data." },
+    ],
+    dataSources: ["energy / utility meters", "ERP (materials, travel)", "supplier data"],
+    standards: ["GHG Protocol", "CSRD / ESRS", "ISO 14001"],
+    patterns: ["emissions data pipeline", "auditable ESG report", "target-and-track dashboard"],
+  },
 };
 
-/** Knowledge for a domain, falling back to a generic base. */
+/** Domain aliases → canonical key, so near-synonyms still ground the analysis. */
+const DOMAIN_ALIASES: Record<string, string> = {
+  software: "it",
+  "it/software": "it",
+  digital: "it",
+  analytics: "data",
+  "data & ai": "data",
+  data_ai: "data",
+  ai: "data",
+  bi: "data",
+  controlling: "finance",
+  accounting: "finance",
+  people: "hr",
+  "human resources": "hr",
+  sales: "customer",
+  marketing: "customer",
+  commercial: "customer",
+  service: "customer",
+  crm: "customer",
+  esg: "sustainability",
+  environment: "sustainability",
+  energy_esg: "sustainability",
+};
+
+/** Knowledge for a domain, resolving aliases, then falling back to a generic base. */
 export function knowledgeFor(domain: string | undefined): DomainKnowledge {
   const key = (domain ?? "").toLowerCase().trim();
-  return DOMAIN_KB[key] ?? { ...GENERIC, domain: key || "general" };
+  const canonical = DOMAIN_ALIASES[key] ?? key;
+  return DOMAIN_KB[canonical] ?? { ...GENERIC, domain: key || "general" };
 }

@@ -20,6 +20,7 @@
 import type { DemandAnswers } from "./demand.js";
 import { classifyDemand } from "./demand.js";
 import { knowledgeFor, type DomainKnowledge } from "./domain-knowledge.js";
+import { classifyArchetype, type UseCaseArchetype } from "./usecase-archetypes.js";
 
 export interface Epic { id: string; title: string; description: string }
 
@@ -49,6 +50,16 @@ export interface IntakeAnalysis {
   domain: string;
   /** A refined, structured problem statement. */
   summary: string;
+  /** The use-case archetype (solution shape) — the second grounding axis. */
+  archetype: string;
+  /** One line describing the archetype. */
+  archetypeSummary: string;
+  /** The questions that decide whether this SHAPE of use case is feasible/worthwhile. */
+  feasibilityQuestions: string[];
+  /** What must be true about the data/inputs for this archetype to work. */
+  dataPrerequisites: string[];
+  /** The characteristic ways this archetype fails or disappoints. */
+  characteristicRisks: string[];
   /** Comparable solution patterns from domain research. */
   comparablePatterns: string[];
   /** Enhancements — what the intake is missing to be actionable. */
@@ -92,15 +103,22 @@ function stripDot(s: string): string {
 export function analyseIntake(answers: DemandAnswers): AnalysisResult {
   const domain = clean(answers.domain) || classifyDemand(answers).domain || "general";
   const kb = knowledgeFor(domain);
+  const archetype = classifyArchetype(answers);
 
-  const analysis = buildAnalysis(answers, kb, domain);
-  const requirements = buildRequirements(answers, kb);
+  const analysis = buildAnalysis(answers, kb, domain, archetype);
+  const requirements = buildRequirements(answers, kb, archetype);
   return { analysis, requirements };
 }
 
-function buildAnalysis(answers: DemandAnswers, kb: DomainKnowledge, domain: string): IntakeAnalysis {
+/** Merge two string lists, dropping duplicates while preserving order. */
+function mergeUnique(a: string[], b: string[]): string[] {
+  const seen = new Set(a.map((x) => x.toLowerCase()));
+  return [...a, ...b.filter((x) => !seen.has(x.toLowerCase()))];
+}
+
+function buildAnalysis(answers: DemandAnswers, kb: DomainKnowledge, domain: string, arch: UseCaseArchetype): IntakeAnalysis {
   const cap = capabilityPhrase(answers);
-  const summary = `The ${domain} team needs to ${cap}. Today, ${clean(answers.currentPain) || "the problem is handled manually"}. Success means: ${clean(answers.desiredOutcome) || "the problem is resolved"}.`;
+  const summary = `The ${domain} team needs to ${cap}. Today, ${clean(answers.currentPain) || "the problem is handled manually"}. Success means: ${clean(answers.desiredOutcome) || "the problem is resolved"}. This reads as a ${arch.label.toLowerCase()} use case.`;
 
   const enhancements: string[] = [];
   if (!hasNumber(answers.currentPain)) enhancements.push("Quantify the current impact with a baseline figure (time, scrap, or cost) — needed to size the value.");
@@ -108,12 +126,19 @@ function buildAnalysis(answers: DemandAnswers, kb: DomainKnowledge, domain: stri
   if (clean(answers.affectedProcess) === "") enhancements.push("Name the affected process step and the accountable owner.");
   if (clean(answers.constraints) === "") enhancements.push(`Confirm the data sources and systems involved (likely: ${kb.dataSources.join(", ")}).`);
   enhancements.push(`Check the relevant standard(s): ${kb.standards.join(", ")}.`);
+  // Archetype-driven: the single most important input to confirm for this solution shape.
+  if (arch.dataPrerequisites[0]) enhancements.push(`For a ${arch.label.toLowerCase()}, confirm the key prerequisite: ${arch.dataPrerequisites[0]}`);
   enhancements.push("Name a sponsor and a value owner (required before the business-case gate, G3).");
 
   return {
     domain,
     summary,
-    comparablePatterns: kb.patterns,
+    archetype: arch.label,
+    archetypeSummary: arch.summary,
+    feasibilityQuestions: arch.feasibilityQuestions,
+    dataPrerequisites: arch.dataPrerequisites,
+    characteristicRisks: arch.characteristicRisks,
+    comparablePatterns: mergeUnique(kb.patterns, arch.comparablePatterns),
     enhancements,
     dataSources: kb.dataSources,
     standards: kb.standards,
@@ -121,7 +146,7 @@ function buildAnalysis(answers: DemandAnswers, kb: DomainKnowledge, domain: stri
   };
 }
 
-function buildRequirements(answers: DemandAnswers, kb: DomainKnowledge): RequirementsDoc {
+function buildRequirements(answers: DemandAnswers, kb: DomainKnowledge, arch: UseCaseArchetype): RequirementsDoc {
   const cap = capabilityPhrase(answers);
   const primary = kb.personas[0] ?? "user";
 
@@ -149,23 +174,37 @@ function buildRequirements(answers: DemandAnswers, kb: DomainKnowledge): Require
     };
   });
 
-  const nfrs: Nfr[] = kb.nfrs.map((n, i) => ({ id: `NFR-${i + 1}`, category: n.category, requirement: n.requirement }));
+  // NFRs: the domain's typical set, plus the ones this archetype makes load-bearing
+  // (deduped by category — the solution shape often adds the NFRs that decide success).
+  const nfrByCategory = new Map<string, { category: string; requirement: string }>();
+  for (const n of [...kb.nfrs, ...arch.typicalNfrs]) {
+    if (!nfrByCategory.has(n.category.toLowerCase())) nfrByCategory.set(n.category.toLowerCase(), n);
+  }
+  const nfrs: Nfr[] = [...nfrByCategory.values()].map((n, i) => ({ id: `NFR-${i + 1}`, category: n.category, requirement: n.requirement }));
 
   const assumptions = [
     `The data sources (${kb.dataSources.join(", ")}) are accessible and reliable enough.`,
     "The affected users can adopt the change within their existing workflow.",
   ];
-  const risks = [
-    "Data quality or availability is insufficient for the desired signal.",
-    `Adoption by the ${primary} is not sustained after go-live.`,
-    clean(answers.constraints) ? `Constraints noted at intake: ${stripDot(answers.constraints)}.` : "Integration effort with existing systems is underestimated.",
-  ];
-  const openQuestions = [
-    ...(!hasNumber(answers.currentPain) ? ["What is the quantified baseline (time/scrap/cost) today?"] : []),
-    ...(clean(answers.frequencyScale) === "" ? ["How often does it occur and at what scale?"] : []),
-    "Who is the sponsor, and who is the value owner?",
-    `Which standard applies, and what does it require (${kb.standards.join(", ")})?`,
-  ];
+  const risks = mergeUnique(
+    [
+      "Data quality or availability is insufficient for the desired signal.",
+      `Adoption by the ${primary} is not sustained after go-live.`,
+      clean(answers.constraints) ? `Constraints noted at intake: ${stripDot(answers.constraints)}.` : "Integration effort with existing systems is underestimated.",
+    ],
+    // The characteristic ways THIS shape of use case fails.
+    arch.characteristicRisks.slice(0, 2),
+  );
+  const openQuestions = mergeUnique(
+    [
+      ...(!hasNumber(answers.currentPain) ? ["What is the quantified baseline (time/scrap/cost) today?"] : []),
+      ...(clean(answers.frequencyScale) === "" ? ["How often does it occur and at what scale?"] : []),
+      "Who is the sponsor, and who is the value owner?",
+      `Which standard applies, and what does it require (${kb.standards.join(", ")})?`,
+    ],
+    // The feasibility questions this archetype must answer before committing.
+    arch.feasibilityQuestions.slice(0, 2),
+  );
   const outOfScope = [
     "Roll-out to other plants (handled at the scale stage, S6).",
     "Changes to adjacent systems beyond the integration needed for this outcome.",
@@ -214,6 +253,22 @@ ${a.domain}
 ## Refined problem
 
 ${a.summary}
+
+## Solution archetype
+
+**${a.archetype}** — ${a.archetypeSummary}
+
+_Feasibility questions to answer for this shape:_
+
+${list(a.feasibilityQuestions)}
+
+_Data prerequisites this shape depends on:_
+
+${list(a.dataPrerequisites)}
+
+_How this shape characteristically fails:_
+
+${list(a.characteristicRisks)}
 
 ## Comparable patterns (baseline)
 

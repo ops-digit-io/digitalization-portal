@@ -7,9 +7,28 @@ tools: []
 
 # requirements-analysis
 
-Turns a funnel demand into standardized requirements, following the
-`requirements-analysis` playbook. The deterministic engine is `lib/requirements.ts`;
-this skill is the guidance the agent applies.
+Turns a funnel demand into standardized requirements for **any kind of digital use
+case**, following the `requirements-analysis` playbook. The deterministic engine is
+`lib/requirements.ts`; this skill is the spine the agent applies, orchestrating the
+method skills below.
+
+## Ground on both axes
+
+Analyse every demand on two orthogonal axes — this is what generalises the Analyst:
+
+- **Domain** (skill `domain-research`, `domain-knowledge.ts`) — the business context:
+  personas, standards, systems of record, recurring themes.
+- **Archetype** (skill `usecase-archetypes`) — the solution shape: analytics,
+  prediction, vision, GenAI/RAG, automation, optimization, integration, IoT,
+  self-service, data foundation. It supplies the feasibility questions, data
+  prerequisites, load-bearing NFRs, and characteristic failure modes.
+
+## The method skills, in order
+
+`problem-framing` → classify domain → `usecase-archetypes` → `feasibility-assessment`
+→ `stakeholder-mapping` → enhance → derive requirements with `acceptance-criteria`,
+`nfr-catalog`, `risk-assumptions`, and `value-sizing`. The playbook sequences them;
+each skill carries its technique in depth.
 
 ## What good looks like
 
