@@ -42,12 +42,18 @@ business case (S3). Nothing here passes a gate or assigns a lane.
    applicable standard, the sponsor/value owner.
 3. **Derive requirements — standardized formats.**
    - **Epics**: the core outcome as one epic, plus the domain's recurring themes
-     (data foundation, insight/alerting, workflow).
-   - **User stories**: `As a <persona>, I want to <capability>, so that <benefit>`,
-     each with **acceptance criteria** (Given/When/Then) and a MoSCoW priority.
+     (data foundation, insight/alerting, workflow). Each carries a **stable id**
+     (`E1`, `E2`, …).
+   - **User stories** (the *features*): `As a <persona>, I want to <capability>, so
+     that <benefit>`, each with a **stable id** (`US-1`, …), **acceptance criteria**
+     (Given/When/Then) and a MoSCoW priority.
    - **Non-functional requirements**: security (credentials server-side),
      auditability, usability on the floor, plus the domain's typical NFRs.
    - **Assumptions, Risks, Open questions, Out of scope.**
+   - **Stable ids matter.** Epics, features, and acceptance criteria are the units a
+     human ticks off during a PoC or pilot (see *Verification* below), so their ids
+     must stay stable across re-analysis — the portal keys verification state to
+     them.
 4. **Keep every figure honest.** Requirements are a draft hypothesis; mark anything
    uncertain as an open question rather than inventing it.
 
@@ -63,6 +69,22 @@ business case (S3). Nothing here passes a gate or assigns a lane.
   an enhancement suggestion; never invent a number or a fact.
 - **Auto-analyse the funnel.** Every demand in the funnel can be analysed
   automatically; re-analysing an updated demand regenerates the artifacts.
+
+## Verification (PoC / pilot)
+
+The requirements you produce are not just a document — they are the **acceptance
+checklist** for the PoC and pilot stages. In the portal, every epic, feature (user
+story), and acceptance criterion renders as a checkbox that a human ticks as it is
+proven during a PoC or pilot.
+
+- That verification state is **not** stored in `requirements.md`. It lives in the
+  demand README's `## Verification` section, so **regenerating the requirements
+  never wipes what was already verified** — matched by requirement id.
+- This is why ids must be **stable**: a feature that keeps its `US-1` id keeps its
+  tick across a re-analysis; a feature whose id churns loses its verification.
+- Write acceptance criteria that are **individually checkable** — one concrete,
+  observable Given/When/Then per criterion — so a reviewer can tick them one by one
+  rather than judging a vague paragraph.
 
 ## Steps
 

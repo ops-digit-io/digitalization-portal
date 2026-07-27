@@ -2,8 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { readDemand, readArtifact } from "@/lib/demands-store";
 import { parseUseCase } from "@/lib/parse";
+import { parseRequirementsMarkdown } from "@/lib/requirements";
+import { parseVerification } from "@/lib/verification";
+import { canEditDemand } from "@/lib/demand-edit";
+import { getSession } from "@/lib/auth/current";
 import { Card } from "@/components/ui/card";
 import { Md, AnalyseButton } from "../render";
+import { RequirementsBoard } from "./board";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +17,7 @@ export default async function CaseRequirements({ params }: { params: { id: strin
   const demand = await readDemand(id);
   if (demand === undefined) notFound();
 
+  const session = await getSession();
   const title = parseUseCase(demand).title?.replace(/^UC-\d{4}-\d+\s*·\s*/, "") ?? id;
   const [requirements, analysis, research] = await Promise.all([
     readArtifact(id, "requirements"),
@@ -19,6 +25,12 @@ export default async function CaseRequirements({ params }: { params: { id: strin
     readArtifact(id, "research"),
   ]);
   const analysed = requirements !== undefined || analysis !== undefined || research !== undefined;
+
+  // Parse the standardized requirements back into structure, and read the durable
+  // verification state from the demand README (survives re-analysis).
+  const doc = requirements ? parseRequirementsMarkdown(requirements) : undefined;
+  const verified = [...parseVerification(demand)];
+  const canVerify = canEditDemand(session, demand);
 
   return (
     <main className="mx-auto max-w-[1000px] px-6 py-6">
@@ -33,7 +45,7 @@ export default async function CaseRequirements({ params }: { params: { id: strin
         <div>
           <h1 className="text-lg font-semibold">{title}</h1>
           <p className="text-sm text-muted-foreground">
-            <span className="font-mono">{id}</span> · standardized requirements from the intake funnel · <Link href="/demands" className="underline">the demand</Link>
+            <span className="font-mono">{id}</span> · epics &amp; features to verify during PoC / pilot · <Link href={`/uc/${id}`} className="underline">the demand</Link>
           </p>
         </div>
         <AnalyseButton id={id} label={analysed ? "Re-analyse" : "Analyse"} />
@@ -41,19 +53,16 @@ export default async function CaseRequirements({ params }: { params: { id: strin
 
       {!analysed ? (
         <Card className="mt-6 p-8 text-center text-sm text-muted-foreground">
-          This demand hasn't been analysed yet. Run the requirements-analysis agent to generate epics, user stories, and NFRs from it.
+          This demand hasn&apos;t been analysed yet. Run the requirements-analysis agent to generate epics, features, and acceptance criteria from it.
         </Card>
       ) : (
         <div className="mt-6 space-y-6">
-          {requirements && (
-            <Card className="p-6">
-              <Md body={requirements} />
-            </Card>
-          )}
+          {doc && <RequirementsBoard id={id} doc={doc} verified={verified} canVerify={canVerify} />}
+
           {analysis && (
             <details className="group">
               <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
-                <span className="transition-transform group-open:rotate-90">▸</span> Domain analysis & enhancement
+                <span className="transition-transform group-open:rotate-90">▸</span> Domain analysis &amp; enhancement
               </summary>
               <Card className="mt-2 p-6">
                 <Md body={analysis} />
@@ -63,10 +72,21 @@ export default async function CaseRequirements({ params }: { params: { id: strin
           {research && (
             <details className="group">
               <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
-                <span className="transition-transform group-open:rotate-90">▸</span> Domain research (reference cases & testimonials)
+                <span className="transition-transform group-open:rotate-90">▸</span> Domain research (reference cases &amp; testimonials)
               </summary>
               <Card className="mt-2 p-6">
                 <Md body={research} />
+              </Card>
+            </details>
+          )}
+
+          {requirements && (
+            <details className="group">
+              <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
+                <span className="transition-transform group-open:rotate-90">▸</span> Full requirements document (markdown)
+              </summary>
+              <Card className="mt-2 p-6">
+                <Md body={requirements} />
               </Card>
             </details>
           )}

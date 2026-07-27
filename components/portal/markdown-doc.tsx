@@ -4,19 +4,21 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 /**
- * Renders an artifact section with an "Edit on GitHub" affordance — the portal
- * displays; the repository is where editing happens (`docs/16-ui.md §16.4`,
- * constraint: no in-portal editing).
+ * Renders an artifact section with an edit affordance. Editing now happens in the
+ * portal (`/uc/[id]/edit`) for demands the session may change; the GitHub link
+ * stays as a fallback for read-only/live cases (`editLabel` distinguishes them).
  */
 export function MarkdownDoc({
   title,
   body,
   editHref,
+  editLabel = "Edit on GitHub",
   defaultOpen = false,
 }: {
   title: string;
   body: string;
   editHref?: string;
+  editLabel?: string;
   defaultOpen?: boolean;
 }) {
   return (
@@ -30,7 +32,7 @@ export function MarkdownDoc({
             className="ml-auto text-xs font-normal text-info hover:underline"
             onClick={(e) => e.stopPropagation()}
           >
-            Edit on GitHub
+            {editLabel}
           </a>
         )}
       </summary>

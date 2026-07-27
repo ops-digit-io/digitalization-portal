@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyseIntake, buildRequirementsMarkdown, buildAnalysisMarkdown } from "./requirements.js";
+import { analyseIntake, buildRequirementsMarkdown, buildAnalysisMarkdown, parseRequirementsMarkdown } from "./requirements.js";
 import { EMPTY_ANSWERS, type DemandAnswers } from "./demand.js";
 
 const answers: DemandAnswers = {
@@ -75,5 +75,51 @@ describe("standardized markdown", () => {
       expect(md).toContain(h);
     }
     expect(buildAnalysisMarkdown(meta, analysis)).toBe(md);
+  });
+});
+
+describe("parseRequirementsMarkdown (round-trip)", () => {
+  const { requirements } = analyseIntake(answers);
+  const md = buildRequirementsMarkdown(meta, requirements);
+  const parsed = parseRequirementsMarkdown(md);
+
+  it("recovers the epics", () => {
+    expect(parsed.epics.map((e) => e.id)).toEqual(requirements.epics.map((e) => e.id));
+    expect(parsed.epics[0]!.title).toBe(requirements.epics[0]!.title);
+    expect(parsed.epics[0]!.description).toBe(requirements.epics[0]!.description);
+  });
+
+  it("recovers each user story with persona, capability, benefit, priority and epic link", () => {
+    expect(parsed.stories).toHaveLength(requirements.stories.length);
+    for (const s of requirements.stories) {
+      const got = parsed.stories.find((x) => x.id === s.id)!;
+      expect(got).toBeDefined();
+      expect(got.epic).toBe(s.epic);
+      expect(got.persona).toBe(s.persona);
+      expect(got.capability).toBe(s.capability);
+      expect(got.benefit).toBe(s.benefit);
+      expect(got.priority).toBe(s.priority);
+    }
+  });
+
+  it("recovers acceptance criteria for each story", () => {
+    for (const s of requirements.stories) {
+      const got = parsed.stories.find((x) => x.id === s.id)!;
+      expect(got.acceptance).toEqual(s.acceptance);
+    }
+  });
+
+  it("recovers NFRs and the supporting lists", () => {
+    expect(parsed.nfrs.map((n) => n.id)).toEqual(requirements.nfrs.map((n) => n.id));
+    expect(parsed.assumptions).toEqual(requirements.assumptions);
+    expect(parsed.risks).toEqual(requirements.risks);
+    expect(parsed.openQuestions).toEqual(requirements.openQuestions);
+    expect(parsed.outOfScope).toEqual(requirements.outOfScope);
+  });
+
+  it("returns empty arrays for a non-requirements document", () => {
+    const empty = parseRequirementsMarkdown("# Something else\n\nno sections here");
+    expect(empty.epics).toEqual([]);
+    expect(empty.stories).toEqual([]);
   });
 });

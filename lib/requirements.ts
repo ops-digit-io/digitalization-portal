@@ -294,3 +294,93 @@ ${list(r.openQuestions)}
 ${list(r.outOfScope)}
 `;
 }
+
+// ── Parser (inverse of buildRequirementsMarkdown) ──────────────────────────────
+
+/** Split a doc into `## Heading` → body (headings lowercased, `##` only). */
+function splitH2(markdown: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  let current: string | null = null;
+  let buf: string[] = [];
+  const flush = () => { if (current) out[current] = buf.join("\n").trim(); };
+  for (const line of markdown.replace(/\r\n/g, "\n").split("\n")) {
+    const h = /^##\s+(.+?)\s*$/.exec(line);
+    if (h && !line.startsWith("###")) { flush(); current = h[1]!.toLowerCase(); buf = []; }
+    else if (current) buf.push(line);
+  }
+  flush();
+  return out;
+}
+
+/** Read a `| a | b | c |` table body (skipping header + separator) into rows of cells. */
+function tableRows(body: string): string[][] {
+  return body
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.startsWith("|") && !/^\|[\s|:-]+\|?$/.test(l))
+    .map((l) => l.replace(/^\||\|$/g, "").split("|").map((c) => c.trim()))
+    .filter((cells, i) => !(i === 0 && /^id$/i.test(cells[0] ?? ""))); // drop header row
+}
+
+/** Bullet-list items, dropping the `_none_` placeholder. */
+function listItems(body: string): string[] {
+  return body
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => /^-\s+/.test(l))
+    .map((l) => l.replace(/^-\s+/, "").trim())
+    .filter((x) => x !== "" && !/^_none_$/i.test(x));
+}
+
+const STORY_RE = /^-\s+\*\*(\S+)\*\*\s+_\((must|should|could)\)_\s+—\s+As a\s+\*\*(.+?)\*\*,\s+I want\s+(.+?),\s+so that\s+(.+?)\.?$/;
+
+/**
+ * Parse a standardized `requirements.md` back into a `RequirementsDoc`. The inverse
+ * of `buildRequirementsMarkdown`; tolerant of prose a live model may have enriched,
+ * but anchored on the fixed structure (tables, `### Ex —` story blocks). Unknown or
+ * missing sections yield empty arrays rather than throwing.
+ */
+export function parseRequirementsMarkdown(markdown: string): RequirementsDoc {
+  const sections = splitH2(markdown);
+
+  const epics: Epic[] = tableRows(sections["epics"] ?? "")
+    .filter((c) => c.length >= 2 && /^E\d+/i.test(c[0] ?? ""))
+    .map((c) => ({ id: c[0]!, title: c[1] ?? "", description: c[2] ?? "" }));
+
+  // Stories: scan the `## User stories` body, tracking the current `### Ex —` epic.
+  const stories: UserStory[] = [];
+  let currentEpic = epics[0]?.id ?? "E1";
+  let last: UserStory | undefined;
+  let inAcceptance = false;
+  for (const raw of (sections["user stories"] ?? "").split("\n")) {
+    const line = raw.trim();
+    const epicH = /^###\s+(E\d+)\b/.exec(line);
+    if (epicH) { currentEpic = epicH[1]!; last = undefined; inAcceptance = false; continue; }
+    const sm = STORY_RE.exec(line);
+    if (sm) {
+      last = { id: sm[1]!, epic: currentEpic, priority: sm[2] as UserStory["priority"], persona: sm[3]!, capability: sm[4]!, benefit: sm[5]!, acceptance: [] };
+      stories.push(last);
+      inAcceptance = false;
+      continue;
+    }
+    if (/acceptance criteria:?/i.test(line) && last) { inAcceptance = true; continue; }
+    // Indented sub-bullets belong to the current story's acceptance list.
+    if (last && /^-\s+/.test(line) && /^\s{2,}-/.test(raw)) {
+      if (inAcceptance || last.acceptance.length > 0) last.acceptance.push(line.replace(/^-\s+/, "").trim());
+    }
+  }
+
+  const nfrs: Nfr[] = tableRows(sections["non-functional requirements"] ?? "")
+    .filter((c) => c.length >= 2 && /^NFR-\d+/i.test(c[0] ?? ""))
+    .map((c) => ({ id: c[0]!, category: c[1] ?? "", requirement: c[2] ?? "" }));
+
+  return {
+    epics,
+    stories,
+    nfrs,
+    assumptions: listItems(sections["assumptions"] ?? ""),
+    risks: listItems(sections["risks"] ?? ""),
+    openQuestions: listItems(sections["open questions"] ?? ""),
+    outOfScope: listItems(sections["out of scope"] ?? ""),
+  };
+}
