@@ -43,12 +43,30 @@ export interface DirEntry {
   path: string;
 }
 
+/**
+ * Thrown by `putFile` with `{ createOnly: true }` when the target path already
+ * exists. The funnel's id allocator catches this to retry with a fresh id instead
+ * of overwriting a concurrently-created demand (the write-race that risks data loss
+ * at scale).
+ */
+export class FileExistsError extends Error {
+  constructor(path: string) {
+    super(`File already exists: ${path}`);
+    this.name = "FileExistsError";
+  }
+}
+
+export interface PutFileOptions {
+  /** When true, never overwrite: throw `FileExistsError` if the path already exists. */
+  createOnly?: boolean;
+}
+
 export interface GitHost {
   readonly kind: "github" | "local";
   /** Create a repository under the configured org/workspace. */
   createRepo(name: string, opts?: { description?: string; private?: boolean }): Promise<RepoRef>;
-  /** Write (create or update) a file on a branch. */
-  putFile(repo: RepoRef, file: FileWrite, message: string, branch: string): Promise<void>;
+  /** Write a file on a branch. `opts.createOnly` refuses to overwrite an existing path. */
+  putFile(repo: RepoRef, file: FileWrite, message: string, branch: string, opts?: PutFileOptions): Promise<void>;
   /** Read a file's text (default branch, or `ref`). undefined if absent. */
   getFile(repo: RepoRef, path: string, ref?: string): Promise<string | undefined>;
   /** List a directory's entries (default branch, or `ref`). Empty if absent. */

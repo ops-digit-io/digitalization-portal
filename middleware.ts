@@ -11,7 +11,7 @@ import { SESSION_COOKIE, verifySession } from "@/lib/auth/cookie";
  * Always-open paths: the login page, the auth endpoints themselves, and the
  * status endpoint (so the header can tell whether to show "Sign in").
  */
-const OPEN = ["/login", "/api/auth/", "/api/status"];
+const OPEN = ["/login", "/api/auth/", "/api/status", "/api/webhooks/", "/api/cron/"];
 
 export async function middleware(req: NextRequest) {
   if (!oidcEnabled()) return NextResponse.next();

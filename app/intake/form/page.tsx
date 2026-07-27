@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { classifyDemand, missingRequired, INTAKE_FIELDS, FIELD_GROUPS, EMPTY_ANSWERS, type DemandField, type DemandAnswers } from "@/lib/demand";
 import { ToolHeader, SavedLinks, useIntakeSave, useDraft } from "../shared";
 import { IntakeEnhancer } from "../enhancer";
+import { SimilarDemands } from "../similar";
 
 const LANE_LABEL: Record<string, string> = {
   run: "run", regulatory: "regulatory", continuous_improvement: "continuous improvement",
@@ -68,6 +69,12 @@ export default function FormTool() {
           ))}
         </div>
 
+        {!saved && answers.title.trim().length >= 3 && (
+          <div className="mt-4">
+            <SimilarDemands query={answers.title} />
+          </div>
+        )}
+
         {!saved && (answers.problem.trim() !== "" || answers.title.trim() !== "") && (
           <div className="mt-5">
             <IntakeEnhancer answers={answers} onApply={(patch) => setAnswers((a) => ({ ...a, ...patch }))} />
@@ -92,7 +99,7 @@ export default function FormTool() {
               </div>
             </div>
           ) : (
-            <SavedLinks id={saved.id} host={saved.result.host} onRestart={restart} />
+            <SavedLinks id={saved.id} host={saved.result.host} pending={saved.result.pending} onRestart={restart} />
           )}
         </div>
       </Card>

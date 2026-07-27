@@ -29,6 +29,8 @@ export interface RegistryRow {
   level?: Level;
   heat?: Heat;
   sponsor?: string;
+  /** Requester email/name — enables the "my demands" self-filter (not analytics). */
+  requester?: string;
   valueProjected?: number;
   valueRealized?: number;
   /** ISO date the use case entered its current stage. */
@@ -37,6 +39,8 @@ export interface RegistryRow {
   confidential?: boolean;
   /** True when the source README could not be parsed cleanly. */
   needsAttention?: boolean;
+  /** True when the demand is captured in the interim buffer, not yet committed to git. */
+  pending?: boolean;
 }
 
 const COLUMN_ALIASES: Record<keyof RegistryRow, string[]> = {
@@ -50,11 +54,13 @@ const COLUMN_ALIASES: Record<keyof RegistryRow, string[]> = {
   level: ["level"],
   heat: ["heat"],
   sponsor: ["sponsor"],
+  requester: ["requester"],
   valueProjected: ["value (proj)", "value proj", "value projected"],
   valueRealized: ["value (real)", "value real", "value realized"],
   since: ["since"],
   confidential: ["confidential"],
   needsAttention: ["needs attention"],
+  pending: ["pending"],
 };
 
 function parseNumber(cell: string | undefined): number | undefined {

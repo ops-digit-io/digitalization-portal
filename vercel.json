@@ -2,5 +2,9 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "regions": ["fra1"],
-  "git": { "deploymentEnabled": { "main": true } }
+  "git": { "deploymentEnabled": { "main": true } },
+  "crons": [
+    { "path": "/api/cron/flush", "schedule": "0 3 * * *" },
+    { "path": "/api/cron/digest", "schedule": "0 7 * * 1" }
+  ]
 }

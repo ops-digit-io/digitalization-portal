@@ -72,7 +72,7 @@ export default function MarkdownTool() {
               </div>
             </div>
           ) : (
-            <SavedLinks id={saved.id} host={saved.result.host} onRestart={restart} />
+            <SavedLinks id={saved.id} host={saved.result.host} pending={saved.result.pending} onRestart={restart} />
           )}
         </div>
       </Card>

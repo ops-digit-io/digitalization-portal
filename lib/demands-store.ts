@@ -23,7 +23,9 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { parseUseCase, parsePeople, type ParsedUseCase } from "./parse.js";
 import { parseBusinessCase } from "./businesscase.js";
-import { getGitHost, hasGitHubCredentials, type RepoRef } from "./git/index.js";
+import { nextDemandId } from "./demand.js";
+import { mapPool } from "./pool.js";
+import { getGitHost, hasGitHubCredentials, FileExistsError, type RepoRef } from "./git/index.js";
 import { LocalHost } from "./git/local-host.js";
 import type { RegistryRow } from "./registry.js";
 import type { Lane, Stage, Status } from "./types.js";
@@ -149,16 +151,20 @@ function demandNeedsAttention(p: ParsedUseCase): boolean {
   return p.state.stage === undefined || otherErrors.some((e) => e.section === "state");
 }
 
+/** How many funnel cases to fetch from GitHub at once (bounded to respect rate limits). */
+const FETCH_CONCURRENCY = 8;
+
 /** Parse every case into a board-ready summary; unreadable ones surface, never vanish. */
 export async function listDemands(baseDir = root()): Promise<DemandSummary[]> {
   const ids = await listDemandIds(baseDir);
-  const out: DemandSummary[] = [];
-  for (const id of ids) {
+  // Fan out per-case reads with bounded concurrency (was a serial N+1 loop).
+  const summaries = await mapPool(ids, FETCH_CONCURRENCY, async (id): Promise<DemandSummary | null> => {
     const md = await readDemand(id, baseDir);
-    if (md === undefined) continue;
+    if (md === undefined) return null;
     const p = parseUseCase(md);
     const laneRaw = (p.state.raw["lane"] ?? "").toLowerCase();
-    out.push({
+    const artifacts = await listArtifacts(id, baseDir);
+    return {
       id,
       title: demandTitle(p, id),
       ...(p.state.stage ? { stage: p.state.stage } : {}),
@@ -168,10 +174,10 @@ export async function listDemands(baseDir = root()): Promise<DemandSummary[]> {
       ...(p.state.domain ? { domain: p.state.domain } : {}),
       ...(p.state.created ? { created: p.state.created } : {}),
       needsAttention: demandNeedsAttention(p),
-      artifacts: await listArtifacts(id, baseDir),
-    });
-  }
-  return out;
+      artifacts,
+    };
+  });
+  return summaries.filter((s): s is DemandSummary => s !== null);
 }
 
 /**
@@ -185,32 +191,39 @@ export async function listDemands(baseDir = root()): Promise<DemandSummary[]> {
  * are left absent until a business case is drafted — the board renders them as
  * indicative/empty, never as committed (constraint #8).
  */
+/** Map one demand's markdown to a board/funnel row. Reused for git cases and the
+ *  interim buffer, so a pending demand renders identically to a committed one. */
+export function demandRowFromMarkdown(id: string, md: string): RegistryRow {
+  const p = parseUseCase(md);
+  const people = parsePeople(md);
+  const since = p.state.raw["since"] ?? p.state.created;
+  return {
+    id,
+    title: demandTitle(p, id),
+    ...(p.state.stage ? { stage: p.state.stage } : {}),
+    ...(p.state.lane ? { lane: p.state.lane } : {}),
+    ...(p.state.status ? { status: p.state.status } : {}),
+    ...(p.state.plant ? { plant: p.state.plant } : {}),
+    ...(p.state.domain ? { domain: p.state.domain } : {}),
+    ...(p.state.level ? { level: p.state.level } : {}),
+    ...(p.state.heat ? { heat: p.state.heat } : {}),
+    ...(people.sponsor ? { sponsor: people.sponsor } : {}),
+    ...(people.requester ? { requester: people.requester } : {}),
+    ...(since ? { since } : {}),
+    ...(p.state.confidential ? { confidential: true } : {}),
+    ...(demandNeedsAttention(p) ? { needsAttention: true } : {}),
+  };
+}
+
 export async function listDemandRows(baseDir = root()): Promise<RegistryRow[]> {
   const ids = await listDemandIds(baseDir);
-  const rows: RegistryRow[] = [];
-  for (const id of ids) {
+  // Fan out per-case reads with bounded concurrency (was a serial N+1 loop).
+  const parsed = await mapPool(ids, FETCH_CONCURRENCY, async (id): Promise<RegistryRow | null> => {
     const md = await readDemand(id, baseDir);
-    if (md === undefined) continue;
-    const p = parseUseCase(md);
-    const people = parsePeople(md);
-    const since = p.state.raw["since"] ?? p.state.created;
-    rows.push({
-      id,
-      title: demandTitle(p, id),
-      ...(p.state.stage ? { stage: p.state.stage } : {}),
-      ...(p.state.lane ? { lane: p.state.lane } : {}),
-      ...(p.state.status ? { status: p.state.status } : {}),
-      ...(p.state.plant ? { plant: p.state.plant } : {}),
-      ...(p.state.domain ? { domain: p.state.domain } : {}),
-      ...(p.state.level ? { level: p.state.level } : {}),
-      ...(p.state.heat ? { heat: p.state.heat } : {}),
-      ...(people.sponsor ? { sponsor: people.sponsor } : {}),
-      ...(since ? { since } : {}),
-      ...(p.state.confidential ? { confidential: true } : {}),
-      ...(demandNeedsAttention(p) ? { needsAttention: true } : {}),
-    });
-  }
-  return rows;
+    if (md === undefined) return null;
+    return demandRowFromMarkdown(id, md);
+  });
+  return parsed.filter((r): r is RegistryRow => r !== null);
 }
 
 /**
@@ -223,16 +236,14 @@ export async function listDemandRows(baseDir = root()): Promise<RegistryRow[]> {
  */
 export async function listDemandRowsWithValue(baseDir = root()): Promise<RegistryRow[]> {
   const rows = await listDemandRows(baseDir);
-  await Promise.all(
-    rows.map(async (r) => {
-      const bc = await readArtifact(r.id, "business-case", baseDir).catch(() => undefined);
-      if (!bc) return;
-      const facts = parseBusinessCase(bc);
-      if (facts.annualGross === undefined) return;
-      if (facts.confidence === "realized") r.valueRealized = facts.annualGross;
-      else r.valueProjected = facts.annualGross;
-    }),
-  );
+  await mapPool(rows, FETCH_CONCURRENCY, async (r) => {
+    const bc = await readArtifact(r.id, "business-case", baseDir).catch(() => undefined);
+    if (!bc) return;
+    const facts = parseBusinessCase(bc);
+    if (facts.annualGross === undefined) return;
+    if (facts.confidence === "realized") r.valueRealized = facts.annualGross;
+    else r.valueProjected = facts.annualGross;
+  });
   return rows;
 }
 
@@ -244,23 +255,62 @@ export interface DemandSaveResult {
   path: string;
 }
 
-/** Write a file at `path` (relative to the funnel repo) to GitHub main or the working tree. */
-async function writeToFunnel(path: string, content: string, message: string, baseDir?: string): Promise<DemandSaveResult> {
+/**
+ * Write a file at `path` (relative to the funnel repo) to GitHub main or the working
+ * tree. `createOnly` refuses to overwrite an existing path (throws `FileExistsError`)
+ * — the guard the id allocator relies on so a race can never clobber a demand.
+ */
+async function writeToFunnel(path: string, content: string, message: string, baseDir?: string, createOnly?: boolean): Promise<DemandSaveResult> {
   const host = getGitHost();
   if (host instanceof LocalHost) {
     const abs = join(baseDir ?? root(), path);
     await mkdir(dirname(abs), { recursive: true });
-    await writeFile(abs, content);
+    // createOnly → atomic O_CREAT|O_EXCL so a race can't clobber (see LocalHost.putFile).
+    try {
+      await writeFile(abs, content, createOnly ? { flag: "wx" } : undefined);
+    } catch (err) {
+      if (createOnly && (err as NodeJS.ErrnoException).code === "EEXIST") throw new FileExistsError(path);
+      throw err;
+    }
     return { host: "local", target: "working tree", repo: demandsRepoName(), path };
   }
   const repo = funnelRepo();
-  await host.putFile(repo, { path, content }, message, "main");
+  await host.putFile(repo, { path, content }, message, "main", { createOnly: createOnly ?? false });
   return { host: "github", target: "main", repo: repo.name, path };
 }
 
-/** Persist a case record (README.md) to the funnel repo. */
-export async function saveDemand(id: string, markdown: string, opts?: { baseDir?: string; message?: string }): Promise<DemandSaveResult> {
-  return writeToFunnel(readmePath(id), markdown, opts?.message ?? `Capture demand ${id}`, opts?.baseDir);
+/** Persist a case record (README.md) to the funnel repo. `createOnly` refuses to overwrite. */
+export async function saveDemand(id: string, markdown: string, opts?: { baseDir?: string; message?: string; createOnly?: boolean }): Promise<DemandSaveResult> {
+  return writeToFunnel(readmePath(id), markdown, opts?.message ?? `Capture demand ${id}`, opts?.baseDir, opts?.createOnly);
+}
+
+/**
+ * Allocate a unique id and write a NEW demand, retrying on collision. Two concurrent
+ * captures can compute the same `UC-YYYY-NNNN`; a create-only write makes the loser
+ * fail with `FileExistsError` instead of silently overwriting the winner, and we
+ * re-allocate against the now-larger id set. Converges in a couple of rounds even
+ * under heavy concurrency; throws if it can't after `maxAttempts`.
+ */
+export async function saveNewDemand(
+  year: number,
+  build: (id: string) => string,
+  opts?: { baseDir?: string; maxAttempts?: number },
+): Promise<{ id: string; result: DemandSaveResult; markdown: string }> {
+  const maxAttempts = opts?.maxAttempts ?? 12;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const existing = await listDemandIds(opts?.baseDir);
+    const id = nextDemandId(existing, year);
+    const markdown = build(id);
+    try {
+      const result = await saveDemand(id, markdown, { baseDir: opts?.baseDir, createOnly: true, message: `Capture demand ${id}` });
+      return { id, result, markdown };
+    } catch (err) {
+      if (err instanceof FileExistsError) { lastErr = err; continue; } // id race — retry with a fresh id
+      throw err;
+    }
+  }
+  throw new Error(`Could not allocate a unique demand id after ${maxAttempts} attempts: ${lastErr instanceof Error ? lastErr.message : "unknown"}`);
 }
 
 /** Persist a standardized artifact (requirements / analysis / …) to the case folder. */

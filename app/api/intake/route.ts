@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac";
 import { getSession } from "@/lib/auth/current";
@@ -5,12 +6,12 @@ import {
   buildDemand,
   classifyDemand,
   missingRequired,
-  nextDemandId,
   parseDemandToAnswers,
   EMPTY_ANSWERS,
   type DemandAnswers,
 } from "@/lib/demand";
-import { listDemandIds, saveDemand } from "@/lib/demands-store";
+import { enqueueDemand, pendingSaveResult } from "@/lib/pending/service";
+import { rateLimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,15 +64,31 @@ export async function POST(req: Request) {
     if (missing.length > 0) {
       return NextResponse.json({ error: `missing required: ${missing.join(", ")}`, missing }, { status: 400 });
     }
+    // Per-user submit throttle so one person can't flood the funnel (14k scale).
+    const rl = await rateLimit(`intake:${session.user}`, { limit: 10, windowSec: 300 });
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: `You've submitted a lot in a short time — please wait ${rl.resetSec}s and try again.` },
+        { status: 429 },
+      );
+    }
     try {
-      const existing = await listDemandIds();
-      const id = nextDemandId(existing, INTAKE_YEAR);
+      // Persist to the interim buffer and return immediately — the submit does NOT
+      // wait on git. A background flush commits it to du-demands (the SoR); ids are
+      // allocated collision-free by the buffer, and reads merge it in the meantime.
+      // dedupKey makes an identical double-submit idempotent (returns the same id).
       const createdOn = new Date().toISOString().slice(0, 10);
-      const markdown = buildDemand({ id, createdOn, lane: classification.lane }, answers);
-      const result = await saveDemand(id, markdown);
+      const dedupKey = createHash("sha256").update(JSON.stringify(answers)).digest("hex").slice(0, 16);
+      const { id, markdown, kind } = await enqueueDemand(
+        INTAKE_YEAR,
+        (uid) => buildDemand({ id: uid, createdOn, lane: classification.lane }, answers),
+        { dedupKey },
+      );
+      const repo = process.env.DEMANDS_REPO ?? "du-demands";
+      const result = pendingSaveResult(id, kind, repo, `demands/${id}/README.md`);
       return NextResponse.json({ id, result, classification, markdown });
     } catch (err) {
-      return NextResponse.json({ error: err instanceof Error ? err.message : "save failed" }, { status: 500 });
+      return NextResponse.json({ error: err instanceof Error ? err.message : "capture failed" }, { status: 500 });
     }
   }
 

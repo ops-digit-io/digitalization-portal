@@ -19,7 +19,7 @@
 
 import type { RegistryRow } from "./registry.js";
 import { hasGitHubCredentials } from "./git/index.js";
-import { listDemandRowsWithValue } from "./demands-store.js";
+import { getFunnelRows } from "./funnel/query.js";
 
 export interface PortfolioData {
   rows: RegistryRow[];
@@ -41,11 +41,14 @@ export interface PortfolioData {
  */
 export async function loadPortfolioRows(): Promise<PortfolioData> {
   const github = hasGitHubCredentials();
-  const rows = await listDemandRowsWithValue();
+  // Reads go through the funnel read model: the KV projection when built (scales to
+  // 14k readers), else a direct git read. Same rows either way.
+  const { rows, projected } = await getFunnelRows();
+  const repo = process.env.DEMANDS_REPO ?? "du-demands";
   return {
     rows,
     now: new Date().toISOString(),
     live: github,
-    source: github ? (process.env.DEMANDS_REPO ?? "du-demands") : "local workspace",
+    source: projected ? `${repo} · projection` : github ? repo : "local workspace",
   };
 }
