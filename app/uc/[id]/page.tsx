@@ -11,7 +11,12 @@ import { MarkdownDoc } from "@/components/portal/markdown-doc";
 import { GateAction } from "@/components/portal/gate-action";
 import { AdvanceStage } from "@/components/portal/advance-stage";
 import { HeatDot, LaneBadge, LevelBadge } from "@/components/portal/badges";
+import { AttachmentsCard } from "@/components/portal/attachments-card";
+import { DemandStatusActions } from "@/components/portal/demand-status-actions";
 import { getSession } from "@/lib/auth/current";
+import { canEditDemand } from "@/lib/demand-edit";
+import { can } from "@/lib/rbac";
+import { listAttachments } from "@/lib/attachments";
 import type { Gate, Stage } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -59,6 +64,13 @@ export default async function UseCasePage({ params }: { params: { id: string } }
   // Real business case for this demand (never seed) — gates the simulate link.
   const hasBusinessCase = (await readArtifact(params.id, "business-case")) !== undefined;
 
+  // In-portal management affordances — all server-enforced by the routes too.
+  const canEdit = canEditDemand(session, markdown);
+  const canKill = can(session, "kill", { requester: people.requester });
+  const canReactivate = can(session, "park");
+  const attachments = listAttachments(markdown);
+  const uploadEnabled = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+
   const stage = uc.state.stage as Stage | undefined;
   const plant = uc.state.plant;
   const domain = uc.state.domain;
@@ -84,9 +96,13 @@ export default async function UseCasePage({ params }: { params: { id: string } }
 
   const org = process.env.GITHUB_ORG ?? "org";
   const demandsRepo = process.env.DEMANDS_REPO ?? "du-demands";
-  const editHref = live
+  // Prefer in-portal editing; the GitHub link stays as a fallback for read-only cases.
+  const githubEditHref = live
     ? `https://github.com/${org}/${demandsRepo}/edit/main/demands/${params.id}/README.md`
     : `https://github.com/org/${params.id.toLowerCase()}/edit/main/README.md`;
+  const portalEditHref = `/uc/${encodeURIComponent(params.id)}/edit`;
+  const editHref = canEdit ? portalEditHref : githubEditHref;
+  const editLabel = canEdit ? "Edit" : "Edit on GitHub";
 
   const sections = proseSections(markdown);
   const title = uc.title?.split(" · ").slice(1).join(" · ") || uc.title || params.id;
@@ -107,6 +123,14 @@ export default async function UseCasePage({ params }: { params: { id: string } }
         >
           {live ? `● live · ${demandsRepo}` : "○ local workspace"}
         </span>
+        {canEdit && (
+          <Link
+            href={portalEditHref}
+            className="ml-auto rounded-md border px-3 py-1 text-xs font-medium hover:border-foreground/40"
+          >
+            ✎ Edit demand
+          </Link>
+        )}
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         {stage && <StageBadge stage={stage} />}
@@ -141,6 +165,7 @@ export default async function UseCasePage({ params }: { params: { id: string } }
                 body={s.body}
                 defaultOpen={i < 2}
                 editHref={editHref}
+                editLabel={editLabel}
               />
             ))}
           </div>
@@ -160,6 +185,15 @@ export default async function UseCasePage({ params }: { params: { id: string } }
             />
           ) : (
             targetGate && <GateAction gate={targetGate} decision={decision} approvers="Portfolio forum" />
+          )}
+
+          {live && (
+            <DemandStatusActions
+              id={params.id}
+              status={uc.state.status}
+              canKill={canKill}
+              canReactivate={canReactivate}
+            />
           )}
 
           <div>
@@ -187,6 +221,13 @@ export default async function UseCasePage({ params }: { params: { id: string } }
               <li>– Pilot KPI</li>
             </ul>
           </div>
+
+          <AttachmentsCard
+            id={params.id}
+            attachments={attachments}
+            canEdit={canEdit}
+            uploadEnabled={uploadEnabled}
+          />
 
           {hasBusinessCase && (
             <Link

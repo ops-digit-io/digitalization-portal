@@ -184,6 +184,15 @@ export function describeConfig(env: Record<string, string | undefined> = process
           note: "Optional: shared secret for scheduled reconciliation.",
         },
         {
+          key: "attachments",
+          label: "File attachments",
+          configured: has(env.BLOB_READ_WRITE_TOKEN),
+          detail: has(env.BLOB_READ_WRITE_TOKEN) ? "upload + link" : "link-only (paste a URL)",
+          envVars: ["BLOB_READ_WRITE_TOKEN"],
+          level: "optional",
+          note: "Optional: set BLOB_READ_WRITE_TOKEN (Vercel Blob store) to upload Excel/PPT/PDF. Without it, demands can still reference files by pasted link.",
+        },
+        {
           key: "notifications",
           label: "Email digest",
           configured: has(env.EMAIL_API_KEY) && has(env.EMAIL_FROM),
