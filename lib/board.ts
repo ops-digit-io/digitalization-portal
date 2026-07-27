@@ -47,7 +47,8 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 /** Days in a stage past which an active use case is flagged as stalled. */
 export const STALL_DAYS = 30;
 
-function daysBetween(sinceIso: string | undefined, nowIso: string): number | undefined {
+/** Whole days between an ISO instant and `now`; undefined if unparseable, clamped ≥ 0. */
+export function daysBetween(sinceIso: string | undefined, nowIso: string): number | undefined {
   if (!sinceIso) return undefined;
   const since = Date.parse(sinceIso);
   const now = Date.parse(nowIso);

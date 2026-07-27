@@ -183,6 +183,15 @@ export function describeConfig(env: Record<string, string | undefined> = process
           level: "optional",
           note: "Optional: shared secret for scheduled reconciliation.",
         },
+        {
+          key: "notifications",
+          label: "Email digest",
+          configured: has(env.EMAIL_API_KEY) && has(env.EMAIL_FROM),
+          detail: has(env.DIGEST_TEAM_EMAIL) ? "team digest + per-owner nudges" : "per-owner nudges only (set DIGEST_TEAM_EMAIL)",
+          envVars: ["EMAIL_API_KEY", "EMAIL_FROM", "DIGEST_TEAM_EMAIL"],
+          level: "optional",
+          note: "Optional: weekly review/staleness digest by email. Without it, the /digest page still works.",
+        },
       ],
     },
   ];
