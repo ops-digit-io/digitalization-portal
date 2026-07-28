@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { draftBusinessCase, buildBusinessCaseMarkdown, setBusinessCaseValue, type BusinessCaseMeta } from "./business-case-draft.js";
-import { parseBusinessCase, simulateBusinessCase } from "./businesscase.js";
+import { draftBusinessCase, buildBusinessCaseMarkdown, setBusinessCaseValue, setAssumptionTested, logBusinessCaseChange, type BusinessCaseMeta } from "./business-case-draft.js";
+import { parseBusinessCase, simulateBusinessCase, analyseBusinessCase } from "./businesscase.js";
 import { analyseIntake } from "./requirements.js";
 import { EMPTY_ANSWERS, type DemandAnswers } from "./demand.js";
 
@@ -121,6 +121,106 @@ describe("setBusinessCaseValue (the human quantifies the draft)", () => {
     const once = setBusinessCaseValue(draft, { annualGross: 250000, baselineVerified: true });
     const twice = setBusinessCaseValue(once, { annualGross: 250000, baselineVerified: true });
     expect(twice).toBe(once);
+  });
+});
+
+describe("setBusinessCaseValue is section-scoped (no cross-section bleed)", () => {
+  const { requirements } = analyseIntake(answers);
+  const draft = buildBusinessCaseMarkdown(meta, draftBusinessCase(answers, requirements));
+
+  it("rewrites the Value section's Annual gross, not a like-named phrase elsewhere", () => {
+    // Inject a decoy "Annual gross" mention in an unrelated section.
+    const withDecoy = draft.replace("## Open questions", "## Notes\n\n**Annual gross.** do not touch this line\n\n## Open questions");
+    const out = setBusinessCaseValue(withDecoy, { annualGross: 250000 });
+    expect(out).toContain("**Annual gross.** do not touch this line"); // decoy untouched
+    expect(parseBusinessCase(out).annualGross).toBe(250000); // real one set
+  });
+
+  it("parses build and run cost back after setting them", () => {
+    const out = setBusinessCaseValue(draft, { buildEstimate: "EUR 80,000", annualRunEstimate: "EUR 20,000 / yr" });
+    const facts = parseBusinessCase(out);
+    expect(facts.buildCost).toBe(80000);
+    expect(facts.annualRunCost).toBe(20000);
+  });
+});
+
+describe("setAssumptionTested", () => {
+  const { requirements } = analyseIntake(answers);
+  const draft = buildBusinessCaseMarkdown(meta, draftBusinessCase(answers, requirements));
+
+  it("marks the indexed assumption tested and the parser reflects it", () => {
+    expect(parseBusinessCase(draft).assumptions[0]!.tested).toBe(false);
+    const out = setAssumptionTested(draft, 0, true);
+    const facts = parseBusinessCase(out);
+    expect(facts.assumptions[0]!.tested).toBe(true);
+    // other rows unchanged
+    expect(facts.assumptions[1]?.tested).toBe(false);
+    // tested assumptions carry lower sensitivity → higher downside band
+    const base = parseBusinessCase(draft).assumptions;
+    expect(facts.assumptions[0]!.sensitivity).toBeLessThan(base[0]!.sensitivity);
+  });
+
+  it("round-trips a toggle back to untested", () => {
+    const on = setAssumptionTested(draft, 0, true);
+    const off = setAssumptionTested(on, 0, false);
+    expect(parseBusinessCase(off).assumptions[0]!.tested).toBe(false);
+  });
+
+  it("is a no-op for an out-of-range index", () => {
+    expect(setAssumptionTested(draft, 99, true)).toBe(draft);
+  });
+});
+
+describe("logBusinessCaseChange", () => {
+  const { requirements } = analyseIntake(answers);
+  const draft = buildBusinessCaseMarkdown(meta, draftBusinessCase(answers, requirements));
+
+  it("creates a Change log section on first write, then appends", () => {
+    expect(draft).not.toContain("## Change log");
+    const one = logBusinessCaseChange(draft, { actor: "amy", date: "2026-07-28", summary: "annual gross set to EUR 250,000" });
+    expect(one).toContain("## Change log");
+    expect(one).toContain("- 2026-07-28 — annual gross set to EUR 250,000 (amy)");
+    const two = logBusinessCaseChange(one, { actor: "ben", date: "2026-07-29", summary: "assumption tested" });
+    expect((two.match(/^- \d{4}-\d{2}-\d{2} — /gm) ?? [])).toHaveLength(2);
+    // only one Change log heading, ever
+    expect((two.match(/## Change log/g) ?? [])).toHaveLength(1);
+  });
+
+  it("leaves the rest of the document parseable", () => {
+    const logged = logBusinessCaseChange(setBusinessCaseValue(draft, { annualGross: 100000 }), { actor: "amy", date: "2026-07-28", summary: "value set" });
+    const facts = parseBusinessCase(logged);
+    expect(facts.annualGross).toBe(100000);
+    expect(facts.confidence).toBe("indicative");
+    expect(facts.assumptions.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("analyseBusinessCase (draft → quantify → decision-grade economics)", () => {
+  const { requirements } = analyseIntake(answers);
+  const draft = buildBusinessCaseMarkdown(meta, draftBusinessCase(answers, requirements));
+
+  it("is all zeros while the value is unquantified", () => {
+    const { economics } = analyseBusinessCase(draft);
+    expect(economics.hasValue).toBe(false);
+    expect(economics.p50.netAnnual).toBe(0);
+    expect(economics.viable).toBe(false);
+  });
+
+  it("lights up net value, payback and NPV once value and cost are entered", () => {
+    let md = setBusinessCaseValue(draft, { annualGross: 250000, buildEstimate: "EUR 80,000", annualRunEstimate: "EUR 20,000" });
+    // prove one assumption to tighten the downside
+    md = setAssumptionTested(md, 0, true);
+    const { facts, economics } = analyseBusinessCase(md);
+    expect(facts.annualGross).toBe(250000);
+    expect(facts.buildCost).toBe(80000);
+    expect(facts.annualRunCost).toBe(20000);
+    expect(economics.p90.netAnnual).toBe(230000); // 250k − 20k run
+    expect(economics.paybackYears).toBeGreaterThan(0);
+    expect(economics.npv).toBeGreaterThan(0);
+    expect(economics.viable).toBe(true);
+    // testing an assumption raised the downside above the fully-untested floor
+    const untested = analyseBusinessCase(setBusinessCaseValue(draft, { annualGross: 250000, annualRunEstimate: "EUR 20,000" }));
+    expect(economics.p10.netAnnual).toBeGreaterThan(untested.economics.p10.netAnnual);
   });
 });
 

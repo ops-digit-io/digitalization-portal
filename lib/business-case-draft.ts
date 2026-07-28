@@ -219,7 +219,12 @@ export function draftBusinessCaseMarkdown(
   return buildBusinessCaseMarkdown(meta, draftBusinessCase(answers, requirements));
 }
 
-// ── in-place value edits (the human quantifies the draft) ───────────────────────
+// ── in-place edits (the human quantifies and tests the draft) ───────────────────
+//
+// These are SECTION-SCOPED, not global regexes: an edit is applied only inside the
+// `## Section` it belongs to, so a phrase like "Annual gross" appearing in prose
+// elsewhere is never rewritten, and the rest of the document round-trips byte-for-
+// byte. All functions are pure — the route injects actor/date for the change log.
 
 export interface BusinessCaseValuePatch {
   /** Annual gross in EUR; null clears it back to "to be quantified". */
@@ -234,10 +239,50 @@ function eur(n: number): string {
 }
 
 /**
- * Set the value/cost/verified fields on an existing `business-case.md`, in place —
- * so the human can quantify a drafted case and the simulation lights up. Only the
- * targeted lines are rewritten (Annual gross, Cost rows, Baseline Verified); the rest
- * of the document — assumptions, confidence, open questions — is untouched. Pure.
+ * Apply `fn` to the first `## `/`### ` section whose heading matches `heading`,
+ * leaving every other section untouched. Splitting on the heading lookahead and
+ * re-joining with "\n" reconstructs the document exactly, so this is loss-free.
+ */
+function editSection(markdown: string, heading: RegExp, fn: (block: string) => string): string {
+  const parts = markdown.split(/\n(?=#{2,3}\s)/);
+  let done = false;
+  return parts
+    .map((part) => {
+      if (done) return part;
+      const m = /^(#{2,3})\s+(.+)/.exec(part);
+      if (m && m[2] && heading.test(m[2].trim())) {
+        done = true;
+        return fn(part);
+      }
+      return part;
+    })
+    .join("\n");
+}
+
+/** Rewrite one cell of the first markdown table inside `block`. `rowIndex` counts
+ *  data rows (0-based, after the header/separator); `colIndex` counts data columns. */
+function setTableCell(block: string, rowIndex: number, colIndex: number, value: string): string {
+  const lines = block.split("\n");
+  const pipeLineIdx = lines.map((l, i) => ({ l: l.trim(), i })).filter((x) => x.l.startsWith("|")).map((x) => x.i);
+  if (pipeLineIdx.length < 2) return block;
+  // The separator is the all-dashes/colons row; data rows follow it.
+  const sepAt = pipeLineIdx.findIndex((i) => /^\|[\s:|-]+\|?$/.test(lines[i]!.trim()) && /-/.test(lines[i]!));
+  const dataIdx = sepAt >= 0 ? pipeLineIdx.slice(sepAt + 1) : pipeLineIdx.slice(1);
+  const target = dataIdx[rowIndex];
+  if (target === undefined) return block;
+  const cells = lines[target]!.split("|"); // ["", " a ", " b ", ..., ""]
+  const slot = colIndex + 1;
+  if (slot >= cells.length - 1) return block; // out of range (keep trailing "")
+  cells[slot] = ` ${value} `;
+  lines[target] = cells.join("|");
+  return lines.join("\n");
+}
+
+/**
+ * Set the value/cost/verified fields on an existing `business-case.md`, in place, so
+ * the human can quantify a drafted case and the analysis lights up. Section-scoped
+ * and pure; the rest of the document — assumptions, confidence, open questions — is
+ * untouched. A null/zero/non-finite annual gross clears it back to "to be quantified".
  */
 export function setBusinessCaseValue(markdown: string, patch: BusinessCaseValuePatch): string {
   let md = markdown;
@@ -246,19 +291,51 @@ export function setBusinessCaseValue(markdown: string, patch: BusinessCaseValueP
     const value = patch.annualGross === null || !Number.isFinite(patch.annualGross) || patch.annualGross <= 0
       ? "To be quantified — a verified baseline is required."
       : eur(patch.annualGross);
-    md = md.replace(/(\*\*Annual gross\.\*\*\s*).*/i, `$1${value}`);
+    md = editSection(md, /^value$/i, (b) => b.replace(/(\*\*Annual gross\.\*\*[ \t]*).*/i, `$1${value}`));
   }
   if (patch.buildEstimate !== undefined) {
-    md = md.replace(/(\|\s*Build estimate\s*\|)([^|\n]*)(\|)/i, `$1 ${patch.buildEstimate.trim() || "To be estimated"} $3`);
+    const v = patch.buildEstimate.trim() || "To be estimated";
+    md = editSection(md, /^cost$/i, (b) => b.replace(/(\|[ \t]*Build estimate[ \t]*\|)([^|\n]*)(\|)/i, `$1 ${v} $3`));
   }
   if (patch.annualRunEstimate !== undefined) {
-    md = md.replace(/(\|\s*Annual run estimate\s*\|)([^|\n]*)(\|)/i, `$1 ${patch.annualRunEstimate.trim() || "To be estimated"} $3`);
+    const v = patch.annualRunEstimate.trim() || "To be estimated";
+    md = editSection(md, /^cost$/i, (b) => b.replace(/(\|[ \t]*Annual run estimate[ \t]*\|)([^|\n]*)(\|)/i, `$1 ${v} $3`));
   }
   if (patch.baselineVerified !== undefined) {
     const line = patch.baselineVerified
       ? "**Verified.** Yes — baseline confirmed."
       : "**Verified.** No — a verified baseline is required before G5.";
-    md = md.replace(/\*\*Verified\.\*\*\s*.*/i, line);
+    md = editSection(md, /^baseline$/i, (b) => b.replace(/\*\*Verified\.\*\*[ \t]*.*/i, line));
   }
   return md;
+}
+
+/**
+ * Toggle whether the assumption at `index` (0-based, in table order) has been tested.
+ * Scoped to the `### Assumptions` table; the value simulation reads the Tested column,
+ * so this is what moves an assumption out of the downside band once it's been proven.
+ */
+export function setAssumptionTested(markdown: string, index: number, tested: boolean): string {
+  return editSection(markdown, /^assumptions$/i, (b) => setTableCell(b, index, 1, tested ? "Yes" : "No"));
+}
+
+// ── change log (audit trail for every quantify/test action) ─────────────────────
+
+export interface BusinessCaseChange {
+  actor: string;
+  date: string;
+  summary: string;
+}
+
+/**
+ * Append a dated line to the `## Change log` section, creating it at the end of the
+ * document the first time. Gives the case a durable audit trail — who changed the
+ * value or tested an assumption, and when — without disturbing any other section.
+ */
+export function logBusinessCaseChange(markdown: string, change: BusinessCaseChange): string {
+  const line = `- ${change.date} — ${change.summary.trim()} (${change.actor})`;
+  if (/^##\s+change log\s*$/im.test(markdown)) {
+    return editSection(markdown, /^change log$/i, (b) => `${b.replace(/[ \t\r\n]+$/, "")}\n${line}`);
+  }
+  return `${markdown.replace(/[ \t\r\n]+$/, "")}\n\n## Change log\n\n${line}\n`;
 }

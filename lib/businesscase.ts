@@ -14,12 +14,17 @@ import { matchEnumLoose } from "./enums.js";
 import type { Confidence } from "./types.js";
 import type { Assumption, SimulationInput, SimulationOutput } from "./simulation.js";
 import { runValueSimulation } from "./simulation.js";
+import { computeEconomics, type Economics } from "./business-economics.js";
 
 export interface BusinessCaseFacts {
   confidence?: Confidence;
   baselineVerified?: boolean;
   annualGross?: number;
   category?: string;
+  /** One-off build cost from the ## Cost table, when a figure is stated. */
+  buildCost?: number;
+  /** Recurring annual run cost from the ## Cost table, when a figure is stated. */
+  annualRunCost?: number;
   assumptions: Assumption[];
 }
 
@@ -72,6 +77,21 @@ export function parseBusinessCase(markdown: string): BusinessCaseFacts {
     const catMatch = /category[.*:\s]+([^\n.]+)/i.exec(value.replace(/\*/g, ""));
     if (catMatch && catMatch[1]) facts.category = catMatch[1].trim();
 
+    // Cost section: the build (one-off) and annual run figures, when stated. The
+    // table's first cell labels the row; only a real number counts ("To be
+    // estimated" stays undefined, the honest empty state).
+    const cost = secs.get("cost") ?? "";
+    const costTable = parseFirstTable(cost);
+    if (costTable) {
+      for (const cells of costTable.rows) {
+        const label = (cells[0] ?? "").replace(/\*/g, "").trim().toLowerCase();
+        const figure = firstNumber(cells[1]);
+        if (figure === undefined) continue;
+        if (/build/.test(label)) facts.buildCost = figure;
+        else if (/run/.test(label)) facts.annualRunCost = figure;
+      }
+    }
+
     // Assumptions table (### Assumptions, or the first table under ## Value).
     const assumptionsSec = secs.get("assumptions") ?? value;
     const table = parseFirstTable(assumptionsSec);
@@ -110,4 +130,26 @@ export function simulateBusinessCase(markdown: string, baseOverride?: number): {
   const facts = parseBusinessCase(markdown);
   const simulation = runValueSimulation(toSimulationInput(facts, baseOverride));
   return { facts, simulation };
+}
+
+/**
+ * Full decision-grade read of a business case: the parsed facts, the value bands,
+ * and the economics (net value, payback, ROI, multi-year NPV) the portfolio forum
+ * decides on. One call for the review page. Honest throughout — no value → zeros.
+ */
+export function analyseBusinessCase(
+  markdown: string,
+  opts?: { horizonYears?: number; discountRate?: number },
+): { facts: BusinessCaseFacts; simulation: SimulationOutput; economics: Economics } {
+  const { facts, simulation } = simulateBusinessCase(markdown);
+  const economics = computeEconomics({
+    grossP10: simulation.p10,
+    grossP50: simulation.p50,
+    grossP90: simulation.p90,
+    ...(facts.buildCost !== undefined ? { buildCost: facts.buildCost } : {}),
+    ...(facts.annualRunCost !== undefined ? { annualRunCost: facts.annualRunCost } : {}),
+    ...(opts?.horizonYears !== undefined ? { horizonYears: opts.horizonYears } : {}),
+    ...(opts?.discountRate !== undefined ? { discountRate: opts.discountRate } : {}),
+  });
+  return { facts, simulation, economics };
 }

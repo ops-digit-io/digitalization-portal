@@ -57,6 +57,72 @@ export function DraftButton({ id, label = "Draft business case", small }: { id: 
 }
 
 /**
+ * Editable assumptions: each row can be marked tested/untested. Testing an assumption
+ * moves it out of the downside band (lower sensitivity), so the P10 rises as the case
+ * is de-risked. Server-enforced (`draft`); POSTs `set-assumption` and refreshes.
+ */
+export function AssumptionEditor({
+  id,
+  assumptions,
+  fmtEur,
+}: {
+  id: string;
+  assumptions: { name: string; tested: boolean; impact: number }[];
+  fmtEur: string;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<number | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const fmt = new Intl.NumberFormat(fmtEur, { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+
+  async function toggle(index: number, tested: boolean) {
+    setBusy(index);
+    setErr(null);
+    try {
+      const res = await fetch("/api/business-case", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id, action: "set-assumption", index, tested }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) { setErr(data.error ?? `Save failed (${res.status}).`); setBusy(null); return; }
+      setBusy(null);
+      router.refresh();
+    } catch {
+      setErr("Network error — nothing was saved.");
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div>
+      <ul className="space-y-1.5">
+        {assumptions.map((a, i) => (
+          <li key={i} className="flex items-start justify-between gap-3 text-sm">
+            <label className="flex min-w-0 items-start gap-2">
+              <input
+                type="checkbox"
+                checked={a.tested}
+                disabled={busy !== null}
+                onChange={(e) => void toggle(i, e.target.checked)}
+                className="mt-0.5 h-3.5 w-3.5 shrink-0"
+              />
+              <span className={a.tested ? "text-foreground/70" : "text-foreground"}>
+                {!a.tested && <span aria-hidden>⚠ </span>}{a.name}
+              </span>
+            </label>
+            <span className="shrink-0 text-muted-foreground">
+              ±{fmt.format(a.impact)}{a.tested ? " · tested" : " · untested"}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {err && <p className="mt-2 text-xs text-destructive">{err}</p>}
+    </div>
+  );
+}
+
+/**
  * Quantify a drafted business case: the human enters the annual gross value (and,
  * optionally, build/run cost) and confirms the baseline, then the simulation below
  * lights up. Server-enforced (`draft`); the drafter never invents these figures, so
