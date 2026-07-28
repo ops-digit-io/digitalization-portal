@@ -21,6 +21,7 @@ import { readEntryFile, saveEntry, type EntryType, type RegistryFile } from "./r
 
 const SKILLS_DIR = "skills";
 const PLAYBOOKS_DIR = "playbooks";
+const CONTRACTS_DIR = "contracts";
 
 export interface BundledEntry {
   type: EntryType;
@@ -40,15 +41,24 @@ async function walk(base: string, dir: string, acc: string[] = []): Promise<stri
   return acc;
 }
 
-async function bundledPlaybooks(root: string): Promise<BundledEntry[]> {
-  const dir = join(root, PLAYBOOKS_DIR);
+/** Bundled single-file entries (playbooks or contracts) from their directory. */
+async function bundledSingleFile(root: string, dirName: string, type: EntryType): Promise<BundledEntry[]> {
+  const dir = join(root, dirName);
   const files = (await readdir(dir).catch(() => [])).filter((f) => f.endsWith(".md") && f.toLowerCase() !== "readme.md");
   const out: BundledEntry[] = [];
   for (const file of files.sort()) {
     const content = await readFile(join(dir, file), "utf8");
-    out.push({ type: "playbook", name: file.replace(/\.md$/, ""), bundle: false, files: [{ path: file, content }] });
+    out.push({ type, name: file.replace(/\.md$/, ""), bundle: false, files: [{ path: file, content }] });
   }
   return out;
+}
+
+async function bundledPlaybooks(root: string): Promise<BundledEntry[]> {
+  return bundledSingleFile(root, PLAYBOOKS_DIR, "playbook");
+}
+
+async function bundledContracts(root: string): Promise<BundledEntry[]> {
+  return bundledSingleFile(root, CONTRACTS_DIR, "contract");
 }
 
 async function bundledSkills(root: string): Promise<BundledEntry[]> {
@@ -72,10 +82,10 @@ async function bundledSkills(root: string): Promise<BundledEntry[]> {
   return out;
 }
 
-/** Every skill and playbook the portal ships, as savable registry entries. */
+/** Every skill, playbook, and contract the portal ships, as savable registry entries. */
 export async function listBundledEntries(root = process.cwd()): Promise<BundledEntry[]> {
-  const [playbooks, skills] = await Promise.all([bundledPlaybooks(root), bundledSkills(root)]);
-  return [...skills, ...playbooks];
+  const [playbooks, skills, contracts] = await Promise.all([bundledPlaybooks(root), bundledSkills(root), bundledContracts(root)]);
+  return [...skills, ...playbooks, ...contracts];
 }
 
 export interface SyncItem {

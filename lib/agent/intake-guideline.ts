@@ -22,6 +22,8 @@ import { readEntryFile, type EntryType } from "../registry-store.js";
 export const INTAKE_PLAYBOOK = "s1-intake";
 /** The skills the interview is bound to — loaded into the system prompt, in order. */
 export const INTAKE_SKILLS = ["intake-conversation", "demand-classification"] as const;
+/** The file-managed operating contract (editable in the catalog like a playbook). */
+export const INTAKE_CONTRACT = "intake";
 
 export interface IntakeSkill {
   name: string;
@@ -31,6 +33,8 @@ export interface IntakeGuideline {
   playbook: string;
   interview: string;
   skills: IntakeSkill[];
+  /** The operating contract, loaded from the library (`contracts/intake.md`). */
+  contract: string;
 }
 
 /** Read an entry file from the registry, falling back to the bundled repo copy. */
@@ -41,9 +45,11 @@ async function readGoverning(type: EntryType, name: string, relPath?: string): P
   const candidates =
     type === "playbook"
       ? [join("playbooks", `${name}.md`)]
-      : relPath
-        ? [join("skills", name, relPath)]
-        : [join("skills", name, "SKILL.md"), join("skills", `${name}.md`)];
+      : type === "contract"
+        ? [join("contracts", `${name}.md`)]
+        : relPath
+          ? [join("skills", name, relPath)]
+          : [join("skills", name, "SKILL.md"), join("skills", `${name}.md`)];
   for (const rel of candidates) {
     const body = await readFile(join(process.cwd(), rel), "utf8").catch(() => undefined);
     if (body && body.trim()) return body.trim();
@@ -51,17 +57,18 @@ async function readGoverning(type: EntryType, name: string, relPath?: string): P
   return "";
 }
 
-/** Read the playbook, interview guide, and governing skills. */
+/** Read the playbook, interview guide, governing skills, and operating contract. */
 export async function loadIntakeGuideline(): Promise<IntakeGuideline> {
-  const [playbook, interview, ...skillBodies] = await Promise.all([
+  const [playbook, interview, contract, ...skillBodies] = await Promise.all([
     readGoverning("playbook", INTAKE_PLAYBOOK),
     readGoverning("skill", "intake-conversation", "references/interview.md"),
+    readGoverning("contract", INTAKE_CONTRACT),
     ...INTAKE_SKILLS.map((s) => readGoverning("skill", s)),
   ]);
   const skills: IntakeSkill[] = INTAKE_SKILLS
     .map((name, i) => ({ name, body: skillBodies[i] ?? "" }))
     .filter((s) => s.body !== "");
-  return { playbook, interview, skills };
+  return { playbook, interview, skills, contract };
 }
 
 /** The tool the live agent calls once the required fields are captured. */
@@ -107,13 +114,7 @@ export function intakeSystemPrompt(g: IntakeGuideline): string {
     "",
     skillBlocks,
     "",
-    "=== OPERATING CONTRACT (non-negotiable) ===",
-    "- Ask EXACTLY ONE question per turn, in the interview's order. Never list the questions or ask several at once.",
-    "- Use the requester's own words; fix grammar only. Invent NOTHING — no facts, numbers, names, plants, or systems.",
-    "- If a required answer is thin, nudge ONCE for a little more (a number where it helps), then accept and move on.",
-    "- Never assign a lane, pass a gate, judge value, or merge anything. You DRAFT; a human decides.",
-    "- Handle 'back' and corrections gracefully; answer a brief 'why do you ask?' from the field's intent, then re-ask.",
-    "- When every REQUIRED field is captured, call the `save_demand` tool with every field you have (leave un-captured optional fields as empty strings). Do NOT call it earlier, and do NOT write the markdown yourself — the portal renders it.",
+    stripFrontmatter(g.contract) || "=== OPERATING CONTRACT ===\n(contract unavailable — ask one question per turn, invent nothing, draft only, and call save_demand only when every required field is captured.)",
     "",
     "Fields to collect (key: what it is):",
     fields,

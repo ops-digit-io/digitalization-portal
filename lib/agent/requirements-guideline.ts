@@ -21,6 +21,8 @@ import { loadPlaybook } from "./skills.js";
 
 /** The library playbook that governs this agent's behaviour. */
 export const REQUIREMENTS_PLAYBOOK = "requirements-analysis";
+/** The file-managed output contract (editable in the catalog like a playbook). */
+export const REQUIREMENTS_CONTRACT = "requirements";
 
 export interface GuidelineSkill {
   name: string;
@@ -31,27 +33,32 @@ export interface RequirementsGuideline {
   playbook: string;
   /** The method skills the playbook composes, in declaration order. */
   skills: GuidelineSkill[];
+  /** The output contract, loaded from the library (`contracts/requirements.md`). */
+  contract: string;
 }
 
 /** What governs this agent — surfaced so a route/UI can show (and link) it. */
-export async function requirementsGovernedBy(): Promise<{ playbook: string; skills: string[] }> {
+export async function requirementsGovernedBy(): Promise<{ playbook: string; skills: string[]; contract: string }> {
   const g = await loadRequirementsGuideline();
-  return { playbook: REQUIREMENTS_PLAYBOOK, skills: g.skills.map((s) => s.name) };
+  return { playbook: REQUIREMENTS_PLAYBOOK, skills: g.skills.map((s) => s.name), contract: REQUIREMENTS_CONTRACT };
 }
 
 /**
- * Load the requirements playbook AND every method skill it declares, from the library
- * (registry-first, hot-editable, bundled fallback). The skill list is read from the
- * playbook's `skills:` frontmatter — dynamic, never hardcoded here.
+ * Load the requirements playbook, every method skill it declares, AND the output
+ * contract — all from the library (registry-first, hot-editable, bundled fallback).
+ * The skill list is read from the playbook's `skills:` frontmatter — dynamic.
  */
 export async function loadRequirementsGuideline(): Promise<RequirementsGuideline> {
-  const playbook = await loadGoverning("playbook", REQUIREMENTS_PLAYBOOK);
+  const [playbook, contract] = await Promise.all([
+    loadGoverning("playbook", REQUIREMENTS_PLAYBOOK),
+    loadGoverning("contract", REQUIREMENTS_CONTRACT),
+  ]);
   const skillNames = loadPlaybook(playbook, REQUIREMENTS_PLAYBOOK).skills;
   const bodies = await Promise.all(skillNames.map((name) => loadGoverning("skill", name)));
   const skills: GuidelineSkill[] = skillNames
     .map((name, i) => ({ name, body: bodies[i] ?? "" }))
     .filter((s) => s.body.trim() !== "");
-  return { playbook, skills };
+  return { playbook, skills, contract };
 }
 
 /** Render a domain's grounding facts for the prompt. */
@@ -109,7 +116,6 @@ export function requirementsSystemPrompt(
     "",
     arch ? archetypeBlock(arch) : "=== SOLUTION ARCHETYPE ===\n(Not yet classified — infer the archetype from the demand and apply its lens.)",
     "",
-    "=== OUTPUT CONTRACT ===",
-    "Produce analysis (domain, refined problem, the solution archetype with its feasibility questions and data prerequisites, comparable patterns, enhancement gaps, personas) and requirements (epics; user stories as 'As a <persona>, I want to <capability>, so that <benefit>' each with individually-checkable Given/When/Then acceptance criteria and a MoSCoW priority; NFRs; assumptions; risks; open questions; out of scope). Keep the standardized section structure and stable ids. Enhance where thin; never fabricate a number — raise it as an open question instead.",
+    stripFrontmatter(g.contract) || "=== OUTPUT CONTRACT ===\n(contract unavailable — keep the standardized section structure and stable ids; never fabricate a number.)",
   ].join("\n");
 }

@@ -18,7 +18,10 @@ export default function NewEntryPage() {
 function NewEntry() {
   const router = useRouter();
   const params = useSearchParams();
-  const [type, setType] = useState<"skill" | "playbook">(params.get("type") === "playbook" ? "playbook" : "skill");
+  const initialType = params.get("type");
+  const [type, setType] = useState<"skill" | "playbook" | "contract">(
+    initialType === "playbook" || initialType === "contract" ? initialType : "skill",
+  );
   const [name, setName] = useState("");
 
   const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -35,7 +38,7 @@ function NewEntry() {
 
       <Card className="mt-5 p-4">
         <div className="inline-flex rounded-md border p-0.5 text-sm">
-          {(["skill", "playbook"] as const).map((tt) => (
+          {(["skill", "playbook", "contract"] as const).map((tt) => (
             <button key={tt} onClick={() => setType(tt)} className={`rounded px-3 py-1 ${tt === type ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>
               {tt}
             </button>

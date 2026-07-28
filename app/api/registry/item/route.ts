@@ -10,8 +10,8 @@ export async function GET(req: Request) {
   const type = url.searchParams.get("type") as EntryType | null;
   const name = url.searchParams.get("name");
   const path = url.searchParams.get("path") ?? (type === "skill" ? ENTRY_FILE : `${name}.md`);
-  if ((type !== "skill" && type !== "playbook") || !name) {
-    return NextResponse.json({ error: "type (skill|playbook) and name required" }, { status: 400 });
+  if ((type !== "skill" && type !== "playbook" && type !== "contract") || !name) {
+    return NextResponse.json({ error: "type (skill|playbook|contract) and name required" }, { status: 400 });
   }
   const content = await readEntryFile(type, name, path);
   if (content === undefined) {
