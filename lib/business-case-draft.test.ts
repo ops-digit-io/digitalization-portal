@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { draftBusinessCase, buildBusinessCaseMarkdown, type BusinessCaseMeta } from "./business-case-draft.js";
+import { draftBusinessCase, buildBusinessCaseMarkdown, setBusinessCaseValue, type BusinessCaseMeta } from "./business-case-draft.js";
 import { parseBusinessCase, simulateBusinessCase } from "./businesscase.js";
 import { analyseIntake } from "./requirements.js";
 import { EMPTY_ANSWERS, type DemandAnswers } from "./demand.js";
@@ -70,6 +70,57 @@ describe("draftBusinessCase → buildBusinessCaseMarkdown", () => {
     const { simulation } = simulateBusinessCase(md);
     expect(simulation.confidence).toBe("indicative");
     expect(simulation.p90).toBeGreaterThanOrEqual(simulation.p10);
+  });
+});
+
+describe("setBusinessCaseValue (the human quantifies the draft)", () => {
+  const { requirements } = analyseIntake(answers);
+  const draft = buildBusinessCaseMarkdown(meta, draftBusinessCase(answers, requirements));
+
+  it("sets the annual gross so the parser and simulation read a real figure", () => {
+    const md = setBusinessCaseValue(draft, { annualGross: 250000 });
+    const facts = parseBusinessCase(md);
+    expect(facts.annualGross).toBe(250000);
+    const { simulation } = simulateBusinessCase(md);
+    expect(simulation.p90).toBeGreaterThan(0);
+    expect(simulation.p90).toBeGreaterThanOrEqual(simulation.p50);
+    expect(simulation.p50).toBeGreaterThanOrEqual(simulation.p10);
+  });
+
+  it("clears the value back to 'to be quantified' when null/zero", () => {
+    const withValue = setBusinessCaseValue(draft, { annualGross: 100000 });
+    expect(parseBusinessCase(withValue).annualGross).toBe(100000);
+    const cleared = setBusinessCaseValue(withValue, { annualGross: null });
+    expect(parseBusinessCase(cleared).annualGross).toBeUndefined();
+    expect(cleared).toContain("To be quantified");
+    expect(parseBusinessCase(setBusinessCaseValue(draft, { annualGross: 0 })).annualGross).toBeUndefined();
+  });
+
+  it("marks the baseline verified without touching other sections", () => {
+    const md = setBusinessCaseValue(draft, { baselineVerified: true });
+    expect(parseBusinessCase(md).baselineVerified).toBe(true);
+    expect(md).toMatch(/\*\*Verified\.\*\* Yes/);
+    // confidence, assumptions, open questions untouched
+    expect(parseBusinessCase(md).confidence).toBe("indicative");
+    expect(md).toContain("## Open questions");
+  });
+
+  it("sets the build and run cost rows", () => {
+    const md = setBusinessCaseValue(draft, { buildEstimate: "EUR 80,000 one-off", annualRunEstimate: "EUR 20,000 / yr" });
+    expect(md).toContain("EUR 80,000 one-off");
+    expect(md).toContain("EUR 20,000 / yr");
+    // rows stay valid table cells
+    expect(md).toMatch(/\| Build estimate \| EUR 80,000 one-off \|/);
+  });
+
+  it("only patches the fields provided (undefined leaves the draft as-is)", () => {
+    expect(setBusinessCaseValue(draft, {})).toBe(draft);
+  });
+
+  it("is idempotent — re-applying the same value yields identical bytes", () => {
+    const once = setBusinessCaseValue(draft, { annualGross: 250000, baselineVerified: true });
+    const twice = setBusinessCaseValue(once, { annualGross: 250000, baselineVerified: true });
+    expect(twice).toBe(once);
   });
 });
 

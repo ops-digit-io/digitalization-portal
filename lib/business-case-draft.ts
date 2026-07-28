@@ -218,3 +218,47 @@ export function draftBusinessCaseMarkdown(
   const requirements = requirementsMarkdown ? parseRequirementsMarkdown(requirementsMarkdown) : undefined;
   return buildBusinessCaseMarkdown(meta, draftBusinessCase(answers, requirements));
 }
+
+// ── in-place value edits (the human quantifies the draft) ───────────────────────
+
+export interface BusinessCaseValuePatch {
+  /** Annual gross in EUR; null clears it back to "to be quantified". */
+  annualGross?: number | null;
+  buildEstimate?: string;
+  annualRunEstimate?: string;
+  baselineVerified?: boolean;
+}
+
+function eur(n: number): string {
+  return `EUR ${Math.round(n).toLocaleString("en-US")}`;
+}
+
+/**
+ * Set the value/cost/verified fields on an existing `business-case.md`, in place —
+ * so the human can quantify a drafted case and the simulation lights up. Only the
+ * targeted lines are rewritten (Annual gross, Cost rows, Baseline Verified); the rest
+ * of the document — assumptions, confidence, open questions — is untouched. Pure.
+ */
+export function setBusinessCaseValue(markdown: string, patch: BusinessCaseValuePatch): string {
+  let md = markdown;
+
+  if (patch.annualGross !== undefined) {
+    const value = patch.annualGross === null || !Number.isFinite(patch.annualGross) || patch.annualGross <= 0
+      ? "To be quantified — a verified baseline is required."
+      : eur(patch.annualGross);
+    md = md.replace(/(\*\*Annual gross\.\*\*\s*).*/i, `$1${value}`);
+  }
+  if (patch.buildEstimate !== undefined) {
+    md = md.replace(/(\|\s*Build estimate\s*\|)([^|\n]*)(\|)/i, `$1 ${patch.buildEstimate.trim() || "To be estimated"} $3`);
+  }
+  if (patch.annualRunEstimate !== undefined) {
+    md = md.replace(/(\|\s*Annual run estimate\s*\|)([^|\n]*)(\|)/i, `$1 ${patch.annualRunEstimate.trim() || "To be estimated"} $3`);
+  }
+  if (patch.baselineVerified !== undefined) {
+    const line = patch.baselineVerified
+      ? "**Verified.** Yes — baseline confirmed."
+      : "**Verified.** No — a verified baseline is required before G5.";
+    md = md.replace(/\*\*Verified\.\*\*\s*.*/i, line);
+  }
+  return md;
+}
