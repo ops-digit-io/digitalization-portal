@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { INTAKE_FIELDS, FIELD_GROUPS, PLANTS, DOMAINS, type DemandAnswers } from "@/lib/demand";
+import { INTAKE_FIELDS, FIELD_GROUPS, type DemandAnswers } from "@/lib/demand";
 
 /**
  * In-portal demand editor — the same field set the intake captures, prefilled from
@@ -18,9 +18,16 @@ export interface EditFormValues extends DemandAnswers {
   value_owner: string;
 }
 
-const OPTIONS: Record<string, readonly string[]> = { plant: PLANTS, domain: DOMAINS };
-
-export function EditForm({ id, initial }: { id: string; initial: EditFormValues }) {
+export function EditForm({
+  id,
+  initial,
+  categories,
+}: {
+  id: string;
+  initial: EditFormValues;
+  categories: { plant: string[]; domain: string[] };
+}) {
+  const OPTIONS: Record<string, readonly string[]> = { plant: categories.plant, domain: categories.domain };
   const router = useRouter();
   const [values, setValues] = useState<EditFormValues>(initial);
   const [busy, setBusy] = useState(false);

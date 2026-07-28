@@ -49,9 +49,12 @@ export interface DemandField {
 }
 
 /**
- * Sites and domains offered in the Form's dropdowns. In a live deployment these
- * come from `registry/plants.md` and `registry/domains.md`; here they are the
- * demo set. Free text is still accepted by the Chat and Markdown tools.
+ * Sites and domains — the SEED for the admin-managed category store
+ * (`lib/category-store.ts`). Dropdowns read the managed list (editable at
+ * `/admin/categories`), falling back to these values when nothing is configured, so
+ * they stay the stable default. Kept here because the deterministic engine
+ * (`buildDemand`/`classifyDemand`) references them and must not depend on IO. Free
+ * text is still accepted by the Chat and Markdown tools.
  */
 export const PLANTS = ["DE-ALD", "SK-PUC", "CN-SUZ", "US-GRV", "ALL"] as const;
 export const DOMAINS = [
