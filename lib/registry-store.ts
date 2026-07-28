@@ -138,30 +138,47 @@ async function listSkills(): Promise<RegistryEntry[]> {
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** List a single-file entry type (playbook or contract) from its directory. */
-async function listSingleFile(type: "playbook" | "contract"): Promise<RegistryEntry[]> {
-  const out: RegistryEntry[] = [];
-  const dirName = DIR[type];
-  if (live()) {
-    const host = getGitHost();
-    const files = (await host.listDir(registryRepo(), dirName))
-      .filter((e) => e.type === "file" && e.name.endsWith(".md") && e.name.toLowerCase() !== "readme.md")
-      .sort((a, b) => a.name.localeCompare(b.name));
-    for (const e of files) {
-      const name = e.name.replace(/\.md$/, "");
-      const source = (await host.getFile(registryRepo(), `${dirName}/${e.name}`)) ?? "";
-      out.push(await metaFrom(type, name, source, false, [e.name]));
-    }
-    return out;
-  }
-  const dir = join(root(), dirName);
+/** Single-file entries (playbook/contract) from the bundled repo copy on disk. */
+async function singleFileFromDisk(type: "playbook" | "contract"): Promise<RegistryEntry[]> {
+  const dir = join(root(), DIR[type]);
   const files = (await readdir(dir).catch(() => [])).filter((f) => f.endsWith(".md") && f.toLowerCase() !== "readme.md");
+  const out: RegistryEntry[] = [];
   for (const file of files.sort()) {
     const name = file.replace(/\.md$/, "");
     const source = await readFile(join(dir, file), "utf8").catch(() => "");
     out.push(await metaFrom(type, name, source, false, [file]));
   }
   return out;
+}
+
+/** Single-file entries from the live registry repo (resilient to a missing dir). */
+async function singleFileFromRegistry(type: "playbook" | "contract"): Promise<RegistryEntry[]> {
+  const host = getGitHost();
+  const dirName = DIR[type];
+  const entries = await host.listDir(registryRepo(), dirName).catch(() => []); // missing dir → none
+  const files = entries
+    .filter((e) => e.type === "file" && e.name.endsWith(".md") && e.name.toLowerCase() !== "readme.md")
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const out: RegistryEntry[] = [];
+  for (const e of files) {
+    const name = e.name.replace(/\.md$/, "");
+    const source = (await host.getFile(registryRepo(), `${dirName}/${e.name}`)) ?? "";
+    out.push(await metaFrom(type, name, source, false, [e.name]));
+  }
+  return out;
+}
+
+/**
+ * List a single-file entry type (playbook or contract). Live, the catalog shows the
+ * live registry UNIONED with the bundled entries the app ships that aren't in the
+ * registry yet — so freshly-deployed governance appears immediately (editable, saving
+ * to the registry) without a manual sync, and a registry edit takes precedence.
+ */
+async function listSingleFile(type: "playbook" | "contract"): Promise<RegistryEntry[]> {
+  if (!live()) return singleFileFromDisk(type);
+  const [reg, bundled] = await Promise.all([singleFileFromRegistry(type), singleFileFromDisk(type)]);
+  const names = new Set(reg.map((e) => e.name));
+  return [...reg, ...bundled.filter((e) => !names.has(e.name))].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function listRegistry(): Promise<{ skills: RegistryEntry[]; playbooks: RegistryEntry[]; contracts: RegistryEntry[] }> {
@@ -185,16 +202,24 @@ async function resolvePath(type: EntryType, name: string, relPath?: string): Pro
   return { path: join(root(), DIR[type], `${safe(name)}.md`), bundle: false };
 }
 
-/** Read one file within an entry. Returns undefined if absent. */
+/**
+ * Read one file within an entry. Live, the registry wins; when the registry doesn't
+ * have it, fall back to the bundled copy shipped on disk (so a not-yet-synced entry
+ * still opens with its real content in the editor, not a blank template). Returns
+ * undefined only when neither has it.
+ */
 export async function readEntryFile(type: EntryType, name: string, relPath?: string): Promise<string | undefined> {
   if (live()) {
     const host = getGitHost();
+    let fromRegistry: string | undefined;
     if (type === "skill") {
-      const bundle = await host.getFile(registryRepo(), `${DIR.skill}/${safe(name)}/${safe(relPath ?? ENTRY_FILE)}`);
-      if (bundle !== undefined) return bundle;
-      return host.getFile(registryRepo(), `${DIR.skill}/${safe(name)}.md`);
+      fromRegistry = await host.getFile(registryRepo(), `${DIR.skill}/${safe(name)}/${safe(relPath ?? ENTRY_FILE)}`);
+      if (fromRegistry === undefined) fromRegistry = await host.getFile(registryRepo(), `${DIR.skill}/${safe(name)}.md`);
+    } else {
+      fromRegistry = await host.getFile(registryRepo(), `${DIR[type]}/${safe(name)}.md`);
     }
-    return host.getFile(registryRepo(), `${DIR[type]}/${safe(name)}.md`);
+    if (fromRegistry !== undefined) return fromRegistry;
+    // Fall through to the bundled copy shipped with the app.
   }
   const { path } = await resolvePath(type, name, relPath);
   return readFile(path, "utf8").catch(() => undefined);
