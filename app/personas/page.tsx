@@ -15,7 +15,14 @@ export const dynamic = "force-dynamic";
  * to `view_all` holders (a profile aggregates a named individual's demands). A
  * requestor without `view_all` is offered only their own profile.
  */
-export default async function PersonasPage() {
+const COHORT_DIMENSIONS = [
+  { key: "domain", label: "Domain" },
+  { key: "lane", label: "Lane" },
+  { key: "plant", label: "Plant" },
+] as const;
+type CohortDimension = (typeof COHORT_DIMENSIONS)[number]["key"];
+
+export default async function PersonasPage({ searchParams }: { searchParams: { by?: string } }) {
   const session = await getSession();
   if (!can(session, "view_board")) {
     return (
@@ -26,9 +33,12 @@ export default async function PersonasPage() {
     );
   }
 
+  const by: CohortDimension = COHORT_DIMENSIONS.some((d) => d.key === searchParams.by)
+    ? (searchParams.by as CohortDimension)
+    : "domain";
   const viewAll = can(session, "view_all");
   const records = await loadRequestorRecords();
-  const cohorts = buildCohortPatterns(records, "domain");
+  const cohorts = buildCohortPatterns(records, by);
   const directory = viewAll ? listRequestorDirectory(records) : [];
   const mine = normalizeRequester(session.user);
   const iHaveDemands = records.some((r) => normalizeRequester(r.requester) === mine);
@@ -64,9 +74,24 @@ export default async function PersonasPage() {
 
       {/* Cohort patterns — aggregate, never a person. */}
       <section className="mt-6">
-        <h2 className="text-sm font-semibold">Cohort patterns by domain</h2>
-        <p className="mb-3 text-xs text-muted-foreground">
-          Aggregate across requestor groups (≥2 requestors each) — what each domain&apos;s requestors tend to need.
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">Cohort patterns by {by}</h2>
+          <div className="inline-flex rounded-md border p-0.5 text-xs" role="tablist" aria-label="Group cohorts by">
+            {COHORT_DIMENSIONS.map((d) => (
+              <Link
+                key={d.key}
+                href={d.key === "domain" ? "/personas" : `/personas?by=${d.key}`}
+                role="tab"
+                aria-selected={by === d.key}
+                className={`rounded px-2.5 py-1 font-medium ${by === d.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {d.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+        <p className="mb-3 mt-1 text-xs text-muted-foreground">
+          Aggregate across requestor groups (≥2 requestors each) — what each {by}&apos;s requestors tend to need.
         </p>
         {cohorts.length === 0 ? (
           <p className="text-sm text-muted-foreground">Not enough demand yet to show cohort patterns.</p>

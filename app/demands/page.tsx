@@ -2,7 +2,7 @@ import Link from "next/link";
 import { queryFunnel, type FunnelScope } from "@/lib/funnel/query";
 import { getCurrentUser } from "@/lib/auth/current";
 import { LANES, STAGES } from "@/lib/types";
-import { PLANTS } from "@/lib/demand";
+import { getCategories } from "@/lib/category-store";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -31,6 +31,7 @@ function href(current: Params, over: Partial<Params>): string {
 
 export default async function Demands({ searchParams }: { searchParams: Params }) {
   const { session } = await getCurrentUser();
+  const plants = await getCategories("plant");
   const scope: FunnelScope = searchParams.scope === "all" ? "all" : "mine";
   const page = Math.max(1, Number.parseInt(searchParams.page ?? "1", 10) || 1);
   const q = (searchParams.q ?? "").trim();
@@ -96,7 +97,7 @@ export default async function Demands({ searchParams }: { searchParams: Params }
         </select>
         <select name="plant" defaultValue={searchParams.plant ?? ""} className="h-9 rounded-md border bg-transparent px-2 text-muted-foreground">
           <option value="">All plants</option>
-          {PLANTS.map((p) => <option key={p} value={p}>{p}</option>)}
+          {plants.map((p) => <option key={p} value={p}>{p}</option>)}
         </select>
         <select name="stage" defaultValue={searchParams.stage ?? ""} className="h-9 rounded-md border bg-transparent px-2 text-muted-foreground">
           <option value="">All stages</option>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { classifyDemand, missingRequired, INTAKE_FIELDS, FIELD_GROUPS, EMPTY_ANSWERS, type DemandField, type DemandAnswers } from "@/lib/demand";
@@ -20,7 +20,9 @@ const FIELD_CLASS = "mt-1 w-full rounded-md border bg-transparent px-2.5 py-1.5 
  * its element identity is stable across renders — otherwise React remounts the
  * input on every keystroke and it loses focus after one character.
  */
-function Field({ f, value, onChange }: { f: DemandField; value: string; onChange: (v: string) => void }) {
+function Field({ f, value, onChange, options }: { f: DemandField; value: string; onChange: (v: string) => void; options?: readonly string[] }) {
+  // Managed options (from the admin category store) override the baked-in seed.
+  const opts = options ?? f.options ?? [];
   return (
     <div>
       <label htmlFor={f.key} className="text-sm font-medium">{f.label}{f.required && <span className="text-warn"> *</span>}</label>
@@ -30,7 +32,7 @@ function Field({ f, value, onChange }: { f: DemandField; value: string; onChange
       ) : f.input === "select" ? (
         <select id={f.key} value={value} onChange={(e) => onChange(e.target.value)} className={FIELD_CLASS}>
           <option value="">{f.required ? "Select…" : "— none —"}</option>
-          {f.options!.map((o) => <option key={o} value={o}>{o}</option>)}
+          {opts.map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
       ) : (
         <input id={f.key} value={value} onChange={(e) => onChange(e.target.value)} className={FIELD_CLASS} />
@@ -39,9 +41,24 @@ function Field({ f, value, onChange }: { f: DemandField; value: string; onChange
   );
 }
 
+/** Load the admin-managed category lists; the baked-in seed shows until they arrive. */
+function useCategoryOptions(): Record<string, string[]> {
+  const [cats, setCats] = useState<Record<string, string[]>>({});
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/categories")
+      .then((r) => r.json())
+      .then((d: { categories?: Record<string, string[]> }) => { if (alive && d?.categories) setCats(d.categories); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  return cats;
+}
+
 export default function FormTool() {
   const [answers, setAnswers, clearDraft] = useDraft<DemandAnswers>("intake:form:v1", { ...EMPTY_ANSWERS });
   const { saving, saved, error, save, reset } = useIntakeSave();
+  const categoryOptions = useCategoryOptions();
 
   const classification = useMemo(() => classifyDemand(answers), [answers]);
   const missing = useMemo(() => missingRequired(answers), [answers]);
@@ -63,7 +80,7 @@ export default function FormTool() {
             <fieldset key={g} className="space-y-3.5">
               <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{g}</legend>
               {INTAKE_FIELDS.filter((f) => f.group === g).map((f) => (
-                <Field key={f.key} f={f} value={answers[f.key]} onChange={(v) => set(f.key, v)} />
+                <Field key={f.key} f={f} value={answers[f.key]} onChange={(v) => set(f.key, v)} options={categoryOptions[f.key]} />
               ))}
             </fieldset>
           ))}

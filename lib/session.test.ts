@@ -33,4 +33,28 @@ describe("resolveSession", () => {
   it("a resolved member is recognised as such", () => {
     expect(isPortalMember(resolveSession("a@example.com", ["DU-Portal-Admins"]))).toBe(true);
   });
+
+  describe("known-plant validation (new plant means new RBAC)", () => {
+    it("grants a plant scope only for a known plant", () => {
+      const s = resolveSession("c@example.com", ["DU-Portal-Champions-DE-ALD"], ["DE-ALD", "SK-PUC"]);
+      expect(s.roles).toEqual(["champion"]);
+      expect(s.scopes).toEqual(["DE-ALD"]);
+    });
+
+    it("grants the role but NO scope for an unknown plant (until it is added)", () => {
+      const s = resolveSession("c@example.com", ["DU-Portal-Champions-XX-NEW"], ["DE-ALD"]);
+      expect(s.roles).toEqual(["champion"]); // membership is real
+      expect(s.scopes).toEqual([]); // scope goes live only once XX-NEW is a known plant
+    });
+
+    it("stores the plant's canonical spelling, not the raw suffix", () => {
+      const s = resolveSession("c@example.com", ["DU-Portal-Champions-de-ald"], ["DE-ALD"]);
+      expect(s.scopes).toEqual(["DE-ALD"]);
+    });
+
+    it("accepts any suffix when knownPlants is omitted (backward-compatible)", () => {
+      const s = resolveSession("c@example.com", ["DU-Portal-Champions-ANY"]);
+      expect(s.scopes).toEqual(["ANY"]);
+    });
+  });
 });

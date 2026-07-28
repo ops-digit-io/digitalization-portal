@@ -4,6 +4,7 @@ import { oidcEnabled } from "@/lib/auth/config";
 import { exchangeCode, verifyIdToken } from "@/lib/auth/oidc";
 import { FLOW_COOKIE, SESSION_COOKIE, SESSION_MAX_AGE, signSession, verifyFlow } from "@/lib/auth/cookie";
 import { resolveSession, isPortalMember } from "@/lib/session";
+import { getCategories } from "@/lib/category-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,8 +34,9 @@ export async function GET(req: Request) {
     const user = claims.email || claims.sub;
     if (!user) return fail(url.origin, "no_identity");
 
-    // Roles + plant scopes come purely from the IdP groups.
-    const session = resolveSession(user, claims.groups);
+    // Roles + plant scopes come from the IdP groups; a plant scope is honoured only
+    // for a known (admin-managed) plant — "new plant means new RBAC".
+    const session = resolveSession(user, claims.groups, await getCategories("plant"));
     if (!isPortalMember(session)) return fail(url.origin, "not_a_member");
 
     const res = NextResponse.redirect(new URL(flow.returnTo || "/", url.origin));

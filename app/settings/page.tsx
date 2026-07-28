@@ -102,7 +102,12 @@ export default function SettingsPage() {
         ))}
       </div>
 
-      <p className="mt-6 text-xs text-muted-foreground">
+      <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <span>Manage (admin):</span>
+        <Link href="/admin/categories" className="underline hover:text-foreground">Categories (plants &amp; domains)</Link>
+        <Link href="/catalog" className="underline hover:text-foreground">Skills &amp; playbooks</Link>
+      </div>
+      <p className="mt-3 text-xs text-muted-foreground">
         Full variable reference: <code className="rounded border px-1 py-0.5">.env.example</code> in the portal repo, and
         the deployment guide in <code className="rounded border px-1 py-0.5">docs/DEPLOYMENT.md</code>.
       </p>

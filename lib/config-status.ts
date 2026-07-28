@@ -169,11 +169,12 @@ export function describeConfig(env: Record<string, string | undefined> = process
         },
         {
           key: "kv",
-          label: "Job / cache store (KV)",
+          label: "Job / cache / config store (KV)",
           configured: has(env.KV_REST_API_URL) && has(env.KV_REST_API_TOKEN),
+          detail: has(env.KV_REST_API_URL) && has(env.KV_REST_API_TOKEN) ? "editing enabled" : "seed defaults (read-only)",
           envVars: ["KV_REST_API_URL", "KV_REST_API_TOKEN"],
-          level: "optional",
-          note: "Optional: playbook suspension + registry cache.",
+          level: "recommended",
+          note: "Registry cache, funnel projection, AND admin-managed categories (plants/domains at /admin/categories). Without it those fall back to read-only seed defaults.",
         },
         {
           key: "cron",

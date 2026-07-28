@@ -5,6 +5,7 @@ import { readDemand } from "@/lib/demands-store";
 import { parseDemandToAnswers } from "@/lib/demand";
 import { parsePeople } from "@/lib/parse";
 import { canEditDemand } from "@/lib/demand-edit";
+import { getAllCategories } from "@/lib/category-store";
 import { EditForm, type EditFormValues } from "./edit-form";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,7 @@ export default async function EditDemandPage({ params }: { params: { id: string 
 
   const answers = parseDemandToAnswers(md);
   const people = parsePeople(md);
+  const categories = await getAllCategories();
   const initial: EditFormValues = {
     ...answers,
     sponsor: people.sponsor ?? "",
@@ -48,7 +50,7 @@ export default async function EditDemandPage({ params }: { params: { id: string 
         line records what you change.
       </p>
 
-      <EditForm id={params.id} initial={initial} />
+      <EditForm id={params.id} initial={initial} categories={categories} />
     </main>
   );
 }
