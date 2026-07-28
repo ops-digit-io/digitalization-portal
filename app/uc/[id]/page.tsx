@@ -216,7 +216,12 @@ export default async function UseCasePage({ params }: { params: { id: string } }
           <div>
             <h2 className="mb-2 text-sm font-semibold">Documents</h2>
             <ul className="space-y-1 text-sm">
-              <li>{uc.gates.find((g) => g.id === "G3")?.status === "passed" ? "✓" : "–"} Business case</li>
+              <li className="flex items-center justify-between gap-2">
+                <Link href={`/uc/${params.id}/business-case`} className="hover:underline">
+                  {uc.gates.find((g) => g.id === "G3")?.status === "passed" ? "✓" : hasBusinessCase ? "◐" : "–"} Business case
+                </Link>
+                <span className="text-xs text-muted-foreground">{hasBusinessCase ? "drafted" : "draft →"}</span>
+              </li>
               <li>{uc.gates.find((g) => g.id === "G4")?.status === "passed" ? "✓" : "–"} POC evaluation</li>
               <li>– Pilot KPI</li>
             </ul>
