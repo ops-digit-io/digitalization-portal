@@ -25,7 +25,7 @@ export function LevelBadge({ level }: { level: Level }) {
   );
 }
 
-const LANE_LABEL: Record<Lane, string> = {
+export const LANE_LABEL: Record<Lane, string> = {
   run: "run",
   regulatory: "regulatory",
   continuous_improvement: "continuous improvement",

@@ -1,4 +1,5 @@
 import { UseCaseCard } from "@/components/portal/use-case-card";
+import type { QuickActionCaps } from "@/components/portal/card-quick-actions";
 import type { BoardCard } from "@/lib/board";
 
 /** One board column — works for any grouping (stage, lane, plant). */
@@ -7,12 +8,15 @@ export function BoardColumn({
   subtitle,
   colorVar,
   cards,
+  manage,
 }: {
   title: string;
   subtitle?: string;
   /** CSS var for the header dot, e.g. "--stage-s4". */
   colorVar?: string;
   cards: BoardCard[];
+  /** When set, cards show a ⋯ quick-action menu with these capabilities. */
+  manage?: QuickActionCaps;
 }) {
   return (
     <section className="flex w-64 shrink-0 flex-col" aria-label={title}>
@@ -28,7 +32,7 @@ export function BoardColumn({
       </header>
       <div className="flex flex-col gap-2">
         {cards.map((c) => (
-          <UseCaseCard key={c.id} card={c} />
+          <UseCaseCard key={c.id} card={c} {...(manage ? { manage } : {})} />
         ))}
         {cards.length === 0 && (
           <div className="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground">—</div>

@@ -13,6 +13,7 @@ import { AdvanceStage } from "@/components/portal/advance-stage";
 import { HeatDot, LaneBadge, LevelBadge } from "@/components/portal/badges";
 import { AttachmentsCard } from "@/components/portal/attachments-card";
 import { DemandStatusActions } from "@/components/portal/demand-status-actions";
+import { DemandTriageActions } from "@/components/portal/demand-triage-actions";
 import { getSession } from "@/lib/auth/current";
 import { canEditDemand } from "@/lib/demand-edit";
 import { can } from "@/lib/rbac";
@@ -68,6 +69,8 @@ export default async function UseCasePage({ params }: { params: { id: string } }
   const canEdit = canEditDemand(session, markdown);
   const canKill = can(session, "kill", { requester: people.requester });
   const canReactivate = can(session, "park");
+  const canAssignLane = can(session, "assign_lane");
+  const canPark = can(session, "park");
   const attachments = listAttachments(markdown);
   const uploadEnabled = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 
@@ -185,6 +188,16 @@ export default async function UseCasePage({ params }: { params: { id: string } }
             />
           ) : (
             targetGate && <GateAction gate={targetGate} decision={decision} approvers="Portfolio forum" />
+          )}
+
+          {live && (
+            <DemandTriageActions
+              id={params.id}
+              lane={uc.state.lane}
+              status={uc.state.status}
+              canAssignLane={canAssignLane}
+              canPark={canPark}
+            />
           )}
 
           {live && (
