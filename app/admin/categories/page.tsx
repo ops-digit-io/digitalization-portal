@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { getSession } from "@/lib/auth/current";
 import { can } from "@/lib/rbac";
-import { getAllCategories, categoriesEditable, CATEGORY_LABEL } from "@/lib/category-store";
+import {
+  getAllCategories, categoriesEditable, CATEGORY_LABEL,
+  plantsInUse, plantScopeGroup, PROTECTED_PLANTS,
+} from "@/lib/category-store";
 import { CategoryEditor } from "./editor";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +29,8 @@ export default async function CategoriesAdminPage() {
 
   const categories = await getAllCategories();
   const editable = categoriesEditable();
+  const inUse = await plantsInUse();
+  const lockedPlants = [...new Set([...inUse, ...PROTECTED_PLANTS])];
 
   return (
     <main className="mx-auto max-w-[820px] px-6 py-6">
@@ -41,7 +46,15 @@ export default async function CategoriesAdminPage() {
       </p>
 
       <div className="space-y-5">
-        <CategoryEditor kind="plant" label={CATEGORY_LABEL.plant.plural} initial={categories.plant} editable={editable} />
+        <CategoryEditor
+          kind="plant"
+          label={CATEGORY_LABEL.plant.plural}
+          initial={categories.plant}
+          editable={editable}
+          locked={lockedPlants}
+          scopeGroupFor={plantScopeGroup}
+          note={`New plant = new RBAC scope: each plant maps to the IdP group ${plantScopeGroup("<plant>")}; grant that group to scope a champion to it, and the scope goes live once the plant is added here. 🔒 plants are in use by a demand (or the protected "ALL") and can't be removed until their demands are reassigned.`}
+        />
         <CategoryEditor kind="domain" label={CATEGORY_LABEL.domain.plural} initial={categories.domain} editable={editable} />
       </div>
     </main>

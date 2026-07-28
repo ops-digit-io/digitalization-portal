@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   normalizeCategoryList, seedFor, getCategories, getAllCategories, saveCategories,
   categoriesEditable, isCategoryKind, CATEGORY_SEED,
+  blockedPlantRemovals, plantScopeGroup, PROTECTED_PLANTS,
 } from "./category-store.js";
 import { PLANTS, DOMAINS } from "./demand.js";
 
@@ -60,5 +61,31 @@ describe("without KV configured (offline / local / test)", () => {
     expect(res.ok).toBe(false);
     if (res.ok) return;
     expect(res.reason).toMatch(/at least one/i);
+  });
+});
+
+describe("plant ↔ RBAC coupling & removal guards", () => {
+  it("maps a plant to its RBAC scope group", () => {
+    expect(plantScopeGroup("DE-ALD")).toBe("DU-Portal-Champions-DE-ALD");
+  });
+
+  it("blocks removing a plant still used by a demand", () => {
+    const blocked = blockedPlantRemovals(["DE-ALD", "SK-PUC", "US-GRV"], ["DE-ALD"], ["SK-PUC"]);
+    expect(blocked).toContain("SK-PUC"); // in use → blocked
+    expect(blocked).not.toContain("US-GRV"); // not in use → removable
+  });
+
+  it("blocks removing the protected ALL scope even when unused", () => {
+    expect(PROTECTED_PLANTS.has("ALL")).toBe(true);
+    const blocked = blockedPlantRemovals(["DE-ALD", "ALL"], ["DE-ALD"], []);
+    expect(blocked).toContain("ALL");
+  });
+
+  it("allows removing an unused, unprotected plant", () => {
+    expect(blockedPlantRemovals(["DE-ALD", "OLD-1"], ["DE-ALD"], ["DE-ALD"])).toEqual([]);
+  });
+
+  it("adding a plant is never blocked", () => {
+    expect(blockedPlantRemovals(["DE-ALD"], ["DE-ALD", "NEW-1"], ["DE-ALD"])).toEqual([]);
   });
 });

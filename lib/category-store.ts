@@ -21,6 +21,8 @@
 
 import { kvConfigured, kvCommand } from "./kv.js";
 import { PLANTS, DOMAINS } from "./demand.js";
+import { ROLES } from "./rbac.js";
+import { listDemandRows } from "./demands-store.js";
 
 export type CategoryKind = "plant" | "domain";
 export const CATEGORY_KINDS: readonly CategoryKind[] = ["plant", "domain"];
@@ -119,4 +121,45 @@ export async function resetCategories(kind: CategoryKind): Promise<CategorySaveR
   }
   await kvCommand(["DEL", kvKey(kind)]);
   return { ok: true, values: seedFor(kind) };
+}
+
+// ── Plant ↔ RBAC coupling & removal guards ──────────────────────────────────────
+
+/** The plant-scoped role's base IdP group (champion), for building scope-group names. */
+const PLANT_SCOPED_GROUP = ROLES.find((r) => r.scope === "plant")?.group ?? "DU-Portal-Champions";
+
+/**
+ * The IdP group that scopes the plant-scoped role to a plant. Adding a plant makes
+ * this group meaningful: `resolveSession` only grants a plant scope for a KNOWN plant,
+ * so the RBAC scope goes live once the admin adds the plant here. Surfaced in the admin
+ * UI so an administrator knows exactly which group to grant.
+ */
+export function plantScopeGroup(plant: string): string {
+  return `${PLANT_SCOPED_GROUP}-${plant}`;
+}
+
+/** Plants that must never be removed — structural, enterprise-wide scope. */
+export const PROTECTED_PLANTS: ReadonlySet<string> = new Set(["ALL"]);
+
+/**
+ * Which plants a removal would strand and must therefore be blocked: a plant that is
+ * still referenced by a demand (removing it would orphan that demand's classification
+ * and its plant-scoped RBAC), or a protected plant. Pure, so it is unit-testable.
+ */
+export function blockedPlantRemovals(current: string[], next: string[], inUse: string[]): string[] {
+  const nextSet = new Set(next.map((p) => p.trim().toLowerCase()));
+  const inUseSet = new Set(inUse.map((p) => p.trim().toLowerCase()));
+  const removed = current.filter((p) => !nextSet.has(p.trim().toLowerCase()));
+  return removed.filter((p) => inUseSet.has(p.trim().toLowerCase()) || PROTECTED_PLANTS.has(p.trim().toUpperCase()));
+}
+
+/** The distinct plant codes currently referenced by demands in the funnel. */
+export async function plantsInUse(): Promise<string[]> {
+  const rows = await listDemandRows();
+  const set = new Set<string>();
+  for (const r of rows) {
+    const p = (r.plant ?? "").trim();
+    if (p !== "") set.add(p);
+  }
+  return [...set];
 }

@@ -14,13 +14,24 @@ export function CategoryEditor({
   label,
   initial,
   editable,
+  locked,
+  note,
+  scopeGroupFor,
 }: {
   kind: CategoryKind;
   label: string;
   initial: string[];
   editable: boolean;
+  /** Values whose removal is blocked (in use, or protected) — no ✕ shown. */
+  locked?: readonly string[];
+  /** Explanatory line under the editor (e.g. the RBAC coupling). */
+  note?: string;
+  /** Optional: the RBAC scope group a value maps to, shown as a tooltip. */
+  scopeGroupFor?: (v: string) => string;
 }) {
   const router = useRouter();
+  const lockedSet = new Set((locked ?? []).map((x) => x.toLowerCase()));
+  const isLocked = (v: string) => lockedSet.has(v.toLowerCase());
   const [values, setValues] = useState<string[]>(initial);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -75,9 +86,15 @@ export function CategoryEditor({
 
       <ul className="mt-3 flex flex-wrap gap-1.5">
         {values.map((v) => (
-          <li key={v} className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-sm">
+          <li
+            key={v}
+            className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-sm"
+            title={scopeGroupFor ? `RBAC scope group: ${scopeGroupFor(v)}` : undefined}
+          >
             <span>{v}</span>
-            {editable && (
+            {editable && (isLocked(v) ? (
+              <span className="text-muted-foreground" title="In use by demands, or protected — can't be removed" aria-label={`${v} is locked`}>🔒</span>
+            ) : (
               <button
                 type="button"
                 onClick={() => remove(v)}
@@ -87,11 +104,12 @@ export function CategoryEditor({
               >
                 ✕
               </button>
-            )}
+            ))}
           </li>
         ))}
         {values.length === 0 && <li className="text-sm text-muted-foreground">None.</li>}
       </ul>
+      {note && <p className="mt-2 text-xs text-muted-foreground">{note}</p>}
 
       {editable ? (
         <>
