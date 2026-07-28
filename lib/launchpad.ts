@@ -99,7 +99,7 @@ export const LAUNCHPAD: TileGroup[] = [
       { id: "skill-library", title: "Skill Library", subtitle: "Import reference skills (agentskills.io)", href: "/skill-library", icon: I.download, tone: "info" },
       { id: "traces", title: "Agent Traces", subtitle: "Replayable AI runs", href: "/assistant", icon: I.gauge, tone: "slate", disabled: true },
       { id: "digest", title: "Review Digest", subtitle: "Due dates & staleness", href: "/digest", icon: I.bell, tone: "slate" },
-      { id: "settings", title: "Administration", subtitle: "Roles, skills, playbooks", href: "/board", icon: I.cog, tone: "slate", disabled: true },
+      { id: "settings", title: "Configuration", subtitle: "Integrations & status", href: "/settings", icon: I.shield, tone: "info" },
     ],
   },
 ];

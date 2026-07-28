@@ -153,13 +153,18 @@ export function blockedPlantRemovals(current: string[], next: string[], inUse: s
   return removed.filter((p) => inUseSet.has(p.trim().toLowerCase()) || PROTECTED_PLANTS.has(p.trim().toUpperCase()));
 }
 
-/** The distinct plant codes currently referenced by demands in the funnel. */
-export async function plantsInUse(): Promise<string[]> {
+/** How many demands reference each plant code, for the retire flow's impact preview. */
+export async function plantUsageCounts(): Promise<Record<string, number>> {
   const rows = await listDemandRows();
-  const set = new Set<string>();
+  const counts: Record<string, number> = {};
   for (const r of rows) {
     const p = (r.plant ?? "").trim();
-    if (p !== "") set.add(p);
+    if (p !== "") counts[p] = (counts[p] ?? 0) + 1;
   }
-  return [...set];
+  return counts;
+}
+
+/** The distinct plant codes currently referenced by demands in the funnel. */
+export async function plantsInUse(): Promise<string[]> {
+  return Object.keys(await plantUsageCounts());
 }

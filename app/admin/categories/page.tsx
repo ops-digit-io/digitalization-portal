@@ -3,9 +3,10 @@ import { getSession } from "@/lib/auth/current";
 import { can } from "@/lib/rbac";
 import {
   getAllCategories, categoriesEditable, CATEGORY_LABEL,
-  plantsInUse, plantScopeGroup, PROTECTED_PLANTS,
+  plantUsageCounts, plantScopeGroup, PROTECTED_PLANTS,
 } from "@/lib/category-store";
 import { CategoryEditor } from "./editor";
+import { PlantRetire } from "./plant-retire";
 
 export const dynamic = "force-dynamic";
 
@@ -29,8 +30,14 @@ export default async function CategoriesAdminPage() {
 
   const categories = await getAllCategories();
   const editable = categoriesEditable();
-  const inUse = await plantsInUse();
+  const usageCounts = await plantUsageCounts();
+  const inUse = Object.keys(usageCounts);
   const lockedPlants = [...new Set([...inUse, ...PROTECTED_PLANTS])];
+  // In-use, non-protected plants are the ones that can be retired via reassignment.
+  const retirable = inUse
+    .filter((p) => !PROTECTED_PLANTS.has(p.toUpperCase()))
+    .map((p) => ({ plant: p, count: usageCounts[p]! }))
+    .sort((a, b) => a.plant.localeCompare(b.plant));
 
   return (
     <main className="mx-auto max-w-[820px] px-6 py-6">
@@ -55,6 +62,8 @@ export default async function CategoriesAdminPage() {
           scopeGroupFor={plantScopeGroup}
           note={`New plant = new RBAC scope: each plant maps to the IdP group ${plantScopeGroup("<plant>")}; grant that group to scope a champion to it, and the scope goes live once the plant is added here. 🔒 plants are in use by a demand (or the protected "ALL") and can't be removed until their demands are reassigned.`}
         />
+        <PlantRetire usage={retirable} allPlants={categories.plant} editable={editable} />
+
         <CategoryEditor kind="domain" label={CATEGORY_LABEL.domain.plural} initial={categories.domain} editable={editable} />
       </div>
     </main>
