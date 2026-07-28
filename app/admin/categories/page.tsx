@@ -38,6 +38,9 @@ export default async function CategoriesAdminPage() {
     .filter((p) => !PROTECTED_PLANTS.has(p.toUpperCase()))
     .map((p) => ({ plant: p, count: usageCounts[p]! }))
     .sort((a, b) => a.plant.localeCompare(b.plant));
+  // Precompute plant → RBAC scope group as a plain map (functions can't cross the
+  // server→client boundary).
+  const plantScopeGroups = Object.fromEntries(categories.plant.map((p) => [p, plantScopeGroup(p)]));
 
   return (
     <main className="mx-auto max-w-[820px] px-6 py-6">
@@ -59,7 +62,7 @@ export default async function CategoriesAdminPage() {
           initial={categories.plant}
           editable={editable}
           locked={lockedPlants}
-          scopeGroupFor={plantScopeGroup}
+          scopeGroups={plantScopeGroups}
           note={`New plant = new RBAC scope: each plant maps to the IdP group ${plantScopeGroup("<plant>")}; grant that group to scope a champion to it, and the scope goes live once the plant is added here. 🔒 plants are in use by a demand (or the protected "ALL") and can't be removed until their demands are reassigned.`}
         />
         <PlantRetire usage={retirable} allPlants={categories.plant} editable={editable} />

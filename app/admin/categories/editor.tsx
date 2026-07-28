@@ -16,7 +16,7 @@ export function CategoryEditor({
   editable,
   locked,
   note,
-  scopeGroupFor,
+  scopeGroups,
 }: {
   kind: CategoryKind;
   label: string;
@@ -26,8 +26,9 @@ export function CategoryEditor({
   locked?: readonly string[];
   /** Explanatory line under the editor (e.g. the RBAC coupling). */
   note?: string;
-  /** Optional: the RBAC scope group a value maps to, shown as a tooltip. */
-  scopeGroupFor?: (v: string) => string;
+  /** Optional: value → RBAC scope group, shown as a tooltip. A plain map (not a
+   *  function) so it can cross the server→client boundary. */
+  scopeGroups?: Record<string, string>;
 }) {
   const router = useRouter();
   const lockedSet = new Set((locked ?? []).map((x) => x.toLowerCase()));
@@ -89,7 +90,7 @@ export function CategoryEditor({
           <li
             key={v}
             className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-sm"
-            title={scopeGroupFor ? `RBAC scope group: ${scopeGroupFor(v)}` : undefined}
+            title={scopeGroups?.[v] ? `RBAC scope group: ${scopeGroups[v]}` : undefined}
           >
             <span>{v}</span>
             {editable && (isLocked(v) ? (
