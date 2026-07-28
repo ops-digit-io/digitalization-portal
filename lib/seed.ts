@@ -12,12 +12,15 @@ import type { Session } from "./rbac.js";
 /**
  * A demo session: portfolio forum (whole portfolio + G2–G7 authority), triage
  * (G1/G2 — the funnel's intake gates, so the demo operator can move a demand off
- * S1), plus reviewer (draft) and champion. Capabilities union across roles — a
- * realistic dual membership standing in until OIDC resolves real roles.
+ * S1), reviewer (draft), champion, plus admin. Until OIDC is enforced, EVERY visitor
+ * is this single session, and that person is the deployment operator — so it also
+ * carries `admin` so the administration tools (e.g. /admin/categories) are usable
+ * pre-OIDC. Once OIDC is wired, real roles come from IdP groups (admin from
+ * `DU-Portal-Admins`) and this stand-in no longer applies.
  */
 export const DEMO_SESSION: Session = {
   user: "demo.forum@example.com",
-  roles: ["portfolio_forum", "triage", "reviewer", "champion"],
+  roles: ["portfolio_forum", "triage", "reviewer", "champion", "admin"],
   scopes: ["DE-ALD"],
 };
 
