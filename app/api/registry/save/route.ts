@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   }
 
   const { type, name, files } = body;
-  if ((type !== "skill" && type !== "playbook") || !name || !Array.isArray(files) || files.length === 0) {
+  if ((type !== "skill" && type !== "playbook" && type !== "contract") || !name || !Array.isArray(files) || files.length === 0) {
     return NextResponse.json({ error: "type, name and a non-empty files[] are required" }, { status: 400 });
   }
   if (files.some((f) => typeof f.path !== "string" || typeof f.content !== "string")) {

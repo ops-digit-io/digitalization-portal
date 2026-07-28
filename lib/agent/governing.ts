@@ -20,6 +20,7 @@ import { readEntryFile, type EntryType } from "../registry-store.js";
 /** The bundled-repo path for an entry, mirroring the registry layout. */
 function bundledPath(type: EntryType, name: string, relPath?: string): string {
   if (type === "playbook") return join("playbooks", `${name}.md`);
+  if (type === "contract") return join("contracts", `${name}.md`);
   return relPath ? join("skills", name, relPath) : join("skills", name, "SKILL.md");
 }
 

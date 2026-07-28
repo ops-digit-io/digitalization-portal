@@ -37,7 +37,7 @@ function EntryCard({ e }: { e: RegistryEntry }) {
 }
 
 export default async function Catalog() {
-  const { skills, playbooks } = await listRegistry();
+  const { skills, playbooks, contracts } = await listRegistry();
 
   return (
     <main className="mx-auto max-w-[1100px] px-4 py-6">
@@ -58,6 +58,7 @@ export default async function Catalog() {
           <SyncButton />
           <Link href="/catalog/new?type=skill" className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground">+ Skill</Link>
           <Link href="/catalog/new?type=playbook" className="rounded-md border px-3 py-2 text-sm font-medium">+ Playbook</Link>
+          <Link href="/catalog/new?type=contract" className="rounded-md border px-3 py-2 text-sm font-medium">+ Contract</Link>
         </div>
       </div>
 
@@ -74,6 +75,17 @@ export default async function Catalog() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {playbooks.map((e) => <EntryCard key={e.name} e={e} />)}
           {playbooks.length === 0 && <p className="text-sm text-muted-foreground">No playbooks yet.</p>}
+        </div>
+      </section>
+
+      <section className="mt-8">
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contracts · {contracts.length}</h2>
+        <p className="mb-3 text-xs text-muted-foreground">
+          The non-negotiable operating contracts each agent runs under — now file-managed and editable, just like playbooks.
+        </p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {contracts.map((e) => <EntryCard key={e.name} e={e} />)}
+          {contracts.length === 0 && <p className="text-sm text-muted-foreground">No contracts yet.</p>}
         </div>
       </section>
     </main>

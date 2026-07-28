@@ -37,8 +37,8 @@ export default function RegistryEditor() {
   useEffect(() => {
     fetch("/api/registry")
       .then((r) => r.json())
-      .then((reg: { skills: Entry[]; playbooks: Entry[] }) => {
-        const list = type === "skill" ? reg.skills : reg.playbooks;
+      .then((reg: { skills: Entry[]; playbooks: Entry[]; contracts: Entry[] }) => {
+        const list = type === "skill" ? reg.skills : type === "contract" ? reg.contracts : reg.playbooks;
         const found = list.find((e) => e.name === name);
         const e = found ?? { type, name, bundle: type === "skill", files: [type === "skill" ? ENTRY_FILE : `${name}.md`] };
         setEntry(e);
@@ -192,7 +192,7 @@ export default function RegistryEditor() {
                       <input value={tools.join(", ")} onChange={(e) => setMeta("tools", asArr(e.target.value))} placeholder="portfolio-query, start-poc" className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
                     </label>
                   </>
-                ) : (
+                ) : type === "playbook" ? (
                   <>
                     <label className="text-sm">
                       <span className="text-xs font-medium text-muted-foreground">Skills</span>
@@ -203,7 +203,7 @@ export default function RegistryEditor() {
                       <input value={checkpoints.join(", ")} onChange={(e) => setMeta("checkpoints", asArr(e.target.value))} className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
                     </label>
                   </>
-                )}
+                ) : null}
               </div>
               <label className="block text-sm">
                 <span className="text-xs font-medium text-muted-foreground">Description</span>
