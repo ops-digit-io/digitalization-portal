@@ -55,6 +55,23 @@ describe("analyseIntake", () => {
     expect(g.requirements.epics.length).toBeGreaterThan(0);
     expect(g.analysis.personas.length).toBeGreaterThan(0);
   });
+
+  it("grounds the analysis on the solution archetype as a second axis", () => {
+    // This demand predicts a defect trend → prediction archetype.
+    expect(analysis.archetype).toBe("Prediction / anomaly detection");
+    expect(analysis.feasibilityQuestions.length).toBeGreaterThan(0);
+    expect(analysis.dataPrerequisites.length).toBeGreaterThan(0);
+    expect(analysis.characteristicRisks.length).toBeGreaterThan(0);
+  });
+
+  it("classifies a non-manufacturing digital use case (GenAI) end to end", () => {
+    const g = analyseIntake({ ...EMPTY_ANSWERS, title: "Assistant to answer policy questions from our HR documents", problem: "employees email HR the same questions", currentPain: "HR spends hours", desiredOutcome: "a chatbot answers from the document base", plant: "ALL", domain: "hr" });
+    expect(g.analysis.archetype).toBe("GenAI assistant / RAG");
+    // Archetype-driven NFRs are folded in (groundedness is load-bearing for RAG).
+    expect(g.requirements.nfrs.some((n) => /groundedness|human control/i.test(n.category))).toBe(true);
+    // HR domain personas ground it (aliases + new domain).
+    expect(g.analysis.personas).toContain("employee");
+  });
 });
 
 describe("standardized markdown", () => {
@@ -71,7 +88,7 @@ describe("standardized markdown", () => {
 
   it("analysis.md carries the domain analysis sections and is deterministic", () => {
     const md = buildAnalysisMarkdown(meta, analysis);
-    for (const h of ["## Domain", "## Refined problem", "## Comparable patterns", "## Suggested enhancements", "## Personas"]) {
+    for (const h of ["## Domain", "## Refined problem", "## Solution archetype", "## Comparable patterns", "## Suggested enhancements", "## Personas"]) {
       expect(md).toContain(h);
     }
     expect(buildAnalysisMarkdown(meta, analysis)).toBe(md);
