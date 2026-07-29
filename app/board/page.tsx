@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { assembleBoard, type BoardCard, type BoardFilter } from "@/lib/board";
-import { STAGES, type Stage, type Lane } from "@/lib/types";
+import { STAGES, GATES, type Stage, type Lane } from "@/lib/types";
 import { getSession } from "@/lib/auth/current";
 import { loadPortfolioRows } from "@/lib/portfolio";
 import { can } from "@/lib/rbac";
@@ -58,6 +58,13 @@ export default async function BoardPage({ searchParams }: { searchParams: Params
 
   // Value KPIs are portfolio aggregates, shown only to view_all sessions.
   const canValue = can(session, "view_all");
+
+  // Board quick-actions — only for a live funnel the session may manage. Advance is a
+  // coarse "holds gate authority" check; the route enforces the specific gate.
+  const canAdvanceAny = GATES.some((g) => can(session, "gate_pass", { gate: g }));
+  const manage = live && (canAdvanceAny || can(session, "park") || can(session, "kill"))
+    ? { advance: canAdvanceAny, park: can(session, "park"), kill: can(session, "kill"), reactivate: can(session, "park") }
+    : undefined;
   const visibleIds = new Set(board.cards.map((c) => c.id));
   const visibleRows = rows.filter((r) => visibleIds.has(r.id));
   const pipeline = canValue ? visibleRows.filter((r) => (r.status ?? "active") === "active").reduce((s, r) => s + (r.valueProjected ?? 0), 0) : 0;
@@ -144,7 +151,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Params
       ) : (
         <div className="mt-5 flex gap-4 overflow-x-auto pb-4">
           {columns.map((col) => (
-            <BoardColumn key={col.title} title={col.title} subtitle={col.subtitle} colorVar={col.colorVar} cards={col.cards} />
+            <BoardColumn key={col.title} title={col.title} subtitle={col.subtitle} colorVar={col.colorVar} cards={col.cards} {...(manage ? { manage } : {})} />
           ))}
         </div>
       )}

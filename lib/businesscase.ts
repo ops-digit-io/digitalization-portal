@@ -1,97 +1,61 @@
 /**
- * Business-case parsing (`docs/03-data-model.md §3.6`) — reads the facts Feature 1
- * needs out of `business-case.md`: confidence, whether the baseline is verified,
- * the annual gross figure and its category, and the assumptions table with which
- * assumptions have been tested. Never throws.
- *
- * Assumption sensitivity is not stated in the document, so we infer a default: an
- * untested assumption is treated as materially load-bearing. The agent can
- * override these when it reasons about the case; this gives an honest baseline.
+ * Business-case FACTS + simulation. The facts the portfolio needs — confidence,
+ * whether the baseline is verified, the annual gross and its category, the cost, and
+ * the assumptions table — are projected from the structured model
+ * (`lib/business-case-model.ts`), which parses the document via a real CommonMark/GFM
+ * AST rather than regexes. This layer adds the numbers: assumption sensitivity (an
+ * untested assumption is treated as materially load-bearing) and the value bands.
+ * Never throws.
  */
 
-import { parseFirstTable } from "./markdown.js";
-import { matchEnumLoose } from "./enums.js";
 import type { Confidence } from "./types.js";
 import type { Assumption, SimulationInput, SimulationOutput } from "./simulation.js";
 import { runValueSimulation } from "./simulation.js";
+import { computeEconomics, type Economics } from "./business-economics.js";
+import { parseBusinessCaseModel, parseEuro, type BusinessCaseModel } from "./business-case-model.js";
 
 export interface BusinessCaseFacts {
   confidence?: Confidence;
   baselineVerified?: boolean;
   annualGross?: number;
   category?: string;
+  /** One-off build cost from the ## Cost table, when a figure is stated. */
+  buildCost?: number;
+  /** Recurring annual run cost from the ## Cost table, when a figure is stated. */
+  annualRunCost?: number;
   assumptions: Assumption[];
-}
-
-/** Split markdown into a map of `## H2` (and `### H3`) section → body text. */
-function sections(markdown: string): Map<string, string> {
-  const map = new Map<string, string>();
-  const parts = (markdown ?? "").split(/\n(?=#{2,3}\s)/);
-  for (const part of parts) {
-    const m = /^(#{2,3})\s+(.+)/.exec(part.trim());
-    if (m && m[2]) map.set(m[2].trim().toLowerCase(), part);
-  }
-  return map;
-}
-
-function firstNumber(text: string | undefined): number | undefined {
-  if (!text) return undefined;
-  // Grab a currency-ish number: "EUR 180,000" / "180.000 €" / "142000".
-  const m = /(?:eur|€)?\s*([\d][\d.,]*\d|\d)/i.exec(text);
-  if (!m || !m[1]) return undefined;
-  const cleaned = m[1].replace(/[.,](?=\d{3}\b)/g, "").replace(/,/g, ".");
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? Math.round(n) : undefined;
 }
 
 const DEFAULT_UNTESTED_SENSITIVITY = 0.35;
 const DEFAULT_TESTED_SENSITIVITY = 0.05;
 
-export function parseBusinessCase(markdown: string): BusinessCaseFacts {
-  const facts: BusinessCaseFacts = { assumptions: [] };
-  try {
-    const secs = sections(markdown);
-
-    // Confidence from ## State.
-    const state = secs.get("state") ?? "";
-    const confMatch = /confidence[:*\s]+([a-z]+)/i.exec(state.replace(/\*/g, ""));
-    if (confMatch) {
-      const c = matchEnumLoose<Confidence>(confMatch[1], ["hypothesis", "indicative", "committed", "realized"]);
-      if (c) facts.confidence = c;
-    }
-
-    // Baseline verified.
-    const baseline = secs.get("baseline") ?? "";
-    const verMatch = /verified[.*:\s]+([a-z]+)/i.exec(baseline.replace(/\*/g, ""));
-    if (verMatch) facts.baselineVerified = /^yes$/i.test(verMatch[1] ?? "");
-
-    // Value section: annual gross + category.
-    const value = secs.get("value") ?? "";
-    const grossMatch = /annual gross[.*:\s]+([^\n]+)/i.exec(value.replace(/\*/g, ""));
-    facts.annualGross = firstNumber(grossMatch?.[1]);
-    const catMatch = /category[.*:\s]+([^\n.]+)/i.exec(value.replace(/\*/g, ""));
-    if (catMatch && catMatch[1]) facts.category = catMatch[1].trim();
-
-    // Assumptions table (### Assumptions, or the first table under ## Value).
-    const assumptionsSec = secs.get("assumptions") ?? value;
-    const table = parseFirstTable(assumptionsSec);
-    if (table) {
-      for (const cells of table.rows) {
-        const name = (cells[0] ?? "").replace(/\*/g, "").trim();
-        if (!name || /^assumption$/i.test(name)) continue;
-        const testedCell = (cells[1] ?? "").replace(/\*/g, "").trim();
-        const tested = /^yes$/i.test(testedCell);
-        facts.assumptions.push({
-          name,
-          tested,
-          sensitivity: tested ? DEFAULT_TESTED_SENSITIVITY : DEFAULT_UNTESTED_SENSITIVITY,
-        });
-      }
-    }
-  } catch {
-    return facts;
-  }
+/** Project the structured model down to the facts the simulation and page consume. */
+export function factsFromModel(model: BusinessCaseModel): BusinessCaseFacts {
+  const facts: BusinessCaseFacts = {
+    confidence: model.confidence,
+    baselineVerified: model.baseline.verified,
+    assumptions: model.assumptions.map((a) => ({
+      name: a.name,
+      tested: a.tested,
+      sensitivity: a.tested ? DEFAULT_TESTED_SENSITIVITY : DEFAULT_UNTESTED_SENSITIVITY,
+    })),
+  };
+  if (model.value.annualGross !== undefined) facts.annualGross = model.value.annualGross;
+  if (model.value.category) facts.category = model.value.category;
+  const build = parseEuro(model.cost.buildEstimate);
+  if (build !== undefined) facts.buildCost = build;
+  const run = parseEuro(model.cost.annualRunEstimate);
+  if (run !== undefined) facts.annualRunCost = run;
   return facts;
+}
+
+/** Parse `business-case.md` to the facts the portfolio needs. Never throws. */
+export function parseBusinessCase(markdown: string): BusinessCaseFacts {
+  try {
+    return factsFromModel(parseBusinessCaseModel(markdown));
+  } catch {
+    return { assumptions: [] };
+  }
 }
 
 /** Build a simulation input from parsed facts (with an override for the base figure). */
@@ -110,4 +74,26 @@ export function simulateBusinessCase(markdown: string, baseOverride?: number): {
   const facts = parseBusinessCase(markdown);
   const simulation = runValueSimulation(toSimulationInput(facts, baseOverride));
   return { facts, simulation };
+}
+
+/**
+ * Full decision-grade read of a business case: the parsed facts, the value bands, and
+ * the economics (net value, payback, ROI, multi-year NPV) the portfolio forum decides
+ * on. One call for the review page. Honest throughout — no value → zeros.
+ */
+export function analyseBusinessCase(
+  markdown: string,
+  opts?: { horizonYears?: number; discountRate?: number },
+): { facts: BusinessCaseFacts; simulation: SimulationOutput; economics: Economics } {
+  const { facts, simulation } = simulateBusinessCase(markdown);
+  const economics = computeEconomics({
+    grossP10: simulation.p10,
+    grossP50: simulation.p50,
+    grossP90: simulation.p90,
+    ...(facts.buildCost !== undefined ? { buildCost: facts.buildCost } : {}),
+    ...(facts.annualRunCost !== undefined ? { annualRunCost: facts.annualRunCost } : {}),
+    ...(opts?.horizonYears !== undefined ? { horizonYears: opts.horizonYears } : {}),
+    ...(opts?.discountRate !== undefined ? { discountRate: opts.discountRate } : {}),
+  });
+  return { facts, simulation, economics };
 }

@@ -148,65 +148,58 @@ export function draftBusinessCase(
   };
 }
 
-// ── markdown builder (inverse of parseBusinessCase) ─────────────────────────────
 
-function grossLine(v: BusinessCaseDraft["value"]): string {
-  return v.annualGross !== undefined
-    ? `EUR ${v.annualGross.toLocaleString("en-US")}`
-    : "To be quantified — a verified baseline is required.";
+// ── markdown builder & editors — all via the structured model ────────────────────
+//
+// The document is never string-patched: we build (or parse) a BusinessCaseModel,
+// mutate the typed structure, and render canonical markdown. Parsing is AST-based
+// (`lib/business-case-model.ts`), so it tolerates any valid markdown the input
+// surface produces, and unrecognised sections are preserved verbatim.
+
+import {
+  parseBusinessCaseModel,
+  renderBusinessCaseModel,
+  applyValuePatch,
+  applyAssumptionTested,
+  appendChangeLog,
+  type BusinessCaseModel,
+  type BusinessCaseValuePatch,
+} from "./business-case-model.js";
+
+export type { BusinessCaseValuePatch } from "./business-case-model.js";
+
+const INTRO = (on: string) =>
+  `Auto-generated from the demand and its requirements by the business-case agent on ${on}. Draft — a human quantifies the value, tests the assumptions, and decides; nothing here passes a gate.`;
+
+/** Map a fresh draft to the structured model the renderer and editors share. */
+function modelFromDraft(meta: BusinessCaseMeta, draft: BusinessCaseDraft): BusinessCaseModel {
+  const model: BusinessCaseModel = {
+    heading: `Business case · ${meta.id} · ${meta.title}`,
+    intro: INTRO(meta.generatedOn),
+    confidence: draft.confidence,
+    version: draft.version,
+    reviewHorizonWeeks: draft.reviewHorizonWeeks,
+    baseline: { metric: draft.baseline.metric, value: draft.baseline.value, verified: false, note: draft.baseline.note },
+    value: { category: draft.value.categoryLabel, basis: draft.value.basis },
+    assumptions: draft.value.assumptions.map((a) => ({ name: a.name, tested: a.tested, source: a.source })),
+    cost: {
+      ...(draft.cost.buildEstimate !== undefined ? { buildEstimate: draft.cost.buildEstimate } : {}),
+      ...(draft.cost.annualRunEstimate !== undefined ? { annualRunEstimate: draft.cost.annualRunEstimate } : {}),
+    },
+    openQuestions: draft.openQuestions,
+    changeLog: [],
+    extraSections: [],
+  };
+  if (draft.value.annualGross !== undefined) model.value.annualGross = draft.value.annualGross;
+  return model;
 }
 
 /**
- * Render a `business-case.md` that `parseBusinessCase` round-trips. Deterministic:
- * same (meta, draft) → identical bytes, every section in the same order.
+ * Render a `business-case.md` from a draft. Deterministic — same (meta, draft) →
+ * identical bytes — and round-trip stable: parse → render reproduces it.
  */
 export function buildBusinessCaseMarkdown(meta: BusinessCaseMeta, draft: BusinessCaseDraft): string {
-  const assumptionRows = draft.value.assumptions
-    .map((a) => `| ${a.name} | ${a.tested ? "Yes" : "No"} | ${a.source} |`)
-    .join("\n");
-  const openQuestions = draft.openQuestions.length > 0
-    ? draft.openQuestions.map((q) => `- ${q}`).join("\n")
-    : "- _none_";
-
-  return `# Business case · ${meta.id} · ${meta.title}
-
-> Auto-generated from the demand and its requirements by the business-case agent on ${meta.generatedOn}. Draft — a human quantifies the value, tests the assumptions, and decides; nothing here passes a gate.
-
-## State
-
-- **Confidence:** ${draft.confidence}
-- **Version:** ${draft.version}
-- **Review horizon:** ${draft.reviewHorizonWeeks} weeks
-
-## Baseline
-
-**Metric.** ${draft.baseline.metric}
-**Value.** ${draft.baseline.value}
-**Verified.** No — ${draft.baseline.note}
-
-## Value
-
-**Category.** ${draft.value.categoryLabel}
-**Annual gross.** ${grossLine(draft.value)}
-**Basis.** ${draft.value.basis}
-
-### Assumptions
-
-| Assumption | Tested | Source |
-|---|---|---|
-${assumptionRows}
-
-## Cost
-
-| | |
-|---|---|
-| Build estimate | ${draft.cost.buildEstimate ?? "To be estimated"} |
-| Annual run estimate | ${draft.cost.annualRunEstimate ?? "To be estimated"} |
-
-## Open questions
-
-${openQuestions}
-`;
+  return renderBusinessCaseModel(modelFromDraft(meta, draft));
 }
 
 /** Convenience: draft from raw markdown inputs (demand answers + optional requirements.md). */
@@ -217,4 +210,38 @@ export function draftBusinessCaseMarkdown(
 ): string {
   const requirements = requirementsMarkdown ? parseRequirementsMarkdown(requirementsMarkdown) : undefined;
   return buildBusinessCaseMarkdown(meta, draftBusinessCase(answers, requirements));
+}
+
+// ── in-place edits — parse → mutate the model → render. No regex on the document. ─
+
+/**
+ * Set the value/cost/verified fields on an existing `business-case.md`. Parses to the
+ * model, applies the patch, and renders canonical markdown — so a differently-shaped
+ * input is normalised rather than corrupted, and unrecognised sections are preserved.
+ * A no-op patch returns the input unchanged.
+ */
+export function setBusinessCaseValue(markdown: string, patch: BusinessCaseValuePatch): string {
+  const model = parseBusinessCaseModel(markdown);
+  const next = applyValuePatch(model, patch);
+  return renderBusinessCaseModel(next);
+}
+
+/** Toggle whether the assumption at `index` (table order) has been tested. */
+export function setAssumptionTested(markdown: string, index: number, tested: boolean): string {
+  const model = parseBusinessCaseModel(markdown);
+  const next = applyAssumptionTested(model, index, tested);
+  if (next === model) return markdown;
+  return renderBusinessCaseModel(next);
+}
+
+export interface BusinessCaseChange {
+  actor: string;
+  date: string;
+  summary: string;
+}
+
+/** Append a dated line to the `## Change log` section (created if absent). */
+export function logBusinessCaseChange(markdown: string, change: BusinessCaseChange): string {
+  const model = parseBusinessCaseModel(markdown);
+  return renderBusinessCaseModel(appendChangeLog(model, change));
 }

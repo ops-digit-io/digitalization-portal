@@ -2,13 +2,15 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { HeatDot, LevelBadge, LaneBadge } from "@/components/portal/badges";
+import { CardQuickActions, type QuickActionCaps } from "@/components/portal/card-quick-actions";
 import { cn } from "@/lib/utils";
 import type { Lane } from "@/lib/types";
 import type { BoardCard } from "@/lib/board";
 
-export function UseCaseCard({ card }: { card: BoardCard }) {
+export function UseCaseCard({ card, manage }: { card: BoardCard; manage?: QuickActionCaps }) {
   const killed = card.status === "killed";
   const parked = card.status === "parked";
+  const showMenu = manage && (manage.advance || manage.park || manage.kill || manage.reactivate);
   return (
     <Link href={`/uc/${card.id}`} className="block focus-visible:outline-none">
       <Card
@@ -23,8 +25,11 @@ export function UseCaseCard({ card }: { card: BoardCard }) {
       >
         <div className="flex items-center justify-between gap-2">
           <span className="text-[11px] font-medium text-muted-foreground">{card.id}</span>
-          {killed && <Badge variant="outline" className="border-destructive/50 px-1.5 py-0 text-[10px] font-normal text-destructive">killed</Badge>}
-          {parked && <Badge variant="outline" className="border-warn/50 px-1.5 py-0 text-[10px] font-normal text-warn">parked</Badge>}
+          <div className="flex items-center gap-1.5">
+            {killed && <Badge variant="outline" className="border-destructive/50 px-1.5 py-0 text-[10px] font-normal text-destructive">killed</Badge>}
+            {parked && <Badge variant="outline" className="border-warn/50 px-1.5 py-0 text-[10px] font-normal text-warn">parked</Badge>}
+            {showMenu && <CardQuickActions id={card.id} status={card.status} caps={manage!} />}
+          </div>
         </div>
         <div className={cn("mt-0.5 line-clamp-2 text-sm font-medium leading-snug", killed && "line-through")}>{card.title}</div>
 
