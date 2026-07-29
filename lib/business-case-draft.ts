@@ -148,65 +148,58 @@ export function draftBusinessCase(
   };
 }
 
-// ── markdown builder (inverse of parseBusinessCase) ─────────────────────────────
 
-function grossLine(v: BusinessCaseDraft["value"]): string {
-  return v.annualGross !== undefined
-    ? `EUR ${v.annualGross.toLocaleString("en-US")}`
-    : "To be quantified — a verified baseline is required.";
+// ── markdown builder & editors — all via the structured model ────────────────────
+//
+// The document is never string-patched: we build (or parse) a BusinessCaseModel,
+// mutate the typed structure, and render canonical markdown. Parsing is AST-based
+// (`lib/business-case-model.ts`), so it tolerates any valid markdown the input
+// surface produces, and unrecognised sections are preserved verbatim.
+
+import {
+  parseBusinessCaseModel,
+  renderBusinessCaseModel,
+  applyValuePatch,
+  applyAssumptionTested,
+  appendChangeLog,
+  type BusinessCaseModel,
+  type BusinessCaseValuePatch,
+} from "./business-case-model.js";
+
+export type { BusinessCaseValuePatch } from "./business-case-model.js";
+
+const INTRO = (on: string) =>
+  `Auto-generated from the demand and its requirements by the business-case agent on ${on}. Draft — a human quantifies the value, tests the assumptions, and decides; nothing here passes a gate.`;
+
+/** Map a fresh draft to the structured model the renderer and editors share. */
+function modelFromDraft(meta: BusinessCaseMeta, draft: BusinessCaseDraft): BusinessCaseModel {
+  const model: BusinessCaseModel = {
+    heading: `Business case · ${meta.id} · ${meta.title}`,
+    intro: INTRO(meta.generatedOn),
+    confidence: draft.confidence,
+    version: draft.version,
+    reviewHorizonWeeks: draft.reviewHorizonWeeks,
+    baseline: { metric: draft.baseline.metric, value: draft.baseline.value, verified: false, note: draft.baseline.note },
+    value: { category: draft.value.categoryLabel, basis: draft.value.basis },
+    assumptions: draft.value.assumptions.map((a) => ({ name: a.name, tested: a.tested, source: a.source })),
+    cost: {
+      ...(draft.cost.buildEstimate !== undefined ? { buildEstimate: draft.cost.buildEstimate } : {}),
+      ...(draft.cost.annualRunEstimate !== undefined ? { annualRunEstimate: draft.cost.annualRunEstimate } : {}),
+    },
+    openQuestions: draft.openQuestions,
+    changeLog: [],
+    extraSections: [],
+  };
+  if (draft.value.annualGross !== undefined) model.value.annualGross = draft.value.annualGross;
+  return model;
 }
 
 /**
- * Render a `business-case.md` that `parseBusinessCase` round-trips. Deterministic:
- * same (meta, draft) → identical bytes, every section in the same order.
+ * Render a `business-case.md` from a draft. Deterministic — same (meta, draft) →
+ * identical bytes — and round-trip stable: parse → render reproduces it.
  */
 export function buildBusinessCaseMarkdown(meta: BusinessCaseMeta, draft: BusinessCaseDraft): string {
-  const assumptionRows = draft.value.assumptions
-    .map((a) => `| ${a.name} | ${a.tested ? "Yes" : "No"} | ${a.source} |`)
-    .join("\n");
-  const openQuestions = draft.openQuestions.length > 0
-    ? draft.openQuestions.map((q) => `- ${q}`).join("\n")
-    : "- _none_";
-
-  return `# Business case · ${meta.id} · ${meta.title}
-
-> Auto-generated from the demand and its requirements by the business-case agent on ${meta.generatedOn}. Draft — a human quantifies the value, tests the assumptions, and decides; nothing here passes a gate.
-
-## State
-
-- **Confidence:** ${draft.confidence}
-- **Version:** ${draft.version}
-- **Review horizon:** ${draft.reviewHorizonWeeks} weeks
-
-## Baseline
-
-**Metric.** ${draft.baseline.metric}
-**Value.** ${draft.baseline.value}
-**Verified.** No — ${draft.baseline.note}
-
-## Value
-
-**Category.** ${draft.value.categoryLabel}
-**Annual gross.** ${grossLine(draft.value)}
-**Basis.** ${draft.value.basis}
-
-### Assumptions
-
-| Assumption | Tested | Source |
-|---|---|---|
-${assumptionRows}
-
-## Cost
-
-| | |
-|---|---|
-| Build estimate | ${draft.cost.buildEstimate ?? "To be estimated"} |
-| Annual run estimate | ${draft.cost.annualRunEstimate ?? "To be estimated"} |
-
-## Open questions
-
-${openQuestions}
-`;
+  return renderBusinessCaseModel(modelFromDraft(meta, draft));
 }
 
 /** Convenience: draft from raw markdown inputs (demand answers + optional requirements.md). */
@@ -219,107 +212,27 @@ export function draftBusinessCaseMarkdown(
   return buildBusinessCaseMarkdown(meta, draftBusinessCase(answers, requirements));
 }
 
-// ── in-place edits (the human quantifies and tests the draft) ───────────────────
-//
-// These are SECTION-SCOPED, not global regexes: an edit is applied only inside the
-// `## Section` it belongs to, so a phrase like "Annual gross" appearing in prose
-// elsewhere is never rewritten, and the rest of the document round-trips byte-for-
-// byte. All functions are pure — the route injects actor/date for the change log.
-
-export interface BusinessCaseValuePatch {
-  /** Annual gross in EUR; null clears it back to "to be quantified". */
-  annualGross?: number | null;
-  buildEstimate?: string;
-  annualRunEstimate?: string;
-  baselineVerified?: boolean;
-}
-
-function eur(n: number): string {
-  return `EUR ${Math.round(n).toLocaleString("en-US")}`;
-}
+// ── in-place edits — parse → mutate the model → render. No regex on the document. ─
 
 /**
- * Apply `fn` to the first `## `/`### ` section whose heading matches `heading`,
- * leaving every other section untouched. Splitting on the heading lookahead and
- * re-joining with "\n" reconstructs the document exactly, so this is loss-free.
- */
-function editSection(markdown: string, heading: RegExp, fn: (block: string) => string): string {
-  const parts = markdown.split(/\n(?=#{2,3}\s)/);
-  let done = false;
-  return parts
-    .map((part) => {
-      if (done) return part;
-      const m = /^(#{2,3})\s+(.+)/.exec(part);
-      if (m && m[2] && heading.test(m[2].trim())) {
-        done = true;
-        return fn(part);
-      }
-      return part;
-    })
-    .join("\n");
-}
-
-/** Rewrite one cell of the first markdown table inside `block`. `rowIndex` counts
- *  data rows (0-based, after the header/separator); `colIndex` counts data columns. */
-function setTableCell(block: string, rowIndex: number, colIndex: number, value: string): string {
-  const lines = block.split("\n");
-  const pipeLineIdx = lines.map((l, i) => ({ l: l.trim(), i })).filter((x) => x.l.startsWith("|")).map((x) => x.i);
-  if (pipeLineIdx.length < 2) return block;
-  // The separator is the all-dashes/colons row; data rows follow it.
-  const sepAt = pipeLineIdx.findIndex((i) => /^\|[\s:|-]+\|?$/.test(lines[i]!.trim()) && /-/.test(lines[i]!));
-  const dataIdx = sepAt >= 0 ? pipeLineIdx.slice(sepAt + 1) : pipeLineIdx.slice(1);
-  const target = dataIdx[rowIndex];
-  if (target === undefined) return block;
-  const cells = lines[target]!.split("|"); // ["", " a ", " b ", ..., ""]
-  const slot = colIndex + 1;
-  if (slot >= cells.length - 1) return block; // out of range (keep trailing "")
-  cells[slot] = ` ${value} `;
-  lines[target] = cells.join("|");
-  return lines.join("\n");
-}
-
-/**
- * Set the value/cost/verified fields on an existing `business-case.md`, in place, so
- * the human can quantify a drafted case and the analysis lights up. Section-scoped
- * and pure; the rest of the document — assumptions, confidence, open questions — is
- * untouched. A null/zero/non-finite annual gross clears it back to "to be quantified".
+ * Set the value/cost/verified fields on an existing `business-case.md`. Parses to the
+ * model, applies the patch, and renders canonical markdown — so a differently-shaped
+ * input is normalised rather than corrupted, and unrecognised sections are preserved.
+ * A no-op patch returns the input unchanged.
  */
 export function setBusinessCaseValue(markdown: string, patch: BusinessCaseValuePatch): string {
-  let md = markdown;
-
-  if (patch.annualGross !== undefined) {
-    const value = patch.annualGross === null || !Number.isFinite(patch.annualGross) || patch.annualGross <= 0
-      ? "To be quantified — a verified baseline is required."
-      : eur(patch.annualGross);
-    md = editSection(md, /^value$/i, (b) => b.replace(/(\*\*Annual gross\.\*\*[ \t]*).*/i, `$1${value}`));
-  }
-  if (patch.buildEstimate !== undefined) {
-    const v = patch.buildEstimate.trim() || "To be estimated";
-    md = editSection(md, /^cost$/i, (b) => b.replace(/(\|[ \t]*Build estimate[ \t]*\|)([^|\n]*)(\|)/i, `$1 ${v} $3`));
-  }
-  if (patch.annualRunEstimate !== undefined) {
-    const v = patch.annualRunEstimate.trim() || "To be estimated";
-    md = editSection(md, /^cost$/i, (b) => b.replace(/(\|[ \t]*Annual run estimate[ \t]*\|)([^|\n]*)(\|)/i, `$1 ${v} $3`));
-  }
-  if (patch.baselineVerified !== undefined) {
-    const line = patch.baselineVerified
-      ? "**Verified.** Yes — baseline confirmed."
-      : "**Verified.** No — a verified baseline is required before G5.";
-    md = editSection(md, /^baseline$/i, (b) => b.replace(/\*\*Verified\.\*\*[ \t]*.*/i, line));
-  }
-  return md;
+  const model = parseBusinessCaseModel(markdown);
+  const next = applyValuePatch(model, patch);
+  return renderBusinessCaseModel(next);
 }
 
-/**
- * Toggle whether the assumption at `index` (0-based, in table order) has been tested.
- * Scoped to the `### Assumptions` table; the value simulation reads the Tested column,
- * so this is what moves an assumption out of the downside band once it's been proven.
- */
+/** Toggle whether the assumption at `index` (table order) has been tested. */
 export function setAssumptionTested(markdown: string, index: number, tested: boolean): string {
-  return editSection(markdown, /^assumptions$/i, (b) => setTableCell(b, index, 1, tested ? "Yes" : "No"));
+  const model = parseBusinessCaseModel(markdown);
+  const next = applyAssumptionTested(model, index, tested);
+  if (next === model) return markdown;
+  return renderBusinessCaseModel(next);
 }
-
-// ── change log (audit trail for every quantify/test action) ─────────────────────
 
 export interface BusinessCaseChange {
   actor: string;
@@ -327,15 +240,8 @@ export interface BusinessCaseChange {
   summary: string;
 }
 
-/**
- * Append a dated line to the `## Change log` section, creating it at the end of the
- * document the first time. Gives the case a durable audit trail — who changed the
- * value or tested an assumption, and when — without disturbing any other section.
- */
+/** Append a dated line to the `## Change log` section (created if absent). */
 export function logBusinessCaseChange(markdown: string, change: BusinessCaseChange): string {
-  const line = `- ${change.date} — ${change.summary.trim()} (${change.actor})`;
-  if (/^##\s+change log\s*$/im.test(markdown)) {
-    return editSection(markdown, /^change log$/i, (b) => `${b.replace(/[ \t\r\n]+$/, "")}\n${line}`);
-  }
-  return `${markdown.replace(/[ \t\r\n]+$/, "")}\n\n## Change log\n\n${line}\n`;
+  const model = parseBusinessCaseModel(markdown);
+  return renderBusinessCaseModel(appendChangeLog(model, change));
 }
