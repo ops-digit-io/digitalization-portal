@@ -1,0 +1,32 @@
+{
+  "sectionKey": "mapping",
+  "label": "Process Mapping & Artefacts",
+  "required": [
+    { "type": "field", "pattern": "(?i)process\\s*name", "weight": 3 },
+    { "type": "field", "pattern": "(?i)process\\s*owner", "weight": 3 },
+    { "type": "field", "pattern": "(?i)(trigger|what\\s*starts\\s*a\\s*run)", "weight": 4 },
+    { "type": "field", "pattern": "(?i)(end\\s*state|what\\s*ends\\s*a\\s*run)", "weight": 4 },
+    { "type": "field", "pattern": "(?i)map\\s*last\\s*edited", "weight": 4 },
+    { "type": "heading", "pattern": "(?i)(how\\s*the\\s*process\\s*is\\s*mapped|process\\s*map)", "weight": 7 },
+    { "type": "heading", "pattern": "(?i)step\\s*sequence", "weight": 9 },
+    { "type": "table", "minRows": 6, "weight": 11 },
+    { "type": "heading", "pattern": "(?i)(map\\s*versus\\s*observed|map\\s*vs|deviations?)", "weight": 8 },
+    { "type": "heading", "pattern": "(?i)tool\\s*coverage", "weight": 7 },
+    { "type": "field", "pattern": "(?i)tools?\\s*used.*not\\s*named", "weight": 4 },
+    { "type": "heading", "pattern": "(?i)(artefact\\s*inventory|artifact\\s*inventory)", "weight": 9 },
+    { "type": "heading", "pattern": "(?i)(alive\\s*versus\\s*static|alive\\s*vs)", "weight": 9 },
+    { "type": "heading", "pattern": "(?i)(variants?\\s*and\\s*exceptions?|variants?)", "weight": 4 },
+    { "type": "heading", "pattern": "(?i)(undocumented|shadow)", "weight": 5 },
+    { "type": "heading", "pattern": "(?i)open\\s*questions?", "weight": 3 },
+    { "type": "minWords", "count": 350, "weight": 3 },
+    { "type": "noPlaceholder", "weight": 3 }
+  ],
+  "excellence": [
+    { "type": "table", "minRows": 10, "weight": 10 },
+    { "type": "heading", "pattern": "(?i)(detail\\s*level|level\\s*of\\s*detail)", "weight": 8 },
+    { "type": "heading", "pattern": "(?i)evidence\\s*log", "weight": 6 },
+    { "type": "field", "pattern": "(?i)runs?\\s*observed\\s*live", "weight": 6 },
+    { "type": "field", "pattern": "(?i)share\\s*of\\s*runs\\s*that\\s*follow", "weight": 5 },
+    { "type": "minWords", "count": 700, "weight": 5 }
+  ]
+}

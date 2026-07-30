@@ -1,0 +1,28 @@
+{
+  "sectionKey": "kpi",
+  "label": "KPI Layer",
+  "required": [
+    { "type": "heading", "pattern": "(?i)kpi inventory", "weight": 8 },
+    { "type": "table", "minRows": 3, "weight": 10 },
+    { "type": "heading", "pattern": "(?i)cadence", "weight": 8 },
+    { "type": "field", "pattern": "(?i)cycle time", "weight": 6 },
+    { "type": "field", "pattern": "(?i)reporting cadence", "weight": 6 },
+    { "type": "heading", "pattern": "(?i)calibration", "weight": 10 },
+    { "type": "field", "pattern": "(?i)calibration verdict", "weight": 6 },
+    { "type": "heading", "pattern": "(?i)blind spot", "weight": 8 },
+    { "type": "heading", "pattern": "(?i)increment sensitivity", "weight": 8 },
+    { "type": "field", "pattern": "(?i)smallest movement", "weight": 6 },
+    { "type": "heading", "pattern": "(?i)baseline", "weight": 6 },
+    { "type": "heading", "pattern": "(?i)verdict", "weight": 6 },
+    { "type": "minWords", "count": 420, "weight": 6 },
+    { "type": "noPlaceholder", "weight": 6 }
+  ],
+  "excellence": [
+    { "type": "table", "minRows": 4, "weight": 8 },
+    { "type": "field", "pattern": "(?i)kpi layer level", "weight": 6 },
+    { "type": "heading", "pattern": "(?i)recommended action", "weight": 6 },
+    { "type": "field", "pattern": "(?i)baseline frozen on", "weight": 6 },
+    { "type": "heading", "pattern": "(?i)open questions", "weight": 6 },
+    { "type": "minWords", "count": 700, "weight": 8 }
+  ]
+}

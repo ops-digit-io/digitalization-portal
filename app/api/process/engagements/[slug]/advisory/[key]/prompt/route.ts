@@ -1,0 +1,17 @@
+import { NextResponse } from "next/server";
+import { byKey } from "@/lib/process/advisory";
+import * as store from "@/lib/process/store";
+import * as advisor from "@/lib/process/advisor";
+import { deny } from "@/lib/process/guard";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function GET(_req: Request, { params }: { params: { slug: string; key: string } }) {
+  const d = await deny();
+  if (d) return d;
+  const { slug, key } = params;
+  if (!byKey[key]) return NextResponse.json({ error: "no such advisory item" }, { status: 404 });
+  if (!store.exists(slug)) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
+  return NextResponse.json({ prompt: advisor.build(slug, key) });
+}

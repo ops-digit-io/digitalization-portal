@@ -53,6 +53,14 @@ const I = {
 // Tiles are pure entry points — no metrics rendered on them.
 export const LAUNCHPAD: TileGroup[] = [
   {
+    // The process funnel sits BEFORE the demand funnel: diagnose a process, cut the
+    // smallest shippable increment, and let the evidenced result become a demand.
+    category: "Diagnose (pre-funnel)",
+    tiles: [
+      { id: "process", title: "Process Funnel", subtitle: "Diagnose a process before it becomes demand", href: "/process", icon: I.gauge, tone: "violet" },
+    ],
+  },
+  {
     category: "Demand & intake",
     tiles: [
       { id: "intake", title: "Intake", subtitle: "Capture a demand — chat, form or markdown", href: "/intake", icon: I.spark, tone: "info" },
