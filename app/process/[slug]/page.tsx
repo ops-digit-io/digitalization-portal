@@ -21,7 +21,8 @@ interface DimensionResult {
   id: string;
   label: string;
   weight: number;
-  score: number | null;
+  /** 1..5; nicht erhobene Kriterien zählen als S1 (§1.3), daher nie null. */
+  score: number;
   rated: number;
   total: number;
   covered: boolean;
@@ -31,7 +32,8 @@ interface KnockOutResult {
   id: string;
   label: string;
   koClass: "intake" | "optimisation";
-  level: number | null;
+  level: number;
+  rated: boolean;
   state: KoState;
 }
 interface Profile {
@@ -39,7 +41,7 @@ interface Profile {
   knockOuts: KnockOutResult[];
   status: Status;
   reason: string;
-  portfolioValue: number | null;
+  portfolioValue: number; // Σ(Gewicht × Dimension), immer definiert (§6.1)
   coverage: number;
   ratedCount: number;
   totalCount: number;
@@ -355,7 +357,7 @@ function ProfilTab({ slug, profile }: { slug: string; profile: Profile }) {
                   <span className="text-muted-foreground">{k.label}</span>
                 </div>
                 <div className="mt-0.5 text-xs text-muted-foreground">
-                  {k.level ? `S${k.level}` : "—"} · {stateLabel} · {k.koClass === "intake" ? "Aufnahme-K.o." : "Optimierungs-K.o."}
+                  S{k.level}{k.rated ? "" : " (nicht erhoben → S1, §1.3)"} · {stateLabel} · {k.koClass === "intake" ? "Aufnahme-K.o." : "Optimierungs-K.o."}
                 </div>
               </div>
             );
@@ -379,16 +381,14 @@ function ProfilTab({ slug, profile }: { slug: string; profile: Profile }) {
               </div>
               <div className="flex-1">
                 <div className="h-2.5 w-full overflow-hidden rounded-full bg-secondary">
-                  {d.score !== null && (
-                    <div className={`h-full ${barColor(d.score)}`} style={{ width: `${(d.score / 5) * 100}%` }} />
-                  )}
+                  <div className={`h-full ${barColor(d.score)}`} style={{ width: `${(d.score / 5) * 100}%` }} />
                 </div>
                 {d.worstComponent && (
                   <div className="mt-0.5 text-xs text-muted-foreground">schwächste Komponente: {d.worstComponent}</div>
                 )}
               </div>
               <div className="w-28 shrink-0 text-right text-xs">
-                <div className="font-medium text-foreground">{d.score !== null ? d.score.toFixed(1) : "nicht bewertet"}</div>
+                <div className="font-medium text-foreground">{d.score.toFixed(1)}</div>
                 <div className="text-muted-foreground">{d.rated}/{d.total} bewertet</div>
               </div>
             </Link>
@@ -757,7 +757,7 @@ function CatalogScoring({ slug, dimensions }: { slug: string; dimensions: Dimens
           <div key={d.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
             <span className="min-w-0 truncate font-medium">{d.id} · {d.label}</span>
             <div className="flex shrink-0 items-center gap-3">
-              <span className="text-muted-foreground">{d.score !== null ? d.score.toFixed(1) : "nicht bewertet"}</span>
+              <span className="text-muted-foreground">{d.score.toFixed(1)}</span>
               <Link href={`/process/${slug}/assess/${d.id}`} className="text-xs font-medium text-primary hover:underline">
                 bewerten
               </Link>

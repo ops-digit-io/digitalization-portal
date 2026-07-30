@@ -52,7 +52,7 @@ interface DimData {
 }
 interface ProfileDim {
   id: string;
-  score: number | null;
+  score: number; // nicht erhoben = S1 (§1.3), daher nie null
   rated: number;
   total: number;
 }
@@ -141,7 +141,7 @@ export default function AssessDimension() {
         <div className="text-right text-sm">
           <div className="text-xs text-muted-foreground">Dimensionswert</div>
           <div className="font-semibold">
-            {profileDim && profileDim.score !== null ? profileDim.score.toFixed(1) : "—"}
+            {profileDim ? profileDim.score.toFixed(1) : "—"}
             {profileDim ? <span className="ml-1 text-xs font-normal text-muted-foreground">({profileDim.rated}/{profileDim.total})</span> : null}
           </div>
         </div>

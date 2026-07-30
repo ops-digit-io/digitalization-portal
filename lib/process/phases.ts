@@ -21,12 +21,12 @@ export interface Phase {
 export const PHASES: Phase[] = [
   {
     id: "P0", n: 0, label: "Intake & Priorisierung",
-    purpose: "Aus allen Kandidaten (Pull und Push) die Prozesse wählen, bei denen Value, Spoke-Reife und Compounding das Engagement rechtfertigen — alle anderen sauber zurückstellen.",
+    purpose: "Aus allen Kandidaten (Pull und Push) die Prozesse wählen, bei denen Value, Spoke-Reife und Compounding-Potenzial das Engagement rechtfertigen — und alle anderen sauber zurückstellen.",
     gate: { id: "T0", label: "Aufnahme-Tor", condition: "Spoke-Minimum besetzt: benannter Verantwortlicher mit Änderungsbefugnis + Champion mit Kapazität + Bereitschaft zur Messung.", fail: "Zurückstellen — kein Engagement ohne Spoke, auch nicht bei hohem Value." },
   },
   {
     id: "P1", n: 1, label: "Recon (Aufklärung)",
-    purpose: "Den Prozess verstehen, wie er heute wirklich läuft — Struktur, Toolkette, Friktion, Organisation — und daraus das Zielstatement destillieren.",
+    purpose: "Den Prozess so verstehen, wie er heute wirklich läuft — Struktur, Toolkette, Friktion, Organisation — und daraus das Zielstatement destillieren.",
     gate: { id: "T1", label: "Recon-Tor", condition: "Zielstatement gezeichnet + VSM-Skizze möglich + Katalog-Scoring vollständig.", fail: "Lücken nacharbeiten. Kein formulierbares Ziel → Kill-Kandidat, Eskalation an den Verantwortlichen." },
   },
   {

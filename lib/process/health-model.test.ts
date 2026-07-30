@@ -27,10 +27,13 @@ describe("health model", () => {
     expect(CRITERIA.length).toBe(29);
   });
 
-  it("an empty assessment is grau", () => {
+  it("an empty assessment is grau (nothing rated), all dimensions default to S1", () => {
     const p = healthProfile({ ratings: {} });
     expect(p.status).toBe("grau");
-    expect(p.portfolioValue).toBeNull();
+    expect(p.ratedCount).toBe(0);
+    expect(p.dimensions.every((d) => d.score === 1)).toBe(true);
+    // Σ(Gewicht × 1) = 100 (Reihungswert; grau meint "noch nicht erhoben", nicht "kein Wert").
+    expect(p.portfolioValue).toBe(100);
   });
 
   it("fully rated at S4 with all knock-outs cleared is grün", () => {
@@ -68,13 +71,21 @@ describe("health model", () => {
     expect(p.knockOuts.every((k) => k.state !== "fail")).toBe(true);
   });
 
-  it("a perfect file with an unrated knock-out is not grün (coverage < 1)", () => {
+  it("an unrated knock-out counts as S1 (§1.3) → rot, and is flagged as not rated", () => {
     const input = allAt(4);
-    delete input.ratings["K2.2"]; // leave a knock-out open
+    delete input.ratings["K2.2"]; // not assessed → per convention S1
     const p = healthProfile(input);
     expect(p.coverage).toBeLessThan(1);
-    expect(p.status).toBe("gelb");
-    expect(p.knockOuts.find((k) => k.id === "K2.2")?.state).toBe("open");
+    expect(p.status).toBe("rot");
+    const k = p.knockOuts.find((x) => x.id === "K2.2");
+    expect(k?.level).toBe(1);
+    expect(k?.rated).toBe(false);
+    expect(k?.state).toBe("fail");
+  });
+
+  it("portfolio value is the literal Σ(weight × dimension) (§6.1)", () => {
+    // Alle Dimensionen auf 4,0 → Σ(Gewicht × 4) = 4 × 100 = 400.
+    expect(healthProfile(allAt(4)).portfolioValue).toBe(400);
   });
 
   it("D7 takes the worst Kernkomponente", () => {
