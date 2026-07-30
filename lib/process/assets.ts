@@ -1,11 +1,14 @@
 /**
- * Reads the process-funnel config assets — templates, schemas, coaching prompts,
- * the tool playbook — that were ported VERBATIM from PDT into `process-funnel/`.
+ * Reads the process-funnel bundled config assets — the section TEMPLATES (output
+ * shapes) and SCHEMAS (weighted grading rubrics), ported verbatim from PDT into
+ * `process-funnel/`. These are grading/output config, not playbooks, so they stay
+ * bundled and read synchronously.
  *
- * Server-only (uses `fs`). The assets live under the repo root so they are read
- * the same way in dev, in `next start`, and in the standalone server. Route
- * handlers that read them are listed in `next.config.mjs` outputFileTracingIncludes
- * so Vercel's function bundler ships them too.
+ * The COACHING PROMPTS and the TOOL PLAYBOOK no longer live here — they moved into
+ * the portal's skill & playbook registry; see `lib/process/prompts.ts`.
+ *
+ * Server-only (uses `fs`). Route handlers that read them are listed in
+ * `next.config.mjs` outputFileTracingIncludes so Vercel's bundler ships them too.
  */
 
 import fs from "node:fs";
@@ -16,44 +19,18 @@ const ROOT = path.join(process.cwd(), "process-funnel");
 
 export const TEMPLATE_DIR = path.join(ROOT, "templates");
 export const SCHEMA_DIR = path.join(ROOT, "schemas");
-export const PROMPT_DIR = path.join(ROOT, "coaching-prompts");
-export const PLAYBOOK = path.join(ROOT, "tool-playbook.md");
 
 export function readIf(p: string): string {
   return fs.existsSync(p) ? fs.readFileSync(p, "utf8") : "";
 }
 
-/** The target template markdown for a section (or advisory item under advisory/). */
+/** The target template markdown for a section. */
 export function template(key: string): string {
   return readIf(path.join(TEMPLATE_DIR, `${key}.md`));
 }
 
 export function advisoryTemplate(key: string): string {
   return readIf(path.join(TEMPLATE_DIR, "advisory", `${key}.md`));
-}
-
-export function sectionPrompt(key: string): string {
-  return readIf(path.join(PROMPT_DIR, "sections", `${key}.md`));
-}
-
-export function advisoryPrompt(key: string): string {
-  return readIf(path.join(PROMPT_DIR, "advisory", `${key}.md`));
-}
-
-/** The always-injected shared guidance, wrapped for the prompt. */
-export function shared(): string {
-  const dir = path.join(PROMPT_DIR, "shared");
-  if (!fs.existsSync(dir)) return "";
-  return fs
-    .readdirSync(dir)
-    .filter((f) => f.endsWith(".md"))
-    .sort()
-    .map((f) => `<shared-guidance file="${f}">\n${readIf(path.join(dir, f))}\n</shared-guidance>`)
-    .join("\n\n");
-}
-
-export function playbook(): string {
-  return readIf(PLAYBOOK);
 }
 
 /** One section schema, parsed. Returns null when the file is missing/broken. */

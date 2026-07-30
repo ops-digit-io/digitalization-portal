@@ -1,3 +1,10 @@
+---
+name: process-section-kpi
+description: KPI layer — indicators, cadence, alignment
+skills: []
+checkpoints: []
+---
+
 # Coaching prompt — KPI Layer
 
 Section key: `kpi` · Order 6 · Group: Measurement · Not a gate · Unlocks after: `purpose`

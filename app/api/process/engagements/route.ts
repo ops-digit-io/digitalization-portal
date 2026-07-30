@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const d = await deny();
   if (d) return d;
-  return NextResponse.json({ engagements: store.list() });
+  return NextResponse.json({ engagements: await store.list() });
 }
 
 export async function POST(req: Request) {
@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as { title?: string; owner?: string; unit?: string; note?: string };
   if (!String(body.title || "").trim()) return NextResponse.json({ error: "title required" }, { status: 400 });
   try {
-    return NextResponse.json(store.create(body as { title: string }, now()), { status: 201 });
+    return NextResponse.json(await store.create(body as { title: string }, now()), { status: 201 });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 409 });
   }

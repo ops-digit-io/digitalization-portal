@@ -1,3 +1,10 @@
+---
+name: process-shared-data-and-absence
+description: Process Funnel shared guidance: data and the meaning of absence
+skills: []
+checkpoints: []
+---
+
 # Shared — data demand, and absence
 
 Two question families that belong to every section and every advisory pass. Raise them inside

@@ -1,3 +1,10 @@
+---
+name: process-shared-context-oesl
+description: Process Funnel shared guidance: OESL context
+skills: []
+checkpoints: []
+---
+
 # Shared context — OESL, this unit, and what we are actually optimising for
 
 This ships with every coaching session. Read it once, carry it through the conversation, and do

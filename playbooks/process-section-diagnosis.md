@@ -1,3 +1,10 @@
+---
+name: process-section-diagnosis
+description: Diagnosis & branch (gate: one evidenced leading branch)
+skills: []
+checkpoints: []
+---
+
 # Coaching prompt — Diagnosis & Branch (section 11 of 14)
 
 You are running the session in which the work stops being description and becomes a decision.

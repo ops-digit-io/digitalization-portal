@@ -1,16 +1,20 @@
 /**
  * Advisory artefacts: storage, prompt assembly, and the accept/reject ledger.
- * Ported verbatim from PDT's `advisor.js`. An advisory pass gets the WHOLE
+ * Same construction as PDT's `advisor.js`. An advisory pass gets the WHOLE
  * anamnesis, not just what came before it — a problem cluster you can see inside
  * one section is not a cluster.
+ *
+ * Now async: artefacts and the decision ledger are stored via the git-backed
+ * store, and the advisory prompts + tool playbook load from the playbook registry.
  */
 
-import fs from "node:fs";
-import path from "node:path";
 import { ordered as sectionsOrdered } from "./sections";
 import { byKey as advByKey } from "./advisory";
 import * as store from "./store";
-import { readIf, shared, advisoryPrompt, advisoryTemplate, playbook } from "./assets";
+import { advisoryTemplate } from "./assets";
+import { shared, advisoryPrompt, playbook } from "./prompts";
+
+const DECISIONS = "decisions.json";
 
 export interface Decision {
   advisoryKey: string;
@@ -22,41 +26,27 @@ export interface Decision {
   supersedes: string | null;
 }
 
-function advPath(slug: string, key: string): string {
+export async function read(slug: string, key: string): Promise<string> {
   const a = advByKey[key];
   if (!a) throw new Error(`unknown advisory item ${key}`);
-  return path.join(path.dirname(store.artefactPath(slug, "profile")), a.file);
+  return (await store.readFileRaw(slug, a.file)) ?? "";
 }
 
-export function read(slug: string, key: string): string {
-  const p = advPath(slug, key);
-  return fs.existsSync(p) ? fs.readFileSync(p, "utf8") : "";
-}
-
-export function write(slug: string, key: string, content: string, now: string): { changed: boolean } {
-  const p = advPath(slug, key);
-  if (fs.existsSync(p)) {
-    const prev = fs.readFileSync(p, "utf8");
-    if (prev === content) return { changed: false };
-    const dir = path.join(path.dirname(p), "history");
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, `${key}.${String(now).replace(/[:.]/g, "-")}.md`), prev);
-  }
-  fs.writeFileSync(p, content);
-  store.writeMeta(slug, {}, now);
+export async function write(slug: string, key: string, content: string, now: string): Promise<{ changed: boolean }> {
+  const a = advByKey[key];
+  if (!a) throw new Error(`unknown advisory item ${key}`);
+  const prev = await store.readFileRaw(slug, a.file);
+  if (prev === content) return { changed: false };
+  await store.writeFileRaw(slug, a.file, content, now, `Update advisory ${key} on ${store.slugify(slug)}`);
   return { changed: true };
 }
 
 // ------------------------------------------------------------ decisions
-function decisionsPath(slug: string): string {
-  return path.join(path.dirname(store.artefactPath(slug, "profile")), "decisions.json");
-}
-
-export function decisions(slug: string): Decision[] {
-  const p = decisionsPath(slug);
-  if (!fs.existsSync(p)) return [];
+export async function decisions(slug: string): Promise<Decision[]> {
+  const raw = await store.readFileRaw(slug, DECISIONS);
+  if (raw === undefined) return [];
   try {
-    return JSON.parse(fs.readFileSync(p, "utf8")) as Decision[];
+    return JSON.parse(raw) as Decision[];
   } catch {
     return [];
   }
@@ -64,12 +54,12 @@ export function decisions(slug: string): Decision[] {
 
 /** Records a verdict on one proposal. A rejection without a reason is refused at
  *  the route — a proposal that quietly disappears teaches nobody anything. */
-export function decide(
+export async function decide(
   slug: string,
   input: { advisoryKey: string; proposalId: string; title?: string; verdict: Decision["verdict"]; reason?: string },
   now: string,
-): Decision {
-  const all = decisions(slug);
+): Promise<Decision> {
+  const all = await decisions(slug);
   const i = all.findIndex((d) => d.advisoryKey === input.advisoryKey && d.proposalId === input.proposalId);
   const entry: Decision = {
     advisoryKey: input.advisoryKey,
@@ -82,33 +72,39 @@ export function decide(
   };
   if (i >= 0) all[i] = entry;
   else all.push(entry);
-  fs.writeFileSync(decisionsPath(slug), JSON.stringify(all, null, 2));
-  store.writeMeta(slug, {}, now);
+  await store.writeFileRaw(slug, DECISIONS, JSON.stringify(all, null, 2), now, `Record advisory verdict on ${store.slugify(slug)}`);
   return entry;
 }
 
 // --------------------------------------------------------------- prompts
 /** The complete anamnesis, for advisory passes that must see everything at once. */
-export function fullAnamnesis(slug: string): string {
+export async function fullAnamnesis(slug: string): Promise<string> {
   const parts: string[] = [];
   for (const s of sectionsOrdered()) {
-    const c = store.read(slug, s.key).trim();
+    const c = (await store.read(slug, s.key)).trim();
     if (!c) continue;
     parts.push(`<section key="${s.key}" label="${s.label}">\n${c}\n</section>`);
   }
   return parts.join("\n\n");
 }
 
-export function build(slug: string, key: string): string {
+export async function build(slug: string, key: string): Promise<string> {
   const a = advByKey[key];
   if (!a) throw new Error(`unknown advisory item ${key}`);
-  const m = store.meta(slug);
-  const filled = sectionsOrdered()
-    .filter((s) => store.read(slug, s.key).trim())
-    .map((s) => s.key);
+  const m = (await store.meta(slug))!;
+
+  const filledFlags = await Promise.all(sectionsOrdered().map(async (s) => ((await store.read(slug, s.key)).trim() ? s.key : null)));
+  const filled = filledFlags.filter((k): k is string => k !== null);
   const missing = a.needs.filter((k) => !filled.includes(k));
-  const existing = read(slug, key);
-  const prior = decisions(slug).filter((d) => d.advisoryKey === key);
+
+  const [existing, prior, sharedText, guidance, anamnesis, book] = await Promise.all([
+    read(slug, key),
+    decisions(slug).then((all) => all.filter((d) => d.advisoryKey === key)),
+    shared(),
+    advisoryPrompt(key),
+    fullAnamnesis(slug),
+    key === "target-tech" || key === "improvements" ? playbook() : Promise.resolve(""),
+  ]);
 
   return [
     `You are running the advisory pass "${a.label}" on a process diagnosis for OESL Automotive.
@@ -137,16 +133,16 @@ reality — a named person put their name to it. Your output is derived, and it 
 sometimes be wrong. Mark every proposal as a proposal, give each one a stable id so
 a verdict can be attached to it, and never restate a proposal as if the process
 owner had said it.`,
-    shared(),
+    sharedText,
     missing.length
       ? `<caution>\nThese sections this pass depends on are still empty: ${missing.join(", ")}.\nSay so in your output and keep the affected proposals explicitly provisional.\n</caution>`
       : "",
-    `<guidance>\n${advisoryPrompt(key) || "(no advisory prompt on disk yet)"}\n</guidance>`,
+    `<guidance>\n${guidance || "(no advisory prompt in the registry yet)"}\n</guidance>`,
     `<target-template>\n${advisoryTemplate(key) || "(no template on disk yet)"}\n</target-template>`,
-    key === "target-tech" || key === "improvements"
-      ? `<tool-playbook>\nThis is the organisation's tool playbook. Propose from it by preference. If you\npropose something outside it, say why the playbook does not cover the case.\n\n${playbook() || "(no playbook on disk yet)"}\n</tool-playbook>`
+    book
+      ? `<tool-playbook>\nThis is the organisation's tool playbook. Propose from it by preference. If you\npropose something outside it, say why the playbook does not cover the case.\n\n${book}\n</tool-playbook>`
       : "",
-    `<anamnesis>\n${fullAnamnesis(slug) || "(nothing filled in yet)"}\n</anamnesis>`,
+    `<anamnesis>\n${anamnesis || "(nothing filled in yet)"}\n</anamnesis>`,
     prior.length
       ? `<prior-verdicts>\nProposals already decided on. Do not re-propose a rejected one unless something\nin the anamnesis has changed; if you do, say what changed.\n\n${prior
           .map((d) => `- [${d.verdict}] ${d.proposalId}: ${d.title} — ${d.reason}`)
@@ -161,6 +157,3 @@ template exactly, so it can be saved verbatim.`,
     .filter(Boolean)
     .join("\n\n");
 }
-
-// `readIf` re-exported so route handlers that render the playbook can reuse it.
-export { readIf };

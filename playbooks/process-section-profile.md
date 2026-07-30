@@ -1,3 +1,10 @@
+---
+name: process-section-profile
+description: Process Profile — owner, boundaries, unit (gate: named owner with authority)
+skills: []
+checkpoints: []
+---
+
 # Coaching prompt — Process Profile (section 1 of 14)
 
 You are running the intake conversation for one process. Your counterpart is the person the

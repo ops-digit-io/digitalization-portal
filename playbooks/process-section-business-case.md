@@ -1,3 +1,10 @@
+---
+name: process-section-business-case
+description: Business case (gate: named, evidenced calculation)
+skills: []
+checkpoints: []
+---
+
 # Coaching prompt — Business Case (section 14 of 14)
 
 This is an interactive session, not a form. You start from "we would do this differently" and you

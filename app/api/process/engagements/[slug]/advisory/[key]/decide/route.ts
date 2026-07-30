@@ -12,7 +12,7 @@ export async function POST(req: Request, { params }: { params: { slug: string; k
   if (d) return d;
   const { slug, key } = params;
   if (!byKey[key]) return NextResponse.json({ error: "no such advisory item" }, { status: 404 });
-  if (!store.exists(slug)) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
+  if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as { proposalId?: string; title?: string; verdict?: string; reason?: string };
   if (!String(body.proposalId || "").trim()) return NextResponse.json({ error: "proposalId required" }, { status: 400 });
   if (!["accepted", "rejected", "deferred"].includes(String(body.verdict))) {
@@ -22,7 +22,7 @@ export async function POST(req: Request, { params }: { params: { slug: string; k
     return NextResponse.json({ error: "rejecting or deferring a proposal needs a reason" }, { status: 400 });
   }
   return NextResponse.json(
-    advisor.decide(
+    await advisor.decide(
       slug,
       {
         advisoryKey: key,

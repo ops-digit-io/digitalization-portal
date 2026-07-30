@@ -1,3 +1,10 @@
+---
+name: process-advisory-target-tech
+description: Advisory: today → transition → target technology map
+skills: []
+checkpoints: []
+---
+
 # Advisory prompt — Target Technology Map (advisory pass A4 of 4)
 
 Advisory key: `target-tech` · Order 4 · Reads: `toolchain`, `literacy`, `cost-of-change` — and the whole anamnesis besides

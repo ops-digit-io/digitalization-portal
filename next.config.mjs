@@ -10,9 +10,10 @@ const nextConfig = {
       "/api/registry/sync": ["./skills/**/*", "./playbooks/**/*"],
       "/api/intake/turn": ["./skills/**/*", "./playbooks/**/*"],
       "/api/intake/enhance": ["./playbooks/**/*"],
-      // The Process Funnel routes read their ported templates/schemas/prompts and
-      // the tool playbook from ./process-funnel at runtime — ship them too.
-      "/api/process/**": ["./process-funnel/**/*"],
+      // The Process Funnel routes read their bundled templates/schemas from
+      // ./process-funnel and their coaching prompts + tool playbook from the
+      // ./playbooks registry (bundled fallback) at runtime — ship both.
+      "/api/process/**": ["./process-funnel/**/*", "./playbooks/**/*"],
     },
   },
   webpack: (config) => {

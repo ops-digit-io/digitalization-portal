@@ -1,3 +1,10 @@
+---
+name: process-advisory-improvements
+description: Advisory: improvement ideas with trade-offs
+skills: []
+checkpoints: []
+---
+
 # Advisory prompt — Improvement Ideas (advisory pass A3 of 4)
 
 Advisory key: `improvements` · Order 3 · Reads: `flow`, `kpi`, `diagnostics` — and the whole anamnesis besides

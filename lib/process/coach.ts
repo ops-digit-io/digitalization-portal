@@ -1,22 +1,26 @@
 /**
- * Assembles the prompt that drives a coaching session. Ported verbatim from PDT's
- * `coach.js`: two always-injected shared files, the section-specific prompt, the
- * target template, and the live state of prior sections carried forward so the
- * coach never asks the same question twice.
+ * Assembles the prompt that drives a coaching session. Same construction as PDT:
+ * two always-injected shared files, the section-specific prompt, the target
+ * template, and the live state of prior sections carried forward so the coach
+ * never asks the same question twice.
+ *
+ * Now async: the store reads over git and the coaching prompts load from the
+ * playbook registry.
  */
 
 import { byKey, ordered } from "./sections";
 import * as store from "./store";
-import { shared, sectionPrompt, template } from "./assets";
+import { template } from "./assets";
+import { shared, sectionPrompt } from "./prompts";
 
 /** Short digest of what the earlier sections already established. */
-export function priorContext(slug: string, key: string): string {
+export async function priorContext(slug: string, key: string): Promise<string> {
   const target = byKey[key];
   if (!target) return "";
   const parts: string[] = [];
   for (const s of ordered()) {
     if (s.order >= target.order) break;
-    const c = store.read(slug, s.key).trim();
+    const c = (await store.read(slug, s.key)).trim();
     if (!c) continue;
     const head = c.length > 2500 ? `${c.slice(0, 2500)}\n\n[…truncated, ${c.length} chars total]` : c;
     parts.push(`<prior section="${s.key}" label="${s.label}">\n${head}\n</prior>`);
@@ -28,11 +32,16 @@ export function priorContext(slug: string, key: string): string {
  * The full prompt for one coaching session. `mode` is 'live' (an AI coach runs the
  * conversation) or 'export' (a human pastes this into their own assistant).
  */
-export function build(slug: string, key: string, mode: "live" | "export" = "live"): string {
+export async function build(slug: string, key: string, mode: "live" | "export" = "live"): Promise<string> {
   const s = byKey[key];
   if (!s) throw new Error(`unknown section ${key}`);
-  const m = store.meta(slug);
-  const current = store.read(slug, key);
+  const m = (await store.meta(slug))!;
+  const [current, sharedText, sectionText, prior] = await Promise.all([
+    store.read(slug, key),
+    shared(),
+    sectionPrompt(key),
+    priorContext(slug, key),
+  ]);
 
   const head = `You are running section ${s.order} of 14 — "${s.label}" — of a process
 diagnosis for OESL Automotive.
@@ -76,10 +85,10 @@ complete artefact in a single fenced markdown block so it can be saved verbatim.
 
   return [
     head,
-    shared(),
-    `<section-guidance>\n${sectionPrompt(key) || "(no section prompt on disk yet)"}\n</section-guidance>`,
+    sharedText,
+    `<section-guidance>\n${sectionText || "(no section prompt in the registry yet)"}\n</section-guidance>`,
     `<target-template>\n${template(key) || "(no template on disk yet)"}\n</target-template>`,
-    priorContext(slug, key),
+    prior,
     current.trim()
       ? `<current-draft>\nThis section already has content. Improve it rather than starting over; \npreserve anything that is already evidenced.\n\n${current}\n</current-draft>`
       : "",

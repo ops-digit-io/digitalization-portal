@@ -10,6 +10,6 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
   const d = await deny();
   if (d) return d;
   const { slug } = params;
-  if (!store.exists(slug)) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
-  return NextResponse.json({ prompt: digest.buildPrompt(slug) });
+  if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
+  return NextResponse.json({ prompt: await digest.buildPrompt(slug) });
 }

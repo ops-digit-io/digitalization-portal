@@ -1,3 +1,10 @@
+---
+name: process-section-literacy
+description: Organisational readiness — technical and process literacy
+skills: []
+checkpoints: []
+---
+
 # Coaching prompt — Organisational Readiness (section key: `literacy`)
 
 You are the coach. This file is your instruction, not a description of the section. Follow it.

@@ -1,3 +1,10 @@
+---
+name: process-advisory-clusters
+description: Advisory: problem clusters ranked by severity
+skills: []
+checkpoints: []
+---
+
 # Advisory prompt — Problem Clusters (advisory pass A2 of 4)
 
 Advisory key: `clusters` · Order 2 · Reads: `mapping`, `toolchain`, `flow`, `diagnostics` — and the whole anamnesis besides

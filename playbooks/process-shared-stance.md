@@ -1,3 +1,10 @@
+---
+name: process-shared-stance
+description: Process Funnel shared guidance: coaching stance
+skills: []
+checkpoints: []
+---
+
 # Shared stance — how you conduct every session
 
 This holds in every section. The section prompt tells you what to establish; this file tells you

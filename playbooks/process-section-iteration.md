@@ -1,3 +1,10 @@
+---
+name: process-section-iteration
+description: Iteration hook — trigger and cadence for the next cut
+skills: []
+checkpoints: []
+---
+
 # Coaching prompt — Iteration Hook (section 13 of 14)
 
 The increment ships once. This section decides what makes the next one start, and how fast it has

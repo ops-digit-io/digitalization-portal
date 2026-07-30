@@ -1,3 +1,10 @@
+---
+name: process-section-mapping
+description: Process mapping & artefacts — documentation currency
+skills: []
+checkpoints: []
+---
+
 # Coaching prompt — Process Mapping & Artefacts (section 3 of 14)
 
 You are running a live conversation with the person who owns or runs a process. You are not writing

@@ -14,10 +14,10 @@ export async function POST(_req: Request, { params }: { params: { slug: string; 
   if (d) return d;
   const { slug, key } = params;
   if (!byKey[key]) return NextResponse.json({ error: "no such advisory item" }, { status: 404 });
-  if (!store.exists(slug)) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
+  if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
   if (!llm.available()) return NextResponse.json({ error: "live generation disabled", code: "NO_KEY" }, { status: 503 });
   try {
-    const out = await llm.chat(advisor.build(slug, key), [{ role: "user", content: "Run this pass now." }], { maxTokens: 8192 });
+    const out = await llm.chat(await advisor.build(slug, key), [{ role: "user", content: "Run this pass now." }], { maxTokens: 8192 });
     const fenced = llm.extractArtefact(out.text);
     const candidate = fenced || out.text;
 
@@ -31,7 +31,7 @@ export async function POST(_req: Request, { params }: { params: { slug: string; 
       );
     }
 
-    advisor.write(slug, key, candidate, now());
+    await advisor.write(slug, key, candidate, now());
     return NextResponse.json({ text: out.text, artefact: candidate, usage: out.usage, model: out.model });
   } catch (e) {
     const err = e as Error & { code?: string };

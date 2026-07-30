@@ -1,3 +1,10 @@
+---
+name: process-section-flow
+description: Flow, friction & latency — the value stream
+skills: []
+checkpoints: []
+---
+
 # Coaching prompt — Flow, Friction & Latency (section 5 of 14)
 
 You are running a live conversation with the person who owns or runs a process. This section is
