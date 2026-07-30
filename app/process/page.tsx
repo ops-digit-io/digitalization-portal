@@ -11,6 +11,7 @@ const INPUT = "mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outl
 const LABEL = "block text-xs font-medium text-muted-foreground";
 
 type Anflug = "process" | "technology";
+type Level = 1 | 2 | 3 | 4 | 5;
 
 interface Config {
   liveCoaching: boolean;
@@ -27,9 +28,32 @@ interface EngagementRow {
   updatedAt: string;
 }
 
+interface Criterion {
+  id: string;
+  label: string;
+  question: string;
+  knockout?: string;
+  scale: [string, string, string, string, string];
+}
+
+interface Triage {
+  recommendation: "aufnehmen" | "enabler" | "zurueckstellen" | "selbsthilfe";
+  headline: string;
+  reason: string;
+  warnings: string[];
+  rated: number;
+  total: number;
+}
+
 const ANFLUG_LABEL: Record<Anflug, string> = { process: "Prozess-Pull", technology: "Technologie-Push" };
 
-/** Slugify a title for the live preview — mirrors the store's slugify (doc). */
+const REC_CLASS: Record<Triage["recommendation"], string> = {
+  aufnehmen: "bg-[hsl(var(--ok))] text-white",
+  enabler: "bg-amber-500 text-white",
+  selbsthilfe: "bg-secondary text-secondary-foreground",
+  zurueckstellen: "bg-[hsl(var(--destructive))] text-white",
+};
+
 function slugify(s: string): string {
   return String(s)
     .toLowerCase()
@@ -62,6 +86,12 @@ export default function ProcessFunnel() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Kurzform self-assessment pre-filter (§7.3)
+  const [preOpen, setPreOpen] = useState(false);
+  const [selfCriteria, setSelfCriteria] = useState<Criterion[]>([]);
+  const [levels, setLevels] = useState<Record<string, Level>>({});
+  const [triage, setTriage] = useState<Triage | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     Promise.all([apiGet<Config>("/config"), apiGet<{ engagements: EngagementRow[] }>("/engagements")])
@@ -78,7 +108,21 @@ export default function ProcessFunnel() {
     };
   }, []);
 
+  // Load the seven criteria the first time the pre-filter is opened.
+  useEffect(() => {
+    if (!preOpen || selfCriteria.length) return;
+    apiGet<{ criteria: Criterion[] }>("/self-assessment").then((d) => setSelfCriteria(d.criteria)).catch(() => {});
+  }, [preOpen, selfCriteria.length]);
+
   const slug = useMemo(() => slugify(title), [title]);
+
+  function setLevel(critId: string, level: Level) {
+    const next = { ...levels, [critId]: level };
+    setLevels(next);
+    apiSend<{ triage: Triage }>("POST", "/self-assessment", { levels: next })
+      .then((d) => setTriage(d.triage))
+      .catch(() => {});
+  }
 
   async function submit() {
     if (!title.trim() || submitting) return;
@@ -93,6 +137,7 @@ export default function ProcessFunnel() {
         unit: unit.trim() || undefined,
         anflug,
         components,
+        ...(Object.keys(levels).length ? { seedRatings: levels } : {}),
       });
       router.push(`/process/${created.slug}`);
     } catch (err) {
@@ -114,7 +159,7 @@ export default function ProcessFunnel() {
         <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">pre-funnel</span>
         {config && config.liveCoaching === false && (
           <span className="rounded-full border px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-            offline · coaching by prompt export
+            offline · Analyse regelbasiert
           </span>
         )}
       </div>
@@ -160,8 +205,64 @@ export default function ProcessFunnel() {
           )}
         </section>
 
-        {/* Right: create */}
-        <section>
+        {/* Right: pre-filter + create */}
+        <section className="space-y-4">
+          {/* Kurzform-Selbstbewertung als Vorfilter */}
+          <Card className="p-4">
+            <button type="button" onClick={() => setPreOpen((o) => !o)} className="flex w-full items-center justify-between text-left">
+              <div>
+                <h2 className="font-semibold">Vorfilter · Kurzform-Selbstbewertung</h2>
+                <p className="mt-1 text-xs text-muted-foreground">Sieben Kriterien, grob selbst eingestuft — billig, 1.400-fähig. Entscheidet vor Hub-Zeit.</p>
+              </div>
+              <span className="ml-2 shrink-0 text-muted-foreground">{preOpen ? "–" : "+"}</span>
+            </button>
+
+            {preOpen && (
+              <div className="mt-4 space-y-4">
+                {selfCriteria.length === 0 && <p className="text-sm text-muted-foreground">Lädt…</p>}
+                {selfCriteria.map((c) => (
+                  <div key={c.id}>
+                    <div className="text-sm font-medium">
+                      {c.id} · {c.label}
+                      {c.knockout && <span className="ml-1.5 rounded bg-secondary px-1 py-0.5 text-[10px] uppercase text-muted-foreground">K.o.</span>}
+                    </div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">{c.question}</div>
+                    <div className="mt-1.5 flex gap-1">
+                      {([1, 2, 3, 4, 5] as Level[]).map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          title={c.scale[n - 1]}
+                          onClick={() => setLevel(c.id, n)}
+                          className={`h-7 flex-1 rounded border text-xs ${levels[c.id] === n ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-accent"}`}
+                        >
+                          S{n}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {triage && (
+                  <div className="rounded-md border p-3">
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${REC_CLASS[triage.recommendation]}`}>{triage.headline}</span>
+                      <span className="text-xs text-muted-foreground">{triage.rated}/{triage.total} bewertet</span>
+                    </div>
+                    <p className="mt-1.5 text-xs text-muted-foreground">{triage.reason}</p>
+                    {triage.warnings.length > 0 && (
+                      <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-[11px] text-amber-600 dark:text-amber-500">
+                        {triage.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                      </ul>
+                    )}
+                    <p className="mt-2 text-[11px] text-muted-foreground">Die Stufen werden als Startbewertung (Konfidenz S) in die Diagnose übernommen.</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
+
+          {/* Neue Diagnose */}
           <Card className="p-4">
             <h2 className="font-semibold">Neue Diagnose</h2>
             <p className="mt-1 text-xs text-muted-foreground">Ein Prozess, ein Spoke, eine Anflugrichtung.</p>
@@ -169,12 +270,7 @@ export default function ProcessFunnel() {
             <div className="mt-4 space-y-3">
               <div>
                 <label className={LABEL}>Prozess *</label>
-                <input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Wareneingang Rohmaterial"
-                  className={INPUT}
-                />
+                <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Wareneingang Rohmaterial" className={INPUT} />
                 {slug && <p className="mt-1 text-xs text-muted-foreground">/process/{slug}</p>}
               </div>
               <div>
@@ -206,14 +302,14 @@ export default function ProcessFunnel() {
               </div>
               <div>
                 <label className={LABEL}>Kernkomponenten (kommagetrennt)</label>
-                <input
-                  value={componentsText}
-                  onChange={(e) => setComponentsText(e.target.value)}
-                  placeholder="SAP MM, Excel-Liste, Mendix-App"
-                  className={INPUT}
-                />
+                <input value={componentsText} onChange={(e) => setComponentsText(e.target.value)} placeholder="SAP MM, Excel-Liste, Mendix-App" className={INPUT} />
               </div>
 
+              {triage && triage.recommendation === "zurueckstellen" && (
+                <p className="rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-1.5 text-xs text-destructive">
+                  Vorfilter empfiehlt Zurückstellen (kein Spoke). Aufnahme nur mit begründeter Ausnahme.
+                </p>
+              )}
               {formError && <p className="text-sm text-destructive">{formError}</p>}
 
               <Button className="w-full" disabled={!title.trim() || submitting} onClick={submit}>
