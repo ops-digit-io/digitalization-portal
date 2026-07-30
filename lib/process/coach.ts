@@ -1,5 +1,8 @@
 /**
- * Assembles the coaching prompt for ONE health dimension (coach-then-rate).
+ * Assembles the system guidance the coaching AGENT runs on for ONE health
+ * dimension (coach-then-rate). There is no prompt to paste — this drives the live
+ * coach at .../dimension/[dim]/coach and the artefact generator at
+ * .../artefact/[id]/generate.
  *
  * Injects: the shared guidance + the coaching-stance playbook (from the registry),
  * then this dimension's criteria straight from the Kriterienkatalog (question,
@@ -27,7 +30,7 @@ ${scale}`;
     .join("\n\n");
 }
 
-export async function build(slug: string, dimId: string, mode: "live" | "export" = "live"): Promise<string> {
+export async function build(slug: string, dimId: string): Promise<string> {
   const dim = dimById[dimId];
   if (!dim) throw new Error(`unknown dimension ${dimId}`);
   const m = (await store.meta(slug))!;
@@ -46,12 +49,7 @@ Heutiges Datum: ${new Date().toISOString().slice(0, 10)}
 
 Kernfrage der Dimension: ${dim.question}`;
 
-  const tail =
-    mode === "export"
-      ? `\n\nDu wirst in einen Assistenten außerhalb des Portals eingefügt. Führe die Erhebung
-mit dem Menschen vor dir und liefere am Ende je Kriterium: vorgeschlagene S-Stufe +
-einzeilige Evidenznotiz + Konfidenz (S/P/I).`
-      : `\n\nFühre das Gespräch Kriterium für Kriterium. Frage nach Evidenz, nicht nach Gefühl.
+  const tail = `\n\nFühre das Gespräch Kriterium für Kriterium. Frage nach Evidenz, nicht nach Gefühl.
 Liefere am Ende je Kriterium: vorgeschlagene S-Stufe + einzeilige Evidenznotiz + Konfidenz.`;
 
   return [
@@ -67,10 +65,11 @@ Liefere am Ende je Kriterium: vorgeschlagene S-Stufe + einzeilige Evidenznotiz +
 }
 
 /**
- * Prompt to GENERATE a phase artefact (Markdown) from its template, the engagement
- * context and the artefacts already produced in earlier phases. Live or export.
+ * System guidance the agent runs on to GENERATE a phase artefact (Markdown) from
+ * its template, the engagement context and the artefacts already produced in
+ * earlier phases. Drives .../artefact/[id]/generate.
  */
-export async function buildArtefact(slug: string, artefactId: string, mode: "live" | "export" = "live"): Promise<string> {
+export async function buildArtefact(slug: string, artefactId: string): Promise<string> {
   const a = artefactById[artefactId];
   if (!a) throw new Error(`unknown artefact ${artefactId}`);
   const m = (await store.meta(slug))!;
@@ -103,11 +102,7 @@ DISZIPLIN
 - Zahlen tragen ihre Konfidenzstufe (S/P/I). Eine reine S-Zahl ist keine Baseline.
 - Behalte Überschriften und Tabellenspalten der Vorlage bei; sie werden gerendert.`;
 
-  const tail =
-    mode === "export"
-      ? `\n\nDu wirst außerhalb des Portals eingefügt. Erhebe das Fehlende beim Menschen vor dir und
-liefere das fertige Artefakt als ein einziger Markdown-Block.`
-      : `\n\nErhebe das Fehlende Schritt für Schritt. Wenn du genug hast, liefere das fertige Artefakt
+  const tail = `\n\nErhebe das Fehlende Schritt für Schritt. Wenn du genug hast, liefere das fertige Artefakt
 in einem einzigen fenced-Markdown-Block, damit es verbatim gespeichert werden kann.`;
 
   return [

@@ -17,7 +17,7 @@ export async function POST(_req: Request, { params }: { params: { slug: string; 
   if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
   if (!llm.available()) return NextResponse.json({ error: "live generation disabled", code: "NO_KEY" }, { status: 503 });
   try {
-    const out = await llm.chat(await coach.buildArtefact(slug, id, "live"), [{ role: "user", content: "Erzeuge das Artefakt jetzt." }], { maxTokens: 6000 });
+    const out = await llm.chat(await coach.buildArtefact(slug, id), [{ role: "user", content: "Erzeuge das Artefakt jetzt." }], { maxTokens: 6000 });
     const artefact = llm.extractArtefact(out.text) || out.text;
     const looksLike = artefact.trim().length > 40;
     if (!looksLike) {

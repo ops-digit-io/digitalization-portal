@@ -149,7 +149,7 @@ export const CONFIDENCE_LADDER: ConfidenceLevel[] = [
   { id: "I", label: "instrumentiert", meaning: "Timestamps fallen als Nebenprodukt der Systeme an, ohne dass jemand stempelt.", enough: "Ziel für den Regelbetrieb; das Betriebstor verlangt I (oder ersatzweise routinierte P-Erhebung mit festem Takt)." },
 ];
 
-// --------------------------------------------- Zwei Anflugrichtungen (doc B §7.1/7.2, catalogue A §7)
+// --------------------------------------------- Zwei Anflugrichtungen (Katalog A §7.1/7.2; B §1 Prinzip 3 + §8)
 export interface Anflug {
   id: "process" | "technology";
   label: string;
