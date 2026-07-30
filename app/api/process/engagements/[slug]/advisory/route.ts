@@ -12,11 +12,14 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
   const d = await deny();
   if (d) return d;
   const { slug } = params;
-  if (!store.exists(slug)) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
-  const filled = SECTIONS.filter((s) => store.read(slug, s.key).trim()).map((s) => s.key);
-  const items = advisoryOrdered().map((a) => {
-    const content = advisor.read(slug, a.key);
-    return { ...a, ...readiness(a, filled), filled: content.trim().length > 0, chars: content.length };
-  });
-  return NextResponse.json({ items, decisions: advisor.decisions(slug) });
+  if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
+  const sectionContents = await Promise.all(SECTIONS.map((s) => store.read(slug, s.key)));
+  const filled = SECTIONS.filter((s, i) => sectionContents[i]!.trim()).map((s) => s.key);
+  const items = await Promise.all(
+    advisoryOrdered().map(async (a) => {
+      const content = await advisor.read(slug, a.key);
+      return { ...a, ...readiness(a, filled), filled: content.trim().length > 0, chars: content.length };
+    }),
+  );
+  return NextResponse.json({ items, decisions: await advisor.decisions(slug) });
 }

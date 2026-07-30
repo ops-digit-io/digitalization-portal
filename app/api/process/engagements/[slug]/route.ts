@@ -14,15 +14,15 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
   const d = await deny();
   if (d) return d;
   const { slug } = params;
-  if (!store.exists(slug)) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
+  if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
 
   const schemas = allSchemas();
-  const st = store.state(slug);
+  const st = await store.state(slug);
   const scores: Record<string, number> = {};
   const gateResults: Record<string, boolean | null> = {};
   for (const s of st.sections) {
     const schema = schemas[s.key];
-    const content = store.read(slug, s.key);
+    const content = await store.read(slug, s.key);
     s.score = schema && content.trim() ? grade(content, schema) : null;
     if (s.score) scores[s.key] = (s.score as { score: number }).score;
     const g = s.gateResult;
@@ -48,13 +48,13 @@ export async function DELETE(req: Request, { params }: { params: { slug: string 
   const d = await deny();
   if (d) return d;
   const { slug } = params;
-  if (!store.exists(slug)) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
+  if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as { confirm?: string };
   if (String(body.confirm || "") !== store.slugify(slug)) {
     return NextResponse.json({ error: `to remove this, send {"confirm":"${store.slugify(slug)}"}` }, { status: 400 });
   }
   try {
-    return NextResponse.json(store.remove(slug, now()));
+    return NextResponse.json(await store.remove(slug, now()));
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }

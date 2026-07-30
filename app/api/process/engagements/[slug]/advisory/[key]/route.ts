@@ -12,12 +12,12 @@ export async function GET(_req: Request, { params }: { params: { slug: string; k
   if (d) return d;
   const { slug, key } = params;
   if (!byKey[key]) return NextResponse.json({ error: "no such advisory item" }, { status: 404 });
-  if (!store.exists(slug)) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
-  const content = advisor.read(slug, key);
+  if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
+  const content = await advisor.read(slug, key);
   return NextResponse.json({
     item: byKey[key],
     content,
-    decisions: advisor.decisions(slug).filter((dd) => dd.advisoryKey === key),
+    decisions: (await advisor.decisions(slug)).filter((dd) => dd.advisoryKey === key),
   });
 }
 
@@ -26,7 +26,7 @@ export async function PUT(req: Request, { params }: { params: { slug: string; ke
   if (d) return d;
   const { slug, key } = params;
   if (!byKey[key]) return NextResponse.json({ error: "no such advisory item" }, { status: 404 });
-  if (!store.exists(slug)) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
+  if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as { content?: string };
-  return NextResponse.json(advisor.write(slug, key, String(body.content ?? ""), now()));
+  return NextResponse.json(await advisor.write(slug, key, String(body.content ?? ""), now()));
 }

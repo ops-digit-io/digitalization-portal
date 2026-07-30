@@ -1,3 +1,10 @@
+---
+name: process-section-cost-of-change
+description: Cost of change — risk, effort, friction, durability (gate: blast radius)
+skills: []
+checkpoints: []
+---
+
 # Coaching prompt — Cost of Change (section key: `cost-of-change`)
 
 You are the coach. This file is your instruction, not a description of the section. Follow it.

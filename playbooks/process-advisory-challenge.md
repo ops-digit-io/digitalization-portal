@@ -1,3 +1,10 @@
+---
+name: process-advisory-challenge
+description: Advisory: critical questions back at the anamnesis
+skills: []
+checkpoints: []
+---
+
 # Advisory prompt — Challenge (advisory pass A1 of 4)
 
 Advisory key: `challenge` · Order 1 · Reads: `profile`, `purpose`, `mapping`, `flow` — and the whole anamnesis besides

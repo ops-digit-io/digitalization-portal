@@ -11,7 +11,7 @@ export async function POST(_req: Request, { params }: { params: { slug: string }
   const d = await deny();
   if (d) return d;
   const { slug } = params;
-  if (!store.exists(slug)) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
+  if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
   if (!llm.available()) return NextResponse.json({ error: "live generation disabled", code: "NO_KEY" }, { status: 503 });
   try {
     return NextResponse.json({ digest: await digest.generate(slug, now()) });

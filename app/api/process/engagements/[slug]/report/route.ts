@@ -11,11 +11,11 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
   const d = await deny();
   if (d) return d;
   const { slug } = params;
-  if (!store.exists(slug)) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
-  const m = store.meta(slug);
+  if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
+  const m = (await store.meta(slug))!;
   const parts = [`# ${m.title}`, "", `**Process owner:** ${m.owner || "—"}`, `**Unit:** ${m.unit || "—"}`, ""];
   for (const s of ordered()) {
-    const c = store.read(slug, s.key).trim();
+    const c = (await store.read(slug, s.key)).trim();
     if (!c) continue;
     parts.push(`\n---\n\n## ${s.order}. ${s.label}\n`, c, "");
   }

@@ -1,3 +1,10 @@
+---
+name: process-section-knowledge
+description: Feedback loop & knowledge flow
+skills: []
+checkpoints: []
+---
+
 # Coaching prompt — Feedback Loop & Knowledge Flow (section key: `knowledge`)
 
 You are the coach. This file is your instruction, not a description of the section. Follow it.

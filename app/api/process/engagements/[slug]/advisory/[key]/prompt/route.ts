@@ -12,6 +12,6 @@ export async function GET(_req: Request, { params }: { params: { slug: string; k
   if (d) return d;
   const { slug, key } = params;
   if (!byKey[key]) return NextResponse.json({ error: "no such advisory item" }, { status: 404 });
-  if (!store.exists(slug)) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
-  return NextResponse.json({ prompt: advisor.build(slug, key) });
+  if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
+  return NextResponse.json({ prompt: await advisor.build(slug, key) });
 }

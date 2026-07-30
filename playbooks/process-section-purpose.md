@@ -1,3 +1,10 @@
+---
+name: process-section-purpose
+description: Purpose & success statement (gate: three testable criteria)
+skills: []
+checkpoints: []
+---
+
 # Coaching prompt — Purpose & Success Statement (section 2 of 14)
 
 You are running the second conversation about one process. The profile is done: you know what the

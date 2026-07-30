@@ -1,3 +1,10 @@
+---
+name: process-tool-playbook
+description: The organisation's tool playbook: purpose → recommended tool, with the condition under which the default is wrong, the operational cost, and the exit cost.
+skills: []
+checkpoints: []
+---
+
 # Tool playbook
 
 Which tool for which job, why, and what it costs you afterwards.

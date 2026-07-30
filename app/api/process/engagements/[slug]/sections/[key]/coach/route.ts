@@ -14,13 +14,13 @@ export async function POST(req: Request, { params }: { params: { slug: string; k
   if (d) return d;
   const { slug, key } = params;
   if (!byKey[key]) return NextResponse.json({ error: "no such section" }, { status: 404 });
-  if (!store.exists(slug)) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
+  if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
   if (!llm.available()) return NextResponse.json({ error: "live coaching disabled", code: "NO_KEY" }, { status: 503 });
   const body = (await req.json().catch(() => ({}))) as { messages?: { role: "user" | "assistant"; content: string }[] };
   const history = Array.isArray(body.messages) ? body.messages : [];
   const msgs = history.length ? history : [{ role: "user" as const, content: "Start the session." }];
   try {
-    const out = await llm.chat(coach.build(slug, key, "live"), msgs, { maxTokens: 4096 });
+    const out = await llm.chat(await coach.build(slug, key, "live"), msgs, { maxTokens: 4096 });
     return NextResponse.json({ text: out.text, artefact: llm.extractArtefact(out.text), usage: out.usage, model: out.model });
   } catch (e) {
     const err = e as Error & { code?: string };

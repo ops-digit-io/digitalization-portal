@@ -1,3 +1,10 @@
+---
+name: process-section-diagnostics
+description: Diagnostics & data points (gate: timestamps obtainable)
+skills: []
+checkpoints: []
+---
+
 # Coaching prompt — Diagnostics & Data Points
 
 Section key: `diagnostics` · Order 7 · Group: Measurement · **GATE** · Unlocks after: `toolchain`, `flow`

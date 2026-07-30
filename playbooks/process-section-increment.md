@@ -1,3 +1,10 @@
+---
+name: process-section-increment
+description: Value increment & velocity (gate: ships in one cycle)
+skills: []
+checkpoints: []
+---
+
 # Coaching prompt — Value Increment & Velocity (section 12 of 14)
 
 This is the section the whole method exists for. Every earlier section was gathering evidence so

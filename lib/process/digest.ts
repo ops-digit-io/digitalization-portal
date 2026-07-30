@@ -8,31 +8,24 @@
  * demand is ever raised.
  */
 
-import fs from "node:fs";
-import path from "node:path";
 import { ordered } from "./sections";
 import * as store from "./store";
 import * as llm from "./llm";
 
 const FILE = "digest.json";
 
-function digestPath(slug: string): string {
-  return path.join(path.dirname(store.artefactPath(slug, "profile")), FILE);
-}
-
-export function read(slug: string): unknown | null {
-  const p = digestPath(slug);
-  if (!fs.existsSync(p)) return null;
+export async function read(slug: string): Promise<unknown | null> {
+  const raw = await store.readFileRaw(slug, FILE);
+  if (raw === undefined) return null;
   try {
-    return JSON.parse(fs.readFileSync(p, "utf8"));
+    return JSON.parse(raw);
   } catch {
     return null;
   }
 }
 
-export function write(slug: string, data: Record<string, unknown>, now: string): unknown | null {
-  fs.writeFileSync(digestPath(slug), JSON.stringify({ ...data, generatedAt: now }, null, 2));
-  store.writeMeta(slug, {}, now);
+export async function write(slug: string, data: Record<string, unknown>, now: string): Promise<unknown | null> {
+  await store.writeFileRaw(slug, FILE, JSON.stringify({ ...data, generatedAt: now }, null, 2), now, `Update digest on ${store.slugify(slug)}`);
   return read(slug);
 }
 
@@ -67,11 +60,11 @@ const SHAPE = `{
   "gaps": ["what was missing and therefore left thin"]
 }`;
 
-export function buildPrompt(slug: string): string {
-  const m = store.meta(slug);
+export async function buildPrompt(slug: string): Promise<string> {
+  const m = (await store.meta(slug))!;
   const parts: string[] = [];
   for (const s of ordered()) {
-    const c = store.read(slug, s.key).trim();
+    const c = (await store.read(slug, s.key)).trim();
     if (c) parts.push(`<section key="${s.key}" label="${s.label}">\n${c}\n</section>`);
   }
 
@@ -151,7 +144,7 @@ function extractJson(text: string): Record<string, unknown> | null {
 }
 
 export async function generate(slug: string, now: string): Promise<unknown | null> {
-  const out = await llm.chat(buildPrompt(slug), [{ role: "user", content: "Produce the digest now." }], { maxTokens: 9000 });
+  const out = await llm.chat(await buildPrompt(slug), [{ role: "user", content: "Produce the digest now." }], { maxTokens: 9000 });
   const data = extractJson(out.text);
   if (!data || !data.processStatement) {
     const e = new Error("the model did not return a usable digest — nothing was saved") as Error & { code?: string; reply?: string };

@@ -13,8 +13,8 @@ export async function GET(_req: Request, { params }: { params: { slug: string; k
   if (d) return d;
   const { slug, key } = params;
   if (!byKey[key]) return NextResponse.json({ error: "no such section" }, { status: 404 });
-  if (!store.exists(slug)) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
-  const content = store.read(slug, key);
+  if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
+  const content = await store.read(slug, key);
   const schema = loadSchema(key);
   return NextResponse.json({
     section: byKey[key],
@@ -22,8 +22,8 @@ export async function GET(_req: Request, { params }: { params: { slug: string; k
     template: template(key),
     score: schema && content.trim() ? grade(content, schema) : null,
     schema,
-    gateResult: (store.meta(slug).gates || {})[key] || null,
-    history: store.history(slug, key),
+    gateResult: ((await store.meta(slug))!.gates || {})[key] || null,
+    history: await store.history(slug, key),
   });
 }
 
@@ -32,10 +32,10 @@ export async function PUT(req: Request, { params }: { params: { slug: string; ke
   if (d) return d;
   const { slug, key } = params;
   if (!byKey[key]) return NextResponse.json({ error: "no such section" }, { status: 404 });
-  if (!store.exists(slug)) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
+  if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as { content?: string };
   const content = String(body.content ?? "");
-  const r = store.write(slug, key, content, now());
+  const r = await store.write(slug, key, content, now());
   const schema = loadSchema(key);
   return NextResponse.json({
     saved: true,

@@ -12,7 +12,7 @@ export async function GET(req: Request, { params }: { params: { slug: string; ke
   if (d) return d;
   const { slug, key } = params;
   if (!byKey[key]) return NextResponse.json({ error: "no such section" }, { status: 404 });
-  if (!store.exists(slug)) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
+  if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
   const mode = new URL(req.url).searchParams.get("mode") === "live" ? "live" : "export";
-  return NextResponse.json({ mode, prompt: coach.build(slug, key, mode) });
+  return NextResponse.json({ mode, prompt: await coach.build(slug, key, mode) });
 }
