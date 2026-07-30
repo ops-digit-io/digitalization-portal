@@ -1,64 +1,83 @@
 /**
- * Process-funnel engagements, stored in a GIT REPOSITORY — the portal's
+ * Process-diagnostic engagements, stored in a GIT REPOSITORY — the portal's
  * system-of-record pattern, mirroring `lib/demands-store.ts`.
  *
  * Every engagement is a FOLDER in one repository (`du-processes`, overridable
- * with `PROCESS_REPO`), holding all of its markdown:
+ * with `PROCESS_REPO`):
  *
- *   processes/<slug>/meta.json          title, owner, unit, gate verdicts, flags
- *   processes/<slug>/<nn-section>.md     the section artefacts (the product)
- *   processes/<slug>/A<n>-*.md           advisory artefacts
- *   processes/<slug>/digest.json         the derived one-screen digest
- *   processes/<slug>/decisions.json      the advisory accept/reject ledger
+ *   processes/<slug>/meta.json       header, Spoke, Anflug, Kernkomponenten,
+ *                                     current phase, chosen Zweig, Risikoklasse,
+ *                                     gate (Tor) verdicts
+ *   processes/<slug>/ratings.json    S1–S5 rating per K-criterion (+ S/P/I, evidence)
+ *   processes/<slug>/D<n>.md         per-dimension coaching evidence (narrative)
+ *   processes/<slug>/risk.json       the 7 Änderungsrisiko Prüfpunkte
  *
- * Same live-or-offline shape as the demands funnel: when the GitHub App is
- * configured the funnel is read/written over GitHub `main`; otherwise it uses a
- * LOCAL working tree. The local base is a WRITABLE dir (default under the OS temp
- * dir, overridable with `PROCESS_DATA_DIR`) — never `process.cwd()`, which is
- * read-only on serverless (that was the `/var/task/.process-workspace` ENOENT).
- *
- * Git has no delete in the portal's `GitHost` interface (nothing here
- * merges/destroys), so removal is a SOFT delete — a `deleted` flag on meta — which
- * also matches PDT's "move aside, never destroy an assessment" rule.
+ * Live-or-offline like the demands funnel: GitHub `main` when the App is
+ * configured, else a WRITABLE local base (PROCESS_DATA_DIR, default under the OS
+ * temp dir — never process.cwd(), which is read-only on serverless). Removal is a
+ * soft-delete flag (GitHost has no destroy; an assessment is never thrown away).
  */
 
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { SECTIONS, byKey } from "./sections";
 import { getGitHost, hasGitHubCredentials, FileExistsError, type RepoRef } from "../git/index";
+import type { Rating } from "./health-model";
 
 const DIR = "processes";
 const META = "meta.json";
+const RATINGS = "ratings.json";
+const RISK = "risk.json";
+
+export type Anflug = "process" | "technology";
+
+export interface Component {
+  id: string;
+  label: string;
+}
+
+export interface GateVerdict {
+  passed: boolean;
+  reason: string;
+  at: string;
+}
 
 export interface EngagementMeta {
   slug: string;
   title: string;
-  owner: string;
+  owner: string; // Prozessverantwortlicher
+  champion: string; // Prozess-Champion
   unit: string;
-  note: string;
+  anflug: Anflug;
+  components: Component[];
+  phase: string; // current phase id "P0".."P5"
+  branch?: string; // chosen Zweig "Z0".."Z3"
+  riskClass?: string; // "R1".."R3"
+  gates: Record<string, GateVerdict>; // by Tor id "T0".."T5"
   createdAt: string;
   updatedAt: string;
-  gates: Record<string, { passed: boolean; reason: string; at: string }>;
   deleted?: string | null;
+}
+
+export interface Ratings {
+  /** Non-per-component criteria. */
+  criteria: Record<string, Rating>;
+  /** D7 ratings per Kernkomponente id. */
+  components: Record<string, Record<string, Rating>>;
 }
 
 // ---------------------------------------------------------------- placement
 function live(): boolean {
   return hasGitHubCredentials();
 }
-
 function repoName(env = process.env): string {
   return env.PROCESS_REPO ?? "du-processes";
 }
-
 function processRepo(): RepoRef {
   const org = process.env.GITHUB_ORG ?? "org";
   const name = repoName();
   return { owner: org, name, url: `https://github.com/${org}/${name}`, local: false };
 }
-
-/** Writable local base for the offline fallback (never the read-only cwd). */
 function localBase(): string {
   return process.env.PROCESS_DATA_DIR ?? path.join(os.tmpdir(), "du-processes");
 }
@@ -68,10 +87,7 @@ export function slugify(s: string): string {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
-    .replace(/ä/g, "ae")
-    .replace(/ö/g, "oe")
-    .replace(/ü/g, "ue")
-    .replace(/ß/g, "ss")
+    .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 60);
@@ -83,19 +99,11 @@ function relDir(slug: string): string {
   return `${DIR}/${clean}`;
 }
 
-/** Path of a section artefact within the engagement folder. */
-function sectionFile(sectionKey: string): string {
-  const s = byKey[sectionKey];
-  if (!s) throw new Error(`unknown section ${sectionKey}`);
-  return s.file;
-}
-
 // ------------------------------------------------------- generic file I/O
 async function getRaw(rel: string): Promise<string | undefined> {
   if (live()) return getGitHost().getFile(processRepo(), rel);
   return readFile(path.join(localBase(), rel), "utf8").catch(() => undefined);
 }
-
 async function putRaw(rel: string, content: string, message: string, opts?: { createOnly?: boolean }): Promise<void> {
   if (live()) {
     await getGitHost().putFile(processRepo(), { path: rel, content }, message, "main", { createOnly: opts?.createOnly ?? false });
@@ -110,7 +118,6 @@ async function putRaw(rel: string, content: string, message: string, opts?: { cr
     throw err;
   }
 }
-
 async function listSlugs(): Promise<string[]> {
   if (live()) {
     const ents = await getGitHost().listDir(processRepo(), DIR);
@@ -128,6 +135,8 @@ export async function meta(slug: string): Promise<EngagementMeta | null> {
   try {
     const m = JSON.parse(raw) as EngagementMeta;
     m.slug = slugify(slug);
+    m.gates = m.gates || {};
+    m.components = m.components || [];
     return m;
   } catch {
     return null;
@@ -147,18 +156,28 @@ export async function list(): Promise<EngagementMeta[]> {
     .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
 }
 
-export async function create(input: { title: string; owner?: string; unit?: string; note?: string }, now: string): Promise<EngagementMeta> {
+export async function create(
+  input: { title: string; owner?: string; champion?: string; unit?: string; anflug?: Anflug; components?: string[] },
+  now: string,
+): Promise<EngagementMeta> {
   const slug = slugify(input.title);
   if (!slug) throw new Error("title yields empty slug");
+  const components: Component[] = (input.components ?? [])
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((label, i) => ({ id: `k${i + 1}`, label }));
   const m: EngagementMeta = {
     slug,
     title: String(input.title).trim(),
     owner: String(input.owner || "").trim(),
+    champion: String(input.champion || "").trim(),
     unit: String(input.unit || "").trim(),
-    note: String(input.note || "").trim(),
+    anflug: input.anflug === "technology" ? "technology" : "process",
+    components,
+    phase: "P0",
+    gates: {},
     createdAt: now,
     updatedAt: now,
-    gates: {},
   };
   try {
     await putRaw(`${DIR}/${slug}/${META}`, JSON.stringify(m, null, 2), `Create process engagement ${slug}`, { createOnly: true });
@@ -170,89 +189,87 @@ export async function create(input: { title: string; owner?: string; unit?: stri
 }
 
 export async function writeMeta(slug: string, patch: Partial<EngagementMeta>, now: string): Promise<EngagementMeta> {
-  const current = (await meta(slug)) ?? ({ slug: slugify(slug), gates: {} } as EngagementMeta);
+  const current = (await meta(slug)) ?? ({ slug: slugify(slug), gates: {}, components: [] } as unknown as EngagementMeta);
   const m = { ...current, ...patch, updatedAt: now } as EngagementMeta;
   await putRaw(`${relDir(slug)}/${META}`, JSON.stringify(m, null, 2), `Update process engagement ${slug}`);
   return m;
 }
 
-// ------------------------------------------------------------- section I/O
-export async function read(slug: string, sectionKey: string): Promise<string> {
-  return (await getRaw(`${relDir(slug)}/${sectionFile(sectionKey)}`)) ?? "";
+/** Record a gate (Tor) verdict; a failed gate needs a reason (enforced at the route). */
+export async function setGate(slug: string, torId: string, passed: boolean, reason: string, now: string): Promise<EngagementMeta> {
+  const m = (await meta(slug))!;
+  m.gates = m.gates || {};
+  m.gates[torId] = { passed: !!passed, reason: String(reason || ""), at: now };
+  return writeMeta(slug, { gates: m.gates }, now);
 }
 
-/** Write a section artefact. Git commits are the history trail. */
-export async function write(slug: string, sectionKey: string, content: string, now: string): Promise<{ changed: boolean }> {
-  const rel = `${relDir(slug)}/${sectionFile(sectionKey)}`;
+// ------------------------------------------------------------- ratings
+export async function ratings(slug: string): Promise<Ratings> {
+  const raw = await getRaw(`${relDir(slug)}/${RATINGS}`);
+  if (raw === undefined) return { criteria: {}, components: {} };
+  try {
+    const r = JSON.parse(raw) as Ratings;
+    return { criteria: r.criteria || {}, components: r.components || {} };
+  } catch {
+    return { criteria: {}, components: {} };
+  }
+}
+
+/** Set one criterion's rating. For D7 (perComponent) pass componentId. */
+export async function rate(
+  slug: string,
+  critId: string,
+  rating: Rating | null,
+  now: string,
+  componentId?: string,
+): Promise<Ratings> {
+  const r = await ratings(slug);
+  if (componentId) {
+    r.components[componentId] = r.components[componentId] || {};
+    if (rating) r.components[componentId]![critId] = rating;
+    else delete r.components[componentId]![critId];
+  } else if (rating) r.criteria[critId] = rating;
+  else delete r.criteria[critId];
+  await putRaw(`${relDir(slug)}/${RATINGS}`, JSON.stringify(r, null, 2), `Rate ${critId} on ${slugify(slug)}`);
+  await writeMeta(slug, {}, now);
+  return r;
+}
+
+// ------------------------------------------------------- dimension evidence
+export async function readDimension(slug: string, dimId: string): Promise<string> {
+  return (await getRaw(`${relDir(slug)}/${dimId}.md`)) ?? "";
+}
+export async function writeDimension(slug: string, dimId: string, content: string, now: string): Promise<{ changed: boolean }> {
+  const rel = `${relDir(slug)}/${dimId}.md`;
   const prev = await getRaw(rel);
   if (prev === content) return { changed: false };
-  await putRaw(rel, content, `Update ${sectionKey} on ${slugify(slug)}`);
+  await putRaw(rel, content, `Update ${dimId} evidence on ${slugify(slug)}`);
   await writeMeta(slug, {}, now);
   return { changed: true };
 }
 
-export async function setGate(slug: string, sectionKey: string, passed: boolean, reason: string, now: string): Promise<EngagementMeta> {
-  const m = (await meta(slug)) ?? ({ slug: slugify(slug), gates: {} } as EngagementMeta);
-  m.gates = m.gates || {};
-  m.gates[sectionKey] = { passed: !!passed, reason: String(reason || ""), at: now };
-  return writeMeta(slug, { gates: m.gates }, now);
+// ------------------------------------------------------- risk checks (Tor T3)
+export async function riskChecks(slug: string): Promise<Record<string, { answer: string; evidence: string }>> {
+  const raw = await getRaw(`${relDir(slug)}/${RISK}`);
+  if (raw === undefined) return {};
+  try {
+    return JSON.parse(raw) as Record<string, { answer: string; evidence: string }>;
+  } catch {
+    return {};
+  }
+}
+export async function setRiskCheck(slug: string, n: number, answer: string, evidence: string, now: string): Promise<void> {
+  const r = await riskChecks(slug);
+  r[String(n)] = { answer: String(answer || ""), evidence: String(evidence || "") };
+  await putRaw(`${relDir(slug)}/${RISK}`, JSON.stringify(r, null, 2), `Risk check ${n} on ${slugify(slug)}`);
+  await writeMeta(slug, {}, now);
 }
 
-export interface SectionState {
-  key: string;
-  label: string;
-  group: string;
-  order: number;
-  gate: boolean;
-  blocking: string[];
-  filled: boolean;
-  chars: number;
-  gateResult: { passed: boolean; reason: string; at: string } | null;
-  score?: unknown;
-  locked?: boolean;
-}
-
-/** Everything the overview needs, in one read of the engagement folder. */
-export async function state(slug: string): Promise<{ meta: EngagementMeta; sections: SectionState[] }> {
-  const m = (await meta(slug))!;
-  const contents = await Promise.all(SECTIONS.map((s) => read(slug, s.key)));
-  const sections: SectionState[] = SECTIONS.map((s, i) => {
-    const content = contents[i] ?? "";
-    return {
-      key: s.key,
-      label: s.label,
-      group: s.group,
-      order: s.order,
-      gate: s.gate,
-      blocking: s.blocking,
-      filled: content.trim().length > 0,
-      chars: content.length,
-      gateResult: (m.gates || {})[s.key] || null,
-    };
-  });
-  return { meta: m, sections };
-}
-
-/** Soft-delete: flag the engagement (Git has no destroy; PDT never destroys one). */
 export async function remove(slug: string, now: string): Promise<{ removed: string; recoverableAt: string }> {
   const m = await meta(slug);
   if (!m || m.deleted) throw new Error("no such engagement");
   await writeMeta(slug, { deleted: now }, now);
   return { removed: slugify(slug), recoverableAt: `${relDir(slug)} (meta.deleted=${now})` };
-}
-
-/** Read/write arbitrary sidecar files in the engagement folder (digest, decisions, advisory). */
-export async function readFileRaw(slug: string, filename: string): Promise<string | undefined> {
-  return getRaw(`${relDir(slug)}/${filename}`);
-}
-export async function writeFileRaw(slug: string, filename: string, content: string, now: string, message?: string): Promise<void> {
-  await putRaw(`${relDir(slug)}/${filename}`, content, message ?? `Update ${filename} on ${slugify(slug)}`);
-  await writeMeta(slug, {}, now);
-}
-
-/** Git commits are the history trail; the sidecar-history mechanism is retired. */
-export async function history(_slug: string, _sectionKey: string): Promise<string[]> {
-  return [];
 }
 
 export { live, repoName };

@@ -14,7 +14,10 @@ export async function GET() {
 export async function POST(req: Request) {
   const d = await deny();
   if (d) return d;
-  const body = (await req.json().catch(() => ({}))) as { title?: string; owner?: string; unit?: string; note?: string };
+  const body = (await req.json().catch(() => ({}))) as {
+    title?: string; owner?: string; champion?: string; unit?: string;
+    anflug?: store.Anflug; components?: string[];
+  };
   if (!String(body.title || "").trim()) return NextResponse.json({ error: "title required" }, { status: 400 });
   try {
     return NextResponse.json(await store.create(body as { title: string }, now()), { status: 201 });

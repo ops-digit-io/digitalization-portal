@@ -10,10 +10,10 @@ const nextConfig = {
       "/api/registry/sync": ["./skills/**/*", "./playbooks/**/*"],
       "/api/intake/turn": ["./skills/**/*", "./playbooks/**/*"],
       "/api/intake/enhance": ["./playbooks/**/*"],
-      // The Process Funnel routes read their bundled templates/schemas from
-      // ./process-funnel and their coaching prompts + tool playbook from the
-      // ./playbooks registry (bundled fallback) at runtime — ship both.
-      "/api/process/**": ["./process-funnel/**/*", "./playbooks/**/*"],
+      // The Process Funnel routes read their coaching stance + tool playbook from
+      // the ./playbooks registry (bundled fallback) at runtime — ship it. The
+      // Kriterienkatalog and Ablauf are TypeScript modules, bundled automatically.
+      "/api/process/**": ["./playbooks/**/*"],
     },
   },
   webpack: (config) => {

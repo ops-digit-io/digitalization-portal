@@ -2,25 +2,36 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { apiGet, apiSend } from "@/components/process/ui";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { apiGet, apiSend } from "@/components/process/ui";
 
-interface Meta {
+const INPUT = "mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring";
+const LABEL = "block text-xs font-medium text-muted-foreground";
+
+type Anflug = "process" | "technology";
+
+interface Config {
+  liveCoaching: boolean;
+}
+
+interface EngagementRow {
   slug: string;
   title: string;
   owner: string;
+  champion: string;
   unit: string;
+  anflug: Anflug;
+  phase: string;
   updatedAt: string;
 }
 
-const INPUT =
-  "mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-ring";
-const LABEL = "block text-xs font-medium text-muted-foreground";
+const ANFLUG_LABEL: Record<Anflug, string> = { process: "Prozess-Pull", technology: "Technologie-Push" };
 
-/** Mirror of the store's slug rule, for a live preview of the engagement URL. */
+/** Slugify a title for the live preview — mirrors the store's slugify (doc). */
 function slugify(s: string): string {
-  return s
+  return String(s)
     .toLowerCase()
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
@@ -30,165 +41,186 @@ function slugify(s: string): string {
     .slice(0, 60);
 }
 
-export default function ProcessFunnelHome() {
-  const [engagements, setEngagements] = useState<Meta[]>([]);
-  const [live, setLive] = useState<boolean | null>(null);
-  const [form, setForm] = useState({ title: "", owner: "", unit: "", note: "" });
-  const [err, setErr] = useState("");
-  const [busy, setBusy] = useState(false);
+function fmtDate(s: string): string {
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
+}
 
-  async function load() {
-    try {
-      const [e, c] = await Promise.all([
-        apiGet<{ engagements: Meta[] }>("/engagements"),
-        apiGet<{ liveCoaching: boolean; provider: string; model: string | null }>("/config"),
-      ]);
-      setEngagements(e.engagements);
-      setLive(c.liveCoaching);
-    } catch (e) {
-      setErr((e as Error).message);
-    }
-  }
+export default function ProcessFunnel() {
+  const router = useRouter();
+  const [config, setConfig] = useState<Config | null>(null);
+  const [rows, setRows] = useState<EngagementRow[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // create form
+  const [title, setTitle] = useState("");
+  const [owner, setOwner] = useState("");
+  const [champion, setChampion] = useState("");
+  const [unit, setUnit] = useState("");
+  const [anflug, setAnflug] = useState<Anflug>("process");
+  const [componentsText, setComponentsText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
   useEffect(() => {
-    void load();
+    let cancelled = false;
+    Promise.all([apiGet<Config>("/config"), apiGet<{ engagements: EngagementRow[] }>("/engagements")])
+      .then(([c, e]) => {
+        if (cancelled) return;
+        setConfig(c);
+        setRows(e.engagements);
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setLoadError(err.message);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const slug = useMemo(() => slugify(form.title), [form.title]);
+  const slug = useMemo(() => slugify(title), [title]);
 
-  async function create(ev: React.FormEvent) {
-    ev.preventDefault();
-    setErr("");
-    setBusy(true);
+  async function submit() {
+    if (!title.trim() || submitting) return;
+    setSubmitting(true);
+    setFormError(null);
+    const components = componentsText.split(",").map((s) => s.trim()).filter(Boolean);
     try {
-      const m = await apiSend<Meta>("POST", "/engagements", form);
-      setForm({ title: "", owner: "", unit: "", note: "" });
-      location.href = `/process/${m.slug}`;
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
+      const created = await apiSend<{ slug: string }>("POST", "/engagements", {
+        title: title.trim(),
+        owner: owner.trim() || undefined,
+        champion: champion.trim() || undefined,
+        unit: unit.trim() || undefined,
+        anflug,
+        components,
+      });
+      router.push(`/process/${created.slug}`);
+    } catch (err) {
+      setFormError((err as Error).message);
+      setSubmitting(false);
     }
   }
 
   return (
-    <main className="mx-auto max-w-[1100px] px-4 py-6">
-      <div className="mb-6">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-lg font-semibold">Process Funnel</h1>
-          <span className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground">pre-funnel</span>
-          {live === false && (
-            <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-secondary-foreground">
-              offline · coaching by prompt export
-            </span>
-          )}
-        </div>
-        <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">
-          Diagnose a process before it becomes a demand: fourteen coaching sections in sequence, five gates that can
-          fail, a two-axis score with a knock-out traffic light, and an advisory layer. The evidenced result is what
-          seeds a qualified demand into the funnel.
-        </p>
-      </div>
+    <main className="mx-auto max-w-[1200px] px-4 py-6">
+      <nav className="mb-2 text-sm text-muted-foreground">
+        <Link href="/" className="hover:text-foreground">Home</Link>
+        <span className="mx-1.5" aria-hidden>›</span>
+        <span className="text-foreground">Process Funnel</span>
+      </nav>
 
-      <div className="grid gap-6 md:grid-cols-[1fr_340px]">
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-lg font-semibold">Process Funnel</h1>
+        <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">pre-funnel</span>
+        {config && config.liveCoaching === false && (
+          <span className="rounded-full border px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+            offline · coaching by prompt export
+          </span>
+        )}
+      </div>
+      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+        Prozessgesundheit vor dem Engagement: bewerten, verzweigen, das Änderungsrisiko klären — ein Cockpit je Diagnose.
+      </p>
+
+      {loadError && (
+        <p className="mt-4 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">{loadError}</p>
+      )}
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_380px]">
+        {/* Left: list */}
         <section>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Engagements{engagements.length > 0 && <span className="ml-1.5 font-normal text-muted-foreground/70">{engagements.length}</span>}
-          </h2>
-          {engagements.length === 0 ? (
-            <Card className="grid place-items-center py-12 text-center">
-              <p className="text-sm text-muted-foreground">No process assessments yet.</p>
-              <p className="mt-1 text-xs text-muted-foreground/70">Start one on the right — a title is all you need.</p>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Diagnosen</h2>
+          {rows === null && !loadError && <p className="text-sm text-muted-foreground">Lädt…</p>}
+          {rows !== null && rows.length === 0 && (
+            <Card className="p-6 text-center text-sm text-muted-foreground">
+              Noch keine Diagnose. Starte rechts mit „Neue Diagnose“.
             </Card>
-          ) : (
-            <ul className="space-y-2">
-              {engagements.map((m) => (
-                <li key={m.slug}>
-                  <Link
-                    href={`/process/${m.slug}`}
-                    className="group flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3 text-sm transition-colors hover:border-foreground/20 hover:bg-accent"
-                  >
-                    <span className="min-w-0">
-                      <span className="font-medium">{m.title}</span>
-                      <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                        {m.owner || "no owner recorded"}
-                        {m.unit ? ` · ${m.unit}` : ""}
-                      </span>
-                    </span>
-                    <span className="shrink-0 text-xs text-muted-foreground">{String(m.updatedAt).slice(0, 10)}</span>
-                  </Link>
-                </li>
+          )}
+          {rows !== null && rows.length > 0 && (
+            <div className="space-y-2">
+              {rows.map((r) => (
+                <Link key={r.slug} href={`/process/${r.slug}`} className="block">
+                  <Card className="p-3 transition-colors hover:bg-accent">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{r.title}</div>
+                        <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                          {r.owner || "kein Owner"}{r.unit ? ` · ${r.unit}` : ""}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right text-xs text-muted-foreground">
+                        <div>{ANFLUG_LABEL[r.anflug]}</div>
+                        <div className="mt-0.5">{r.phase} · {fmtDate(r.updatedAt)}</div>
+                      </div>
+                    </div>
+                  </Card>
+                </Link>
               ))}
-            </ul>
+            </div>
           )}
         </section>
 
+        {/* Right: create */}
         <section>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">New engagement</h2>
           <Card className="p-4">
-            <form onSubmit={create} className="space-y-3">
+            <h2 className="font-semibold">Neue Diagnose</h2>
+            <p className="mt-1 text-xs text-muted-foreground">Ein Prozess, ein Spoke, eine Anflugrichtung.</p>
+
+            <div className="mt-4 space-y-3">
               <div>
-                <label htmlFor="pf-title" className={LABEL}>
-                  Process <span className="text-[hsl(var(--destructive))]">*</span>
-                </label>
+                <label className={LABEL}>Prozess *</label>
                 <input
-                  id="pf-title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Wareneingang Rohmaterial"
                   className={INPUT}
-                  placeholder="e.g. NPM purchasing, Hannover"
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  autoComplete="off"
-                  required
                 />
-                {slug && <p className="mt-1 truncate text-[11px] text-muted-foreground">/process/{slug}</p>}
+                {slug && <p className="mt-1 text-xs text-muted-foreground">/process/{slug}</p>}
               </div>
               <div>
-                <label htmlFor="pf-owner" className={LABEL}>
-                  Process owner
-                </label>
+                <label className={LABEL}>Verantwortlicher</label>
+                <input value={owner} onChange={(e) => setOwner(e.target.value)} className={INPUT} />
+              </div>
+              <div>
+                <label className={LABEL}>Champion</label>
+                <input value={champion} onChange={(e) => setChampion(e.target.value)} className={INPUT} />
+              </div>
+              <div>
+                <label className={LABEL}>Einheit / Kostenstelle</label>
+                <input value={unit} onChange={(e) => setUnit(e.target.value)} className={INPUT} />
+              </div>
+              <div>
+                <label className={LABEL}>Anflug</label>
+                <div className="mt-1 inline-flex rounded-md border p-0.5 text-sm">
+                  {(["process", "technology"] as const).map((a) => (
+                    <button
+                      key={a}
+                      type="button"
+                      onClick={() => setAnflug(a)}
+                      className={`rounded px-3 py-1 ${a === anflug ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+                    >
+                      {ANFLUG_LABEL[a]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className={LABEL}>Kernkomponenten (kommagetrennt)</label>
                 <input
-                  id="pf-owner"
+                  value={componentsText}
+                  onChange={(e) => setComponentsText(e.target.value)}
+                  placeholder="SAP MM, Excel-Liste, Mendix-App"
                   className={INPUT}
-                  placeholder="named person with authority to change it"
-                  value={form.owner}
-                  onChange={(e) => setForm({ ...form, owner: e.target.value })}
-                  autoComplete="off"
                 />
               </div>
-              <div>
-                <label htmlFor="pf-unit" className={LABEL}>
-                  Unit / cost centre
-                </label>
-                <input
-                  id="pf-unit"
-                  className={INPUT}
-                  placeholder="who carries the cost"
-                  value={form.unit}
-                  onChange={(e) => setForm({ ...form, unit: e.target.value })}
-                  autoComplete="off"
-                />
-              </div>
-              <div>
-                <label htmlFor="pf-note" className={LABEL}>
-                  Intake note <span className="font-normal text-muted-foreground/60">optional</span>
-                </label>
-                <textarea
-                  id="pf-note"
-                  className={INPUT.replace("h-9", "min-h-[76px] py-2")}
-                  placeholder="what prompted this — the loudest pain, a symptom, a hunch"
-                  rows={3}
-                  value={form.note}
-                  onChange={(e) => setForm({ ...form, note: e.target.value })}
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={busy || !form.title.trim()}>
-                {busy ? "Creating…" : "Start diagnosis"}
+
+              {formError && <p className="text-sm text-destructive">{formError}</p>}
+
+              <Button className="w-full" disabled={!title.trim() || submitting} onClick={submit}>
+                {submitting ? "Startet…" : "Diagnose starten"}
               </Button>
-              {err && <p className="text-xs text-[hsl(var(--destructive))]">{err}</p>}
-            </form>
+            </div>
           </Card>
-          <p className="mt-2 px-1 text-[11px] text-muted-foreground">
-            The profile section is the first gate: no named owner with authority, no intake.
-          </p>
         </section>
       </div>
     </main>
