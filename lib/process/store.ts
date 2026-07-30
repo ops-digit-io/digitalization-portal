@@ -248,6 +248,19 @@ export async function writeDimension(slug: string, dimId: string, content: strin
   return { changed: true };
 }
 
+// -------------------------------------------- phase artefacts (Markdown)
+export async function readArtefact(slug: string, artefactId: string): Promise<string> {
+  return (await getRaw(`${relDir(slug)}/${artefactId}.md`)) ?? "";
+}
+export async function writeArtefact(slug: string, artefactId: string, content: string, now: string): Promise<{ changed: boolean }> {
+  const rel = `${relDir(slug)}/${artefactId}.md`;
+  const prev = await getRaw(rel);
+  if (prev === content) return { changed: false };
+  await putRaw(rel, content, `Update artefact ${artefactId} on ${slugify(slug)}`);
+  await writeMeta(slug, {}, now);
+  return { changed: true };
+}
+
 // ------------------------------------------------------- risk checks (Tor T3)
 export async function riskChecks(slug: string): Promise<Record<string, { answer: string; evidence: string }>> {
   const raw = await getRaw(`${relDir(slug)}/${RISK}`);

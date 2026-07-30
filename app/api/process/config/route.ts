@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { DIMENSIONS, CRITERIA, KNOCKOUTS, SELF_ASSESSMENT } from "@/lib/process/criteria";
 import { PHASES, BRANCHES, BRANCH_TIEBREAKER, RISK_CHECKS, RISK_CLASSES, CONFIDENCE_LADDER, ANFLUG, DIRECTION_RULES } from "@/lib/process/phases";
+import { ARTEFACTS } from "@/lib/process/artefacts";
 import * as llm from "@/lib/process/llm";
 import { deny } from "@/lib/process/guard";
 
@@ -16,6 +17,7 @@ export async function GET() {
     knockouts: KNOCKOUTS.map((k) => k.id),
     selfAssessment: SELF_ASSESSMENT,
     phases: PHASES,
+    artefacts: ARTEFACTS.map((a) => ({ id: a.id, phase: a.phase, title: a.title, purpose: a.purpose })),
     branches: BRANCHES,
     branchTiebreaker: BRANCH_TIEBREAKER,
     riskChecks: RISK_CHECKS,

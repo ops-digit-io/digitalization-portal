@@ -9,6 +9,8 @@
  */
 
 import { dimById, criteriaOf } from "./criteria";
+import { artefactById, artefactsOf } from "./artefacts";
+import { byPhase } from "./phases";
 import * as store from "./store";
 import { shared, dimensionCoach } from "./prompts";
 
@@ -62,4 +64,67 @@ Liefere am Ende je Kriterium: vorgeschlagene S-Stufe + einzeilige Evidenznotiz +
   ]
     .filter(Boolean)
     .join("\n\n");
+}
+
+/**
+ * Prompt to GENERATE a phase artefact (Markdown) from its template, the engagement
+ * context and the artefacts already produced in earlier phases. Live or export.
+ */
+export async function buildArtefact(slug: string, artefactId: string, mode: "live" | "export" = "live"): Promise<string> {
+  const a = artefactById[artefactId];
+  if (!a) throw new Error(`unknown artefact ${artefactId}`);
+  const m = (await store.meta(slug))!;
+  const [sharedText, current] = await Promise.all([shared(), store.readArtefact(slug, artefactId)]);
+
+  // Prior context: the artefacts of earlier phases that already have content.
+  const phaseN = byPhase[a.phase]?.n ?? 0;
+  const priorArtefacts = ARTEFACTS_BEFORE(phaseN);
+  const priorParts: string[] = [];
+  for (const p of priorArtefacts) {
+    const c = (await store.readArtefact(slug, p.id)).trim();
+    if (c) priorParts.push(`<artefakt phase="${p.phase}" titel="${p.title}">\n${c.slice(0, 2000)}\n</artefakt>`);
+  }
+
+  const head = `Du erzeugst das Artefakt „${a.title}" (Phase ${byPhase[a.phase]?.n} — ${byPhase[a.phase]?.label})
+einer Prozessdiagnose bei OESL Automotive.
+
+Engagement: ${m.title}
+Prozessverantwortlicher: ${m.owner || "(nicht erfasst)"}
+Champion: ${m.champion || "(nicht erfasst)"}
+Einheit: ${m.unit || "(nicht erfasst)"}
+Anflug: ${m.anflug === "technology" ? "Technologie-Push" : "Prozess-Pull"}
+${m.components.length ? `Kernkomponenten: ${m.components.map((c) => c.label).join(", ")}` : ""}
+
+Zweck dieses Artefakts: ${a.purpose}
+
+DISZIPLIN
+- Fülle die Vorlage aus. Erfinde keine Zahlen oder Namen; wo etwas nicht erhoben ist,
+  schreibe „nicht erhoben" und nenne, was es erheben würde. Keine eckigen Platzhalter.
+- Zahlen tragen ihre Konfidenzstufe (S/P/I). Eine reine S-Zahl ist keine Baseline.
+- Behalte Überschriften und Tabellenspalten der Vorlage bei; sie werden gerendert.`;
+
+  const tail =
+    mode === "export"
+      ? `\n\nDu wirst außerhalb des Portals eingefügt. Erhebe das Fehlende beim Menschen vor dir und
+liefere das fertige Artefakt als ein einziger Markdown-Block.`
+      : `\n\nErhebe das Fehlende Schritt für Schritt. Wenn du genug hast, liefere das fertige Artefakt
+in einem einzigen fenced-Markdown-Block, damit es verbatim gespeichert werden kann.`;
+
+  return [
+    head,
+    sharedText,
+    `<vorlage>\n${a.template}\n</vorlage>`,
+    priorParts.length ? `<vorherige-artefakte>\n${priorParts.join("\n\n")}\n</vorherige-artefakte>` : "",
+    current.trim() ? `<aktueller-stand>\nBaue darauf auf; verwirf nichts Belegtes.\n\n${current}\n</aktueller-stand>` : "",
+    tail,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/** Artefacts of all phases strictly before phase number n. */
+function ARTEFACTS_BEFORE(n: number) {
+  const out = [] as ReturnType<typeof artefactsOf>;
+  for (let i = 0; i < n; i++) out.push(...artefactsOf(`P${i}`));
+  return out;
 }
