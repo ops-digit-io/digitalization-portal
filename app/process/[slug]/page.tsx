@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { apiGet, apiSend } from "@/components/process/ui";
+import { ArtefactCard } from "@/components/process/artefact-card";
 
 const INPUT = "mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring";
 const TEXTAREA = "mt-1 min-h-16 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring";
@@ -70,6 +71,12 @@ interface Phase {
   purpose: string;
   gate: { id: string; label: string; condition: string; fail: string };
 }
+interface Artefact {
+  id: string;
+  phase: string;
+  title: string;
+  purpose: string;
+}
 interface Branch {
   id: string;
   label: string;
@@ -88,13 +95,16 @@ interface RiskCheck {
 }
 interface Config {
   phases: Phase[];
+  artefacts: Artefact[];
   branches: Branch[];
   riskClasses: RiskClass[];
   riskChecks: RiskCheck[];
+  liveCoaching: boolean;
 }
 interface Engagement {
   meta: Meta;
   profile: Profile;
+  filledArtefacts: string[];
 }
 
 const ANFLUG_LABEL: Record<Anflug, string> = { process: "Prozess-Pull", technology: "Technologie-Push" };
@@ -123,14 +133,17 @@ function barColor(score: number): string {
   return "bg-[hsl(var(--ok))]";
 }
 
+const PROFIL = "__profil__";
+
 // ------------------------------------------------------------------ page
-export default function EngagementOverview() {
+export default function EngagementCockpit() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug;
 
   const [eng, setEng] = useState<Engagement | null>(null);
   const [config, setConfig] = useState<Config | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<string>(PROFIL);
 
   const reload = useCallback(async () => {
     const e = await apiGet<Engagement>(`/engagements/${slug}`);
@@ -165,8 +178,10 @@ export default function EngagementOverview() {
     return <main className="mx-auto max-w-[1100px] px-4 py-6 text-sm text-muted-foreground">Lädt…</main>;
   }
 
-  const { meta, profile } = eng;
+  const { meta, profile, filledArtefacts } = eng;
   const reportUrl = `/api/process/engagements/${slug}/report?format=md`;
+
+  const activePhase = config.phases.find((p) => p.id === tab);
 
   return (
     <main className="mx-auto max-w-[1100px] px-4 py-6">
@@ -176,7 +191,7 @@ export default function EngagementOverview() {
         <span className="text-foreground">{meta.title}</span>
       </nav>
 
-      {/* 1. Header */}
+      {/* Header */}
       <Card className="p-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
@@ -199,8 +214,80 @@ export default function EngagementOverview() {
         </div>
       </Card>
 
-      {/* 2. Knock-outs */}
-      <section className="mt-4">
+      {/* Tab strip */}
+      <div className="mt-4 flex flex-nowrap gap-1 overflow-x-auto border-b">
+        <TabButton label="Profil" active={tab === PROFIL} onClick={() => setTab(PROFIL)} />
+        {config.phases.map((p) => {
+          const inPhase = config.artefacts.filter((a) => a.phase === p.id);
+          const done = inPhase.filter((a) => filledArtefacts.includes(a.id)).length;
+          return (
+            <TabButton
+              key={p.id}
+              label={`${p.n} · ${p.label}`}
+              active={tab === p.id}
+              current={p.id === meta.phase}
+              count={inPhase.length ? `${done}/${inPhase.length}` : undefined}
+              onClick={() => setTab(p.id)}
+            />
+          );
+        })}
+      </div>
+
+      {/* Tab content */}
+      <div className="mt-4">
+        {tab === PROFIL && <ProfilTab slug={slug} profile={profile} />}
+        {activePhase && (
+          <PhaseTab
+            key={activePhase.id}
+            slug={slug}
+            phase={activePhase}
+            meta={meta}
+            profile={profile}
+            config={config}
+            filledArtefacts={filledArtefacts}
+            onChanged={reload}
+          />
+        )}
+      </div>
+    </main>
+  );
+}
+
+// ------------------------------------------------------------------ tab button
+function TabButton({
+  label,
+  active,
+  current,
+  count,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  current?: boolean;
+  count?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm transition-colors ${
+        active ? "border-b-2 border-foreground font-medium text-foreground" : "text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {current && <span className="size-1.5 rounded-full bg-primary" aria-label="aktuelle Phase" />}
+      {label}
+      {count && <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">{count}</span>}
+    </button>
+  );
+}
+
+// ------------------------------------------------------------------ Profil tab
+function ProfilTab({ slug, profile }: { slug: string; profile: Profile }) {
+  return (
+    <div className="space-y-4">
+      {/* Knock-outs */}
+      <section>
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Knock-outs</h2>
         <div className="flex flex-wrap gap-2">
           {profile.knockOuts.map((k) => {
@@ -230,8 +317,8 @@ export default function EngagementOverview() {
         </div>
       </section>
 
-      {/* 3. Dimensionsprofil */}
-      <section className="mt-4">
+      {/* Dimensionsprofil */}
+      <section>
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dimensionsprofil</h2>
         <Card className="divide-y">
           {profile.dimensions.map((d) => (
@@ -263,9 +350,9 @@ export default function EngagementOverview() {
         </Card>
       </section>
 
-      {/* 4. Richtungsvektor */}
+      {/* Richtungsvektor */}
       {profile.directions.length > 0 && (
-        <section className="mt-4">
+        <section>
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Richtungsvektor (Vorindikation)</h2>
           <Card className="p-3">
             <ul className="space-y-1 text-sm">
@@ -279,49 +366,79 @@ export default function EngagementOverview() {
           </Card>
         </section>
       )}
+    </div>
+  );
+}
 
-      {/* 5. Ablauf */}
-      <section className="mt-4">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ablauf</h2>
-        <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-          {config.phases.map((p) => (
-            <PhaseCard
-              key={p.id}
-              phase={p}
-              current={p.id === meta.phase}
-              verdict={meta.gates[p.gate.id]}
-              slug={slug}
-              onChanged={reload}
-            />
-          ))}
-        </div>
-      </section>
+// ------------------------------------------------------------------ Phase tab
+function PhaseTab({
+  slug,
+  phase,
+  meta,
+  profile,
+  config,
+  filledArtefacts,
+  onChanged,
+}: {
+  slug: string;
+  phase: Phase;
+  meta: Meta;
+  profile: Profile;
+  config: Config;
+  filledArtefacts: string[];
+  onChanged: () => Promise<void>;
+}) {
+  const artefacts = config.artefacts.filter((a) => a.phase === phase.id);
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">{phase.purpose}</p>
 
-      {/* 6. Diagnose & Risiko */}
-      <section className="mt-4">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Diagnose &amp; Risiko</h2>
-        <div className="grid gap-3 lg:grid-cols-2">
-          <BranchPicker slug={slug} branches={config.branches} chosen={meta.branch} onChanged={reload} />
-          <RiskClassPicker slug={slug} classes={config.riskClasses} chosen={meta.riskClass} onChanged={reload} />
-        </div>
-        <RiskChecks slug={slug} />
-      </section>
-    </main>
+      <GateControl slug={slug} phase={phase} verdict={meta.gates[phase.gate.id]} current={phase.id === meta.phase} onChanged={onChanged} />
+
+      {artefacts.length > 0 && (
+        <section>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Artefakte</h3>
+          <div className="space-y-2">
+            {artefacts.map((a) => (
+              <ArtefactCard
+                key={a.id}
+                slug={slug}
+                artefact={a}
+                filled={filledArtefacts.includes(a.id)}
+                live={config.liveCoaching}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {phase.id === "P1" && <CatalogScoring slug={slug} dimensions={profile.dimensions} />}
+
+      {phase.id === "P3" && (
+        <section className="space-y-3">
+          <div className="grid gap-3 lg:grid-cols-2">
+            <BranchPicker slug={slug} branches={config.branches} chosen={meta.branch} onChanged={onChanged} />
+            <RiskClassPicker slug={slug} classes={config.riskClasses} chosen={meta.riskClass} onChanged={onChanged} />
+          </div>
+          <RiskChecks slug={slug} />
+        </section>
+      )}
+    </div>
   );
 }
 
 // ------------------------------------------------------------------ gate control
-function PhaseCard({
-  phase,
-  current,
-  verdict,
+function GateControl({
   slug,
+  phase,
+  verdict,
+  current,
   onChanged,
 }: {
-  phase: Phase;
-  current: boolean;
-  verdict: GateVerdict | undefined;
   slug: string;
+  phase: Phase;
+  verdict: GateVerdict | undefined;
+  current: boolean;
   onChanged: () => Promise<void>;
 }) {
   const [failing, setFailing] = useState(false);
@@ -344,50 +461,83 @@ function PhaseCard({
     }
   }
 
-  const verdictMark = verdict ? (verdict.passed ? "✓ bestanden" : "✕ verfehlt") : "○ offen";
+  async function setCurrent() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await apiSend("PATCH", `/engagements/${slug}/meta`, { phase: phase.id });
+      await onChanged();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const verdictMark = verdict ? (verdict.passed ? "✓ Bestanden" : "✕ Verfehlt") : "○ offen";
   const verdictCls = verdict ? (verdict.passed ? "text-[hsl(var(--ok))]" : "text-destructive") : "text-muted-foreground";
 
   return (
-    <Card className={`p-3 ${current ? "ring-2 ring-ring" : ""}`}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-sm font-medium">
-          {phase.n}. {phase.label}
+    <Card className="p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold">Tor · {phase.gate.id} — {phase.gate.label}</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">{phase.gate.condition}</p>
         </div>
-        {current && <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-medium text-primary-foreground">aktuell</span>}
+        <span className={`text-sm font-semibold ${verdictCls}`}>{verdictMark}</span>
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">{phase.purpose}</p>
-      <div className="mt-2 rounded-md border bg-secondary/30 p-2">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-medium">{phase.gate.id} · {phase.gate.label}</span>
-          <span className={`text-xs font-semibold ${verdictCls}`}>{verdictMark}</span>
-        </div>
-        <p className="mt-1 text-[11px] text-muted-foreground">{phase.gate.condition}</p>
-        {verdict && !verdict.passed && verdict.reason && (
-          <p className="mt-1 text-[11px] text-destructive">Grund: {verdict.reason}</p>
-        )}
 
-        {!failing ? (
+      {verdict && !verdict.passed && verdict.reason && (
+        <p className="mt-2 text-xs text-destructive">Grund: {verdict.reason}</p>
+      )}
+
+      {!failing ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => setGate(true, "")}>Tor bestehen</Button>
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => setFailing(true)}>Tor verfehlen</Button>
+          {!current && (
+            <Button size="sm" variant="ghost" disabled={busy} onClick={setCurrent}>Als aktuelle Phase setzen</Button>
+          )}
+        </div>
+      ) : (
+        <div className="mt-3">
+          <label className={LABEL}>Grund (Pflicht bei Verfehlen)</label>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Warum wurde das Tor verfehlt?"
+            className={TEXTAREA}
+          />
           <div className="mt-2 flex gap-2">
-            <Button size="sm" variant="outline" disabled={busy} onClick={() => setGate(true, "")}>Bestehen</Button>
-            <Button size="sm" variant="outline" disabled={busy} onClick={() => setFailing(true)}>Verfehlen</Button>
+            <Button size="sm" disabled={busy || !reason.trim()} onClick={() => setGate(false, reason.trim())}>Verfehlen bestätigen</Button>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setFailing(false); setReason(""); }}>Abbrechen</Button>
           </div>
-        ) : (
-          <div className="mt-2">
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Grund (Pflicht bei Verfehlen)…"
-              className={TEXTAREA}
-            />
-            <div className="mt-2 flex gap-2">
-              <Button size="sm" disabled={busy || !reason.trim()} onClick={() => setGate(false, reason.trim())}>Verfehlen bestätigen</Button>
-              <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setFailing(false); setReason(""); }}>Abbrechen</Button>
+        </div>
+      )}
+      {err && <p className="mt-2 text-xs text-destructive">{err}</p>}
+    </Card>
+  );
+}
+
+// ------------------------------------------------------------------ catalog scoring (P1)
+function CatalogScoring({ slug, dimensions }: { slug: string; dimensions: DimensionResult[] }) {
+  return (
+    <section>
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Katalog-Scoring (D1–D8)</h3>
+      <Card className="divide-y">
+        {dimensions.map((d) => (
+          <div key={d.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+            <span className="min-w-0 truncate font-medium">{d.id} · {d.label}</span>
+            <div className="flex shrink-0 items-center gap-3">
+              <span className="text-muted-foreground">{d.score !== null ? d.score.toFixed(1) : "nicht bewertet"}</span>
+              <Link href={`/process/${slug}/assess/${d.id}`} className="text-xs font-medium text-primary hover:underline">
+                bewerten
+              </Link>
             </div>
           </div>
-        )}
-        {err && <p className="mt-1 text-[11px] text-destructive">{err}</p>}
-      </div>
-    </Card>
+        ))}
+      </Card>
+    </section>
   );
 }
 
@@ -552,7 +702,7 @@ function RiskChecks({ slug }: { slug: string }) {
   }
 
   return (
-    <Card className="mt-3 p-3">
+    <Card className="p-3">
       <button type="button" onClick={toggle} className="flex w-full items-center justify-between text-left">
         <h3 className="text-sm font-semibold">Änderungsrisiko — 7 Prüfpunkte</h3>
         <span className="text-xs text-muted-foreground">{open ? "einklappen ▲" : "ausklappen ▼"}</span>
