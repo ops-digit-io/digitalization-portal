@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { apiGet, apiSend } from "@/components/process/ui";
+import { useI18n } from "@/components/providers";
+import * as C from "@/lib/process/content";
 
 const INPUT = "mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring";
 const LABEL = "block text-xs font-medium text-muted-foreground";
@@ -36,18 +38,16 @@ interface Criterion {
   scale: [string, string, string, string, string];
 }
 
+type Recommendation = "aufnehmen" | "enabler" | "zurueckstellen" | "selbsthilfe";
 interface Triage {
-  recommendation: "aufnehmen" | "enabler" | "zurueckstellen" | "selbsthilfe";
-  headline: string;
-  reason: string;
-  warnings: string[];
+  recommendation: Recommendation;
+  warnings: ("no-goal" | "thin-value" | "no-map" | "no-leadtime")[];
+  enablerWhich: ("K5.1" | "K2.2")[];
   rated: number;
   total: number;
 }
 
-const ANFLUG_LABEL: Record<Anflug, string> = { process: "Prozess-Pull", technology: "Technologie-Push" };
-
-const REC_CLASS: Record<Triage["recommendation"], string> = {
+const REC_CLASS: Record<Recommendation, string> = {
   aufnehmen: "bg-[hsl(var(--ok))] text-white",
   enabler: "bg-amber-500 text-white",
   selbsthilfe: "bg-secondary text-secondary-foreground",
@@ -72,6 +72,7 @@ function fmtDate(s: string): string {
 
 export default function ProcessFunnel() {
   const router = useRouter();
+  const { locale } = useI18n();
   const [config, setConfig] = useState<Config | null>(null);
   const [rows, setRows] = useState<EngagementRow[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -149,22 +150,22 @@ export default function ProcessFunnel() {
   return (
     <main className="mx-auto max-w-[1200px] px-4 py-6">
       <nav className="mb-2 text-sm text-muted-foreground">
-        <Link href="/" className="hover:text-foreground">Home</Link>
+        <Link href="/" className="hover:text-foreground">{C.pc(locale, "nav.home")}</Link>
         <span className="mx-1.5" aria-hidden>›</span>
-        <span className="text-foreground">Process Funnel</span>
+        <span className="text-foreground">{C.pc(locale, "funnel.title")}</span>
       </nav>
 
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-lg font-semibold">Process Funnel</h1>
-        <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">pre-funnel</span>
+        <h1 className="text-lg font-semibold">{C.pc(locale, "funnel.title")}</h1>
+        <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">{C.pc(locale, "badge.prefunnel")}</span>
         {config && config.liveCoaching === false && (
           <span className="rounded-full border px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-            offline · Analyse regelbasiert
+            {C.pc(locale, "badge.offline")}
           </span>
         )}
       </div>
       <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-        Prozessgesundheit vor dem Engagement: bewerten, verzweigen, das Änderungsrisiko klären — ein Cockpit je Diagnose.
+        {C.pc(locale, "funnel.tagline")}
       </p>
 
       {loadError && (
@@ -174,11 +175,11 @@ export default function ProcessFunnel() {
       <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_380px]">
         {/* Left: list */}
         <section>
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Diagnosen</h2>
-          {rows === null && !loadError && <p className="text-sm text-muted-foreground">Lädt…</p>}
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{C.pc(locale, "list.heading")}</h2>
+          {rows === null && !loadError && <p className="text-sm text-muted-foreground">{C.pc(locale, "loading")}</p>}
           {rows !== null && rows.length === 0 && (
             <Card className="p-6 text-center text-sm text-muted-foreground">
-              Noch keine Diagnose. Starte rechts mit „Neue Diagnose“.
+              {C.pc(locale, "list.empty")}
             </Card>
           )}
           {rows !== null && rows.length > 0 && (
@@ -190,11 +191,11 @@ export default function ProcessFunnel() {
                       <div className="min-w-0">
                         <div className="truncate font-medium">{r.title}</div>
                         <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                          {r.owner || "kein Owner"}{r.unit ? ` · ${r.unit}` : ""}
+                          {r.owner || C.pc(locale, "row.noOwner")}{r.unit ? ` · ${r.unit}` : ""}
                         </div>
                       </div>
                       <div className="shrink-0 text-right text-xs text-muted-foreground">
-                        <div>{ANFLUG_LABEL[r.anflug]}</div>
+                        <div>{C.anflugLabel(locale, r.anflug)}</div>
                         <div className="mt-0.5">{r.phase} · {fmtDate(r.updatedAt)}</div>
                       </div>
                     </div>
@@ -211,82 +212,85 @@ export default function ProcessFunnel() {
           <Card className="p-4">
             <button type="button" onClick={() => setPreOpen((o) => !o)} className="flex w-full items-center justify-between text-left">
               <div>
-                <h2 className="font-semibold">Vorfilter · Kurzform-Selbstbewertung</h2>
-                <p className="mt-1 text-xs text-muted-foreground">Sieben Kriterien, grob selbst eingestuft — billig, 1.400-fähig. Entscheidet vor Hub-Zeit.</p>
+                <h2 className="font-semibold">{C.pc(locale, "prefilter.title")}</h2>
+                <p className="mt-1 text-xs text-muted-foreground">{C.pc(locale, "prefilter.sub")}</p>
               </div>
               <span className="ml-2 shrink-0 text-muted-foreground">{preOpen ? "–" : "+"}</span>
             </button>
 
             {preOpen && (
               <div className="mt-4 space-y-4">
-                {selfCriteria.length === 0 && <p className="text-sm text-muted-foreground">Lädt…</p>}
-                {selfCriteria.map((c) => (
-                  <div key={c.id}>
-                    <div className="text-sm font-medium">
-                      {c.id} · {c.label}
-                      {c.knockout && <span className="ml-1.5 rounded bg-secondary px-1 py-0.5 text-[10px] uppercase text-muted-foreground">K.o.</span>}
+                {selfCriteria.length === 0 && <p className="text-sm text-muted-foreground">{C.pc(locale, "loading")}</p>}
+                {selfCriteria.map((c) => {
+                  const ct = C.critText(locale, c.id);
+                  return (
+                    <div key={c.id}>
+                      <div className="text-sm font-medium">
+                        {c.id} · {ct.label}
+                        {c.knockout && <span className="ml-1.5 rounded bg-secondary px-1 py-0.5 text-[10px] uppercase text-muted-foreground">K.o.</span>}
+                      </div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">{ct.question}</div>
+                      <div className="mt-1.5 flex gap-1">
+                        {([1, 2, 3, 4, 5] as Level[]).map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            title={ct.scale[n - 1]}
+                            onClick={() => setLevel(c.id, n)}
+                            className={`h-7 flex-1 rounded border text-xs font-medium ${levels[c.id] === n ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-accent"}`}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <div className="mt-0.5 text-xs text-muted-foreground">{c.question}</div>
-                    <div className="mt-1.5 flex gap-1">
-                      {([1, 2, 3, 4, 5] as Level[]).map((n) => (
-                        <button
-                          key={n}
-                          type="button"
-                          title={c.scale[n - 1]}
-                          onClick={() => setLevel(c.id, n)}
-                          className={`h-7 flex-1 rounded border text-xs ${levels[c.id] === n ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-accent"}`}
-                        >
-                          S{n}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {triage && (
                   <div className="rounded-md border p-3">
                     <div className="flex items-center gap-2">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${REC_CLASS[triage.recommendation]}`}>{triage.headline}</span>
-                      <span className="text-xs text-muted-foreground">{triage.rated}/{triage.total} bewertet</span>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${REC_CLASS[triage.recommendation]}`}>{C.triageHeadline(locale, triage.recommendation)}</span>
+                      <span className="text-xs text-muted-foreground">{triage.rated}/{triage.total} {C.pc(locale, "rated")}</span>
                     </div>
-                    <p className="mt-1.5 text-xs text-muted-foreground">{triage.reason}</p>
+                    <p className="mt-1.5 text-xs text-muted-foreground">{C.triageReason(locale, triage.recommendation, triage.enablerWhich)}</p>
                     {triage.warnings.length > 0 && (
                       <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-[11px] text-amber-600 dark:text-amber-500">
-                        {triage.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                        {triage.warnings.map((w) => <li key={w}>{C.warnText(locale, w)}</li>)}
                       </ul>
                     )}
-                    <p className="mt-2 text-[11px] text-muted-foreground">Die Stufen werden als Startbewertung (Konfidenz S) in die Diagnose übernommen.</p>
+                    <p className="mt-2 text-[11px] text-muted-foreground">{C.pc(locale, "prefilter.seeded")}</p>
                   </div>
                 )}
               </div>
             )}
           </Card>
 
-          {/* Neue Diagnose */}
+          {/* New diagnosis */}
           <Card className="p-4">
-            <h2 className="font-semibold">Neue Diagnose</h2>
-            <p className="mt-1 text-xs text-muted-foreground">Ein Prozess, ein Spoke, eine Anflugrichtung.</p>
+            <h2 className="font-semibold">{C.pc(locale, "create.title")}</h2>
+            <p className="mt-1 text-xs text-muted-foreground">{C.pc(locale, "create.sub")}</p>
 
             <div className="mt-4 space-y-3">
               <div>
-                <label className={LABEL}>Prozess *</label>
-                <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Wareneingang Rohmaterial" className={INPUT} />
+                <label className={LABEL}>{C.pc(locale, "field.process")} *</label>
+                <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={C.pc(locale, "placeholder.process")} className={INPUT} />
                 {slug && <p className="mt-1 text-xs text-muted-foreground">/process/{slug}</p>}
               </div>
               <div>
-                <label className={LABEL}>Verantwortlicher</label>
+                <label className={LABEL}>{C.pc(locale, "field.owner")}</label>
                 <input value={owner} onChange={(e) => setOwner(e.target.value)} className={INPUT} />
               </div>
               <div>
-                <label className={LABEL}>Champion</label>
+                <label className={LABEL}>{C.pc(locale, "field.champion")}</label>
                 <input value={champion} onChange={(e) => setChampion(e.target.value)} className={INPUT} />
               </div>
               <div>
-                <label className={LABEL}>Einheit / Kostenstelle</label>
+                <label className={LABEL}>{C.pc(locale, "field.unit")}</label>
                 <input value={unit} onChange={(e) => setUnit(e.target.value)} className={INPUT} />
               </div>
               <div>
-                <label className={LABEL}>Anflug</label>
+                <label className={LABEL}>{C.pc(locale, "field.anflug")}</label>
                 <div className="mt-1 inline-flex rounded-md border p-0.5 text-sm">
                   {(["process", "technology"] as const).map((a) => (
                     <button
@@ -295,25 +299,25 @@ export default function ProcessFunnel() {
                       onClick={() => setAnflug(a)}
                       className={`rounded px-3 py-1 ${a === anflug ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
                     >
-                      {ANFLUG_LABEL[a]}
+                      {C.anflugLabel(locale, a)}
                     </button>
                   ))}
                 </div>
               </div>
               <div>
-                <label className={LABEL}>Kernkomponenten (kommagetrennt)</label>
-                <input value={componentsText} onChange={(e) => setComponentsText(e.target.value)} placeholder="SAP MM, Excel-Liste, Mendix-App" className={INPUT} />
+                <label className={LABEL}>{C.pc(locale, "field.components")}</label>
+                <input value={componentsText} onChange={(e) => setComponentsText(e.target.value)} placeholder={C.pc(locale, "placeholder.components")} className={INPUT} />
               </div>
 
               {triage && triage.recommendation === "zurueckstellen" && (
                 <p className="rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-1.5 text-xs text-destructive">
-                  Vorfilter empfiehlt Zurückstellen (kein Spoke). Aufnahme nur mit begründeter Ausnahme.
+                  {C.pc(locale, "create.deferWarn")}
                 </p>
               )}
               {formError && <p className="text-sm text-destructive">{formError}</p>}
 
               <Button className="w-full" disabled={!title.trim() || submitting} onClick={submit}>
-                {submitting ? "Startet…" : "Diagnose starten"}
+                {submitting ? C.pc(locale, "btn.starting") : C.pc(locale, "btn.start")}
               </Button>
             </div>
           </Card>

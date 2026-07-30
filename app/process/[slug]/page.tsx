@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { apiGet, apiSend } from "@/components/process/ui";
 import { ArtefactCard } from "@/components/process/artefact-card";
+import { useI18n } from "@/components/providers";
+import type { Locale } from "@/lib/i18n";
+import * as C from "@/lib/process/content";
 
 const INPUT = "mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring";
 const TEXTAREA = "mt-1 min-h-16 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring";
@@ -151,21 +154,18 @@ interface CreatedDemand {
   path?: string;
 }
 
-const ANFLUG_LABEL: Record<Anflug, string> = { process: "Prozess-Pull", technology: "Technologie-Push" };
-
-const STATUS_PILL: Record<Status, { cls: string; label: string }> = {
-  gruen: { cls: "bg-[hsl(var(--ok))] text-white", label: "Grün" },
-  gelb: { cls: "bg-amber-500 text-white", label: "Gelb" },
-  rot: { cls: "bg-[hsl(var(--destructive))] text-white", label: "Rot" },
-  grau: { cls: "bg-secondary text-secondary-foreground", label: "Grau" },
+const STATUS_CLS: Record<Status, string> = {
+  gruen: "bg-[hsl(var(--ok))] text-white",
+  gelb: "bg-amber-500 text-white",
+  rot: "bg-[hsl(var(--destructive))] text-white",
+  grau: "bg-secondary text-secondary-foreground",
 };
 
-function StatusPill({ status }: { status: Status }) {
-  const s = STATUS_PILL[status];
+function StatusPill({ status, locale }: { status: Status; locale: Locale }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${s.cls}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_CLS[status]}`}>
       <span className="size-2 rounded-full bg-current opacity-90" aria-hidden />
-      {s.label}
+      {C.statusPill(locale, status)}
     </span>
   );
 }
@@ -184,6 +184,7 @@ const ANALYSE = "__analyse__";
 export default function EngagementCockpit() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug;
+  const { locale } = useI18n();
 
   const [eng, setEng] = useState<Engagement | null>(null);
   const [config, setConfig] = useState<Config | null>(null);
@@ -220,7 +221,7 @@ export default function EngagementCockpit() {
     );
   }
   if (!eng || !config) {
-    return <main className="mx-auto max-w-[1100px] px-4 py-6 text-sm text-muted-foreground">Lädt…</main>;
+    return <main className="mx-auto max-w-[1100px] px-4 py-6 text-sm text-muted-foreground">{C.pc(locale, "loading")}</main>;
   }
 
   const { meta, profile } = eng;
@@ -232,7 +233,7 @@ export default function EngagementCockpit() {
   return (
     <main className="mx-auto max-w-[1100px] px-4 py-6">
       <nav className="mb-2 text-sm text-muted-foreground">
-        <Link href="/process" className="hover:text-foreground">Process Funnel</Link>
+        <Link href="/process" className="hover:text-foreground">{C.pc(locale, "funnel.title")}</Link>
         <span className="mx-1.5" aria-hidden>›</span>
         <span className="text-foreground">{meta.title}</span>
       </nav>
@@ -243,18 +244,18 @@ export default function EngagementCockpit() {
           <div className="min-w-0">
             <h1 className="text-lg font-semibold">{meta.title}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {meta.owner || "kein Owner"}
-              {meta.champion ? ` · Champion ${meta.champion}` : ""}
+              {meta.owner || C.pc(locale, "row.noOwner")}
+              {meta.champion ? ` · ${C.pc(locale, "field.champion")} ${meta.champion}` : ""}
               {meta.unit ? ` · ${meta.unit}` : ""}
             </p>
-            <p className="mt-0.5 text-xs text-muted-foreground">Anflug: {ANFLUG_LABEL[meta.anflug]}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{C.pc(locale, "field.anflug")}: {C.anflugLabel(locale, meta.anflug)}</p>
           </div>
           <div className="text-right">
-            <StatusPill status={profile.status} />
-            <p className="mt-1 max-w-md text-xs text-muted-foreground">{profile.reason}</p>
-            <p className="mt-1 text-xs text-muted-foreground">Abdeckung {Math.round(profile.coverage * 100)} %</p>
-            <a href={reportUrl} className="mt-1 inline-block text-xs font-medium text-primary hover:underline" download>
-              Bericht (Markdown)
+            <StatusPill status={profile.status} locale={locale} />
+            <p className="mt-1 max-w-md text-xs text-muted-foreground">{C.explainStatus(locale, profile)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{C.pc(locale, "coverage")} {Math.round(profile.coverage * 100)} %</p>
+            <a href={`${reportUrl}&lang=${locale}`} className="mt-1 inline-block text-xs font-medium text-primary hover:underline" download>
+              {C.pc(locale, "report.link")}
             </a>
           </div>
         </div>
@@ -262,15 +263,15 @@ export default function EngagementCockpit() {
 
       {/* Tab strip */}
       <div className="mt-4 flex flex-nowrap gap-1 overflow-x-auto border-b">
-        <TabButton label="Profil" active={tab === PROFIL} onClick={() => setTab(PROFIL)} />
-        <TabButton label="Analyse & Bedarfe" active={tab === ANALYSE} onClick={() => setTab(ANALYSE)} />
+        <TabButton label={C.pc(locale, "tab.profile")} active={tab === PROFIL} onClick={() => setTab(PROFIL)} />
+        <TabButton label={C.pc(locale, "tab.analyse")} active={tab === ANALYSE} onClick={() => setTab(ANALYSE)} />
         {config.phases.map((p) => {
           const inPhase = config.artefacts.filter((a) => a.phase === p.id);
           const done = inPhase.filter((a) => filledArtefacts.includes(a.id)).length;
           return (
             <TabButton
               key={p.id}
-              label={`${p.n} · ${p.label}`}
+              label={`${p.n} · ${C.phaseText(locale, p.id).label}`}
               active={tab === p.id}
               current={p.id === meta.phase}
               count={inPhase.length ? `${done}/${inPhase.length}` : undefined}
@@ -282,8 +283,8 @@ export default function EngagementCockpit() {
 
       {/* Tab content */}
       <div className="mt-4">
-        {tab === PROFIL && <ProfilTab slug={slug} profile={profile} />}
-        {tab === ANALYSE && <AnalyseTab slug={slug} demands={meta.demands ?? []} onChanged={reload} />}
+        {tab === PROFIL && <ProfilTab slug={slug} profile={profile} locale={locale} />}
+        {tab === ANALYSE && <AnalyseTab slug={slug} demands={meta.demands ?? []} onChanged={reload} locale={locale} />}
         {activePhase && (
           <PhaseTab
             key={activePhase.id}
@@ -294,6 +295,7 @@ export default function EngagementCockpit() {
             config={config}
             filledArtefacts={filledArtefacts}
             onChanged={reload}
+            locale={locale}
           />
         )}
       </div>
@@ -331,12 +333,12 @@ function TabButton({
 }
 
 // ------------------------------------------------------------------ Profil tab
-function ProfilTab({ slug, profile }: { slug: string; profile: Profile }) {
+function ProfilTab({ slug, profile, locale }: { slug: string; profile: Profile; locale: Locale }) {
   return (
     <div className="space-y-4">
       {/* Knock-outs */}
       <section>
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Knock-outs</h2>
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{C.pc(locale, "ko.heading")}</h2>
         <div className="flex flex-wrap gap-2">
           {profile.knockOuts.map((k) => {
             const tone =
@@ -348,16 +350,15 @@ function ProfilTab({ slug, profile }: { slug: string; profile: Profile }) {
             const mark = k.state === "pass" ? "✓" : k.state === "fail" ? "✕" : "○";
             const markCls =
               k.state === "pass" ? "text-[hsl(var(--ok))]" : k.state === "fail" ? "text-destructive" : "text-muted-foreground";
-            const stateLabel = k.state === "pass" ? "bestanden" : k.state === "fail" ? "gescheitert" : "offen";
             return (
               <div key={k.id} className={`rounded-md border px-3 py-2 text-sm ${tone}`}>
                 <div className="flex items-center gap-2">
                   <span className={`font-semibold ${markCls}`} aria-hidden>{mark}</span>
                   <span className="font-medium">{k.id}</span>
-                  <span className="text-muted-foreground">{k.label}</span>
+                  <span className="text-muted-foreground">{C.critText(locale, k.id).label}</span>
                 </div>
                 <div className="mt-0.5 text-xs text-muted-foreground">
-                  S{k.level}{k.rated ? "" : " (nicht erhoben → S1, §1.3)"} · {stateLabel} · {k.koClass === "intake" ? "Aufnahme-K.o." : "Optimierungs-K.o."}
+                  {k.level}/5{k.rated ? "" : ` (${C.pc(locale, "ko.notRated")})`} · {C.koStateLabel(locale, k.state)} · {C.koClassLabel(locale, k.koClass)}
                 </div>
               </div>
             );
@@ -365,9 +366,9 @@ function ProfilTab({ slug, profile }: { slug: string; profile: Profile }) {
         </div>
       </section>
 
-      {/* Dimensionsprofil */}
+      {/* Dimension profile */}
       <section>
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dimensionsprofil</h2>
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{C.pc(locale, "dim.heading")}</h2>
         <Card className="divide-y">
           {profile.dimensions.map((d) => (
             <Link
@@ -376,36 +377,36 @@ function ProfilTab({ slug, profile }: { slug: string; profile: Profile }) {
               className="flex items-center gap-3 px-3 py-2 transition-colors hover:bg-accent"
             >
               <div className="w-40 shrink-0">
-                <div className="text-sm font-medium">{d.id} · {d.label}</div>
-                <div className="text-xs text-muted-foreground">Gewicht {d.weight}%</div>
+                <div className="text-sm font-medium">{d.id} · {C.dimText(locale, d.id).label}</div>
+                <div className="text-xs text-muted-foreground">{C.pc(locale, "dim.weight")} {d.weight}%</div>
               </div>
               <div className="flex-1">
                 <div className="h-2.5 w-full overflow-hidden rounded-full bg-secondary">
                   <div className={`h-full ${barColor(d.score)}`} style={{ width: `${(d.score / 5) * 100}%` }} />
                 </div>
                 {d.worstComponent && (
-                  <div className="mt-0.5 text-xs text-muted-foreground">schwächste Komponente: {d.worstComponent}</div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">{C.pc(locale, "dim.worst")}: {d.worstComponent}</div>
                 )}
               </div>
               <div className="w-28 shrink-0 text-right text-xs">
                 <div className="font-medium text-foreground">{d.score.toFixed(1)}</div>
-                <div className="text-muted-foreground">{d.rated}/{d.total} bewertet</div>
+                <div className="text-muted-foreground">{d.rated}/{d.total} {C.pc(locale, "rated")}</div>
               </div>
             </Link>
           ))}
         </Card>
       </section>
 
-      {/* Richtungsvektor */}
+      {/* Direction vector */}
       {profile.directions.length > 0 && (
         <section>
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Richtungsvektor (Vorindikation)</h2>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{C.pc(locale, "directions.heading")}</h2>
           <Card className="p-3">
             <ul className="space-y-1 text-sm">
-              {profile.directions.map((x, i) => (
-                <li key={i} className="flex gap-2">
+              {profile.directions.map((code) => (
+                <li key={code} className="flex gap-2">
                   <span className="text-muted-foreground" aria-hidden>→</span>
-                  <span>{x}</span>
+                  <span>{C.directionText(locale, code)}</span>
                 </li>
               ))}
             </ul>
@@ -421,10 +422,12 @@ function AnalyseTab({
   slug,
   demands,
   onChanged,
+  locale,
 }: {
   slug: string;
   demands: DemandRef[];
   onChanged: () => Promise<void>;
+  locale: Locale;
 }) {
   const [running, setRunning] = useState(false);
   const [live, setLive] = useState<boolean | null>(null);
@@ -476,13 +479,13 @@ function AnalyseTab({
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Der Analyse-Agent zerlegt die Diagnose in einzelne Bedarfe und legt sie im Bedarfs-Funnel an.
+        {C.pc(locale, "analyse.intro")}
       </p>
 
-      {/* Bereits angelegte Bedarfe */}
+      {/* Demands already created */}
       {demands.length > 0 && (
         <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Bereits angelegte Bedarfe</h3>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{C.pc(locale, "analyse.existing")}</h3>
           <Card className="divide-y">
             {demands.map((d) => (
               <Link
@@ -503,19 +506,19 @@ function AnalyseTab({
       {/* Analyse starten */}
       <div className="flex flex-wrap items-center gap-3">
         <Button size="sm" disabled={running} onClick={analyse}>
-          {running ? "Analysiert…" : "Analysieren"}
+          {running ? C.pc(locale, "btn.analysing") : C.pc(locale, "btn.analyse")}
         </Button>
-        {running && <span className="text-xs text-muted-foreground">Der Agent zerlegt die Diagnose…</span>}
+        {running && <span className="text-xs text-muted-foreground">{C.pc(locale, "analyse.running")}</span>}
         {live === false && (
-          <span className="text-xs text-muted-foreground">ohne Modell-Key: regelbasierter Vorschlag</span>
+          <span className="text-xs text-muted-foreground">{C.pc(locale, "analyse.offline")}</span>
         )}
       </div>
 
-      {/* Vorschläge */}
+      {/* Proposals */}
       {proposals && (
         <section className="space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vorgeschlagene Bedarfe</h3>
-          {proposals.length === 0 && <p className="text-sm text-muted-foreground">Keine Bedarfe vorgeschlagen.</p>}
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{C.pc(locale, "proposals.heading")}</h3>
+          {proposals.length === 0 && <p className="text-sm text-muted-foreground">{C.pc(locale, "proposals.none")}</p>}
           <div className="space-y-2">
             {proposals.map((p, i) => (
               <Card key={i} className="p-3">
@@ -526,11 +529,11 @@ function AnalyseTab({
                     onChange={(e) => update(i, { _create: e.target.checked })}
                     className="size-4 accent-[hsl(var(--primary))]"
                   />
-                  anlegen
+                  {C.pc(locale, "proposals.create")}
                 </label>
 
                 <div className="mt-2">
-                  <label className={LABEL}>Titel</label>
+                  <label className={LABEL}>{C.pc(locale, "field.title")}</label>
                   <input
                     value={p.title}
                     onChange={(e) => update(i, { title: e.target.value })}
@@ -539,7 +542,7 @@ function AnalyseTab({
                 </div>
 
                 <div className="mt-2">
-                  <label className={LABEL}>Problem</label>
+                  <label className={LABEL}>{C.pc(locale, "field.problem")}</label>
                   <textarea
                     value={p.problem}
                     onChange={(e) => update(i, { problem: e.target.value })}
@@ -548,19 +551,19 @@ function AnalyseTab({
                 </div>
 
                 <div className="mt-2">
-                  <label className={LABEL}>Lane</label>
+                  <label className={LABEL}>{C.pc(locale, "field.lane")}</label>
                   <select
                     value={p.lane ?? ""}
                     onChange={(e) => update(i, { lane: e.target.value || undefined })}
                     className={INPUT}
                   >
                     {LANE_OPTIONS.map((o) => (
-                      <option key={o.id || "_auto"} value={o.id}>{o.label}</option>
+                      <option key={o.id || "_auto"} value={o.id}>{o.id === "" ? C.pc(locale, "lane.auto") : o.label}</option>
                     ))}
                   </select>
                 </div>
 
-                {p.basis && <p className="mt-2 text-xs text-muted-foreground">Basis: {p.basis}</p>}
+                {p.basis && <p className="mt-2 text-xs text-muted-foreground">{C.pc(locale, "proposals.basis")}: {p.basis}</p>}
               </Card>
             ))}
           </div>
@@ -568,17 +571,17 @@ function AnalyseTab({
           {proposals.length > 0 && (
             <div className="flex flex-wrap items-center gap-3">
               <Button size="sm" disabled={creating || selectedCount === 0} onClick={createSelected}>
-                {creating ? "Legt an…" : `Ausgewählte Bedarfe anlegen${selectedCount ? ` (${selectedCount})` : ""}`}
+                {creating ? C.pc(locale, "btn.creating") : `${C.pc(locale, "btn.createSelected")}${selectedCount ? ` (${selectedCount})` : ""}`}
               </Button>
             </div>
           )}
         </section>
       )}
 
-      {/* Angelegte Bedarfe (Ergebnis) */}
+      {/* Created demands (result) */}
       {created && created.length > 0 && (
         <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Angelegt</h3>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{C.pc(locale, "created.heading")}</h3>
           <Card className="divide-y">
             {created.map((c) => (
               <Link
@@ -607,6 +610,7 @@ function PhaseTab({
   config,
   filledArtefacts,
   onChanged,
+  locale,
 }: {
   slug: string;
   phase: Phase;
@@ -615,17 +619,18 @@ function PhaseTab({
   config: Config;
   filledArtefacts: string[];
   onChanged: () => Promise<void>;
+  locale: Locale;
 }) {
   const artefacts = config.artefacts.filter((a) => a.phase === phase.id);
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">{phase.purpose}</p>
+      <p className="text-sm text-muted-foreground">{C.phaseText(locale, phase.id).purpose}</p>
 
-      <GateControl slug={slug} phase={phase} verdict={meta.gates[phase.gate.id]} current={phase.id === meta.phase} onChanged={onChanged} />
+      <GateControl slug={slug} phase={phase} verdict={meta.gates[phase.gate.id]} current={phase.id === meta.phase} onChanged={onChanged} locale={locale} />
 
       {artefacts.length > 0 && (
         <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Artefakte</h3>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{C.pc(locale, "artefacts.heading")}</h3>
           <div className="space-y-2">
             {artefacts.map((a) => (
               <ArtefactCard
@@ -634,21 +639,22 @@ function PhaseTab({
                 artefact={a}
                 filled={filledArtefacts.includes(a.id)}
                 live={config.liveCoaching}
+                locale={locale}
               />
             ))}
           </div>
         </section>
       )}
 
-      {phase.id === "P1" && <CatalogScoring slug={slug} dimensions={profile.dimensions} />}
+      {phase.id === "P1" && <CatalogScoring slug={slug} dimensions={profile.dimensions} locale={locale} />}
 
       {phase.id === "P3" && (
         <section className="space-y-3">
           <div className="grid gap-3 lg:grid-cols-2">
-            <BranchPicker slug={slug} branches={config.branches} chosen={meta.branch} onChanged={onChanged} />
-            <RiskClassPicker slug={slug} classes={config.riskClasses} chosen={meta.riskClass} onChanged={onChanged} />
+            <BranchPicker slug={slug} branches={config.branches} chosen={meta.branch} onChanged={onChanged} locale={locale} />
+            <RiskClassPicker slug={slug} classes={config.riskClasses} chosen={meta.riskClass} onChanged={onChanged} locale={locale} />
           </div>
-          <RiskChecks slug={slug} />
+          <RiskChecks slug={slug} locale={locale} />
         </section>
       )}
     </div>
@@ -662,13 +668,16 @@ function GateControl({
   verdict,
   current,
   onChanged,
+  locale,
 }: {
   slug: string;
   phase: Phase;
   verdict: GateVerdict | undefined;
   current: boolean;
   onChanged: () => Promise<void>;
+  locale: Locale;
 }) {
+  const gt = C.phaseText(locale, phase.id).gate;
   const [failing, setFailing] = useState(false);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -702,43 +711,43 @@ function GateControl({
     }
   }
 
-  const verdictMark = verdict ? (verdict.passed ? "✓ Bestanden" : "✕ Verfehlt") : "○ offen";
+  const verdictMark = verdict ? (verdict.passed ? C.pc(locale, "gate.pass") : C.pc(locale, "gate.fail")) : C.pc(locale, "gate.open");
   const verdictCls = verdict ? (verdict.passed ? "text-[hsl(var(--ok))]" : "text-destructive") : "text-muted-foreground";
 
   return (
     <Card className="p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="text-sm font-semibold">Tor · {phase.gate.id} — {phase.gate.label}</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">{phase.gate.condition}</p>
+          <h3 className="text-sm font-semibold">{C.pc(locale, "gate.label")} · {phase.gate.id} — {gt.label}</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">{gt.condition}</p>
         </div>
         <span className={`text-sm font-semibold ${verdictCls}`}>{verdictMark}</span>
       </div>
 
       {verdict && !verdict.passed && verdict.reason && (
-        <p className="mt-2 text-xs text-destructive">Grund: {verdict.reason}</p>
+        <p className="mt-2 text-xs text-destructive">{C.pc(locale, "gate.reason")}: {verdict.reason}</p>
       )}
 
       {!failing ? (
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" disabled={busy} onClick={() => setGate(true, "")}>Tor bestehen</Button>
-          <Button size="sm" variant="outline" disabled={busy} onClick={() => setFailing(true)}>Tor verfehlen</Button>
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => setGate(true, "")}>{C.pc(locale, "btn.gatePass")}</Button>
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => setFailing(true)}>{C.pc(locale, "btn.gateFail")}</Button>
           {!current && (
-            <Button size="sm" variant="ghost" disabled={busy} onClick={setCurrent}>Als aktuelle Phase setzen</Button>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={setCurrent}>{C.pc(locale, "btn.setCurrent")}</Button>
           )}
         </div>
       ) : (
         <div className="mt-3">
-          <label className={LABEL}>Grund (Pflicht bei Verfehlen)</label>
+          <label className={LABEL}>{C.pc(locale, "gate.failReason")}</label>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Warum wurde das Tor verfehlt?"
+            placeholder={C.pc(locale, "gate.failPlaceholder")}
             className={TEXTAREA}
           />
           <div className="mt-2 flex gap-2">
-            <Button size="sm" disabled={busy || !reason.trim()} onClick={() => setGate(false, reason.trim())}>Verfehlen bestätigen</Button>
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setFailing(false); setReason(""); }}>Abbrechen</Button>
+            <Button size="sm" disabled={busy || !reason.trim()} onClick={() => setGate(false, reason.trim())}>{C.pc(locale, "btn.confirmFail")}</Button>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setFailing(false); setReason(""); }}>{C.pc(locale, "btn.cancel")}</Button>
           </div>
         </div>
       )}
@@ -748,18 +757,18 @@ function GateControl({
 }
 
 // ------------------------------------------------------------------ catalog scoring (P1)
-function CatalogScoring({ slug, dimensions }: { slug: string; dimensions: DimensionResult[] }) {
+function CatalogScoring({ slug, dimensions, locale }: { slug: string; dimensions: DimensionResult[]; locale: Locale }) {
   return (
     <section>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Katalog-Scoring (D1–D8)</h3>
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{C.pc(locale, "catalog.heading")}</h3>
       <Card className="divide-y">
         {dimensions.map((d) => (
           <div key={d.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-            <span className="min-w-0 truncate font-medium">{d.id} · {d.label}</span>
+            <span className="min-w-0 truncate font-medium">{d.id} · {C.dimText(locale, d.id).label}</span>
             <div className="flex shrink-0 items-center gap-3">
               <span className="text-muted-foreground">{d.score.toFixed(1)}</span>
               <Link href={`/process/${slug}/assess/${d.id}`} className="text-xs font-medium text-primary hover:underline">
-                bewerten
+                {C.pc(locale, "btn.assess")}
               </Link>
             </div>
           </div>
@@ -775,15 +784,18 @@ function BranchPicker({
   branches,
   chosen,
   onChanged,
+  locale,
 }: {
   slug: string;
   branches: Branch[];
   chosen: string | undefined;
   onChanged: () => Promise<void>;
+  locale: Locale;
 }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const active = branches.find((b) => b.id === chosen);
+  const activeText = active ? C.branchText(locale, active.id) : null;
 
   async function pick(id: string) {
     setBusy(true);
@@ -800,7 +812,7 @@ function BranchPicker({
 
   return (
     <Card className="p-3">
-      <h3 className="text-sm font-semibold">Zweig</h3>
+      <h3 className="text-sm font-semibold">{C.pc(locale, "branch.heading")}</h3>
       <div className="mt-2 flex flex-wrap gap-2">
         {branches.map((b) => (
           <button
@@ -810,15 +822,15 @@ function BranchPicker({
             onClick={() => pick(b.id)}
             className={`rounded-md border px-2.5 py-1 text-xs ${b.id === chosen ? "bg-primary text-primary-foreground" : "bg-background hover:bg-accent"}`}
           >
-            {b.id} · {b.label}
+            {b.id} · {C.branchText(locale, b.id).label}
           </button>
         ))}
       </div>
-      {active && (
+      {activeText && (
         <div className="mt-2 text-xs text-muted-foreground">
-          <p className="italic">{active.when}</p>
+          <p className="italic">{activeText.when}</p>
           <ul className="mt-1 list-disc space-y-0.5 pl-4">
-            {active.conditions.map((c, i) => <li key={i}>{c}</li>)}
+            {activeText.conditions.map((c, i) => <li key={i}>{c}</li>)}
           </ul>
         </div>
       )}
@@ -833,11 +845,13 @@ function RiskClassPicker({
   classes,
   chosen,
   onChanged,
+  locale,
 }: {
   slug: string;
   classes: RiskClass[];
   chosen: string | undefined;
   onChanged: () => Promise<void>;
+  locale: Locale;
 }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -857,9 +871,11 @@ function RiskClassPicker({
 
   return (
     <Card className="p-3">
-      <h3 className="text-sm font-semibold">Risikoklasse</h3>
+      <h3 className="text-sm font-semibold">{C.pc(locale, "risk.heading")}</h3>
       <div className="mt-2 space-y-1.5">
-        {classes.map((c) => (
+        {classes.map((c) => {
+          const rt = C.riskClassText(locale, c.id);
+          return (
           <button
             key={c.id}
             type="button"
@@ -867,10 +883,11 @@ function RiskClassPicker({
             onClick={() => pick(c.id)}
             className={`block w-full rounded-md border px-2.5 py-1.5 text-left text-xs ${c.id === chosen ? "border-primary bg-primary/10" : "bg-background hover:bg-accent"}`}
           >
-            <span className="font-medium">{c.id} · {c.label}</span>
-            <span className="mt-0.5 block text-muted-foreground">{c.tactic}</span>
+            <span className="font-medium">{c.id} · {rt.label}</span>
+            <span className="mt-0.5 block text-muted-foreground">{rt.tactic}</span>
           </button>
-        ))}
+          );
+        })}
       </div>
       {err && <p className="mt-1 text-xs text-destructive">{err}</p>}
     </Card>
@@ -878,7 +895,7 @@ function RiskClassPicker({
 }
 
 // ------------------------------------------------------------------ risk checks
-function RiskChecks({ slug }: { slug: string }) {
+function RiskChecks({ slug, locale }: { slug: string; locale: Locale }) {
   const [open, setOpen] = useState(false);
   const [checks, setChecks] = useState<RiskCheck[] | null>(null);
   const [answers, setAnswers] = useState<Record<string, { answer: string; evidence: string }>>({});
@@ -932,31 +949,32 @@ function RiskChecks({ slug }: { slug: string }) {
   return (
     <Card className="p-3">
       <button type="button" onClick={toggle} className="flex w-full items-center justify-between text-left">
-        <h3 className="text-sm font-semibold">Änderungsrisiko — 7 Prüfpunkte</h3>
-        <span className="text-xs text-muted-foreground">{open ? "einklappen ▲" : "ausklappen ▼"}</span>
+        <h3 className="text-sm font-semibold">{C.pc(locale, "riskchecks.heading")}</h3>
+        <span className="text-xs text-muted-foreground">{open ? C.pc(locale, "collapse") : C.pc(locale, "expand")}</span>
       </button>
       {open && (
         <div className="mt-3 space-y-3">
-          {checks === null && !err && <p className="text-sm text-muted-foreground">Lädt…</p>}
+          {checks === null && !err && <p className="text-sm text-muted-foreground">{C.pc(locale, "loading")}</p>}
           {checks?.map((c) => {
             const cur = answers[String(c.n)] ?? { answer: "", evidence: "" };
+            const rt = C.riskCheckText(locale, c.n);
             return (
               <div key={c.n} className="rounded-md border p-2">
-                <div className="text-sm font-medium">{c.n}. {c.label}</div>
-                <p className="mt-0.5 text-xs text-muted-foreground">{c.how}</p>
+                <div className="text-sm font-medium">{c.n}. {rt.label}</div>
+                <p className="mt-0.5 text-xs text-muted-foreground">{rt.how}</p>
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   <div>
-                    <label className={LABEL}>Antwort</label>
+                    <label className={LABEL}>{C.pc(locale, "field.answer")}</label>
                     <input value={cur.answer} onChange={(e) => setField(c.n, "answer", e.target.value)} className={INPUT} />
                   </div>
                   <div>
-                    <label className={LABEL}>Evidenz</label>
+                    <label className={LABEL}>{C.pc(locale, "field.evidence")}</label>
                     <input value={cur.evidence} onChange={(e) => setField(c.n, "evidence", e.target.value)} className={INPUT} />
                   </div>
                 </div>
                 <div className="mt-2">
                   <Button size="sm" variant="outline" disabled={savingN === c.n} onClick={() => save(c.n)}>
-                    {savingN === c.n ? "Speichert…" : "Speichern"}
+                    {savingN === c.n ? C.pc(locale, "btn.saving") : C.pc(locale, "btn.save")}
                   </Button>
                 </div>
               </div>
