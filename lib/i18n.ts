@@ -39,6 +39,7 @@ const DE: Strings = {
   "tile.soon": "bald",
 
   // Categories
+  "cat.Diagnose (pre-funnel)": "Diagnose (vor dem Funnel)",
   "cat.Demand & intake": "Bedarf & Erfassung",
   "cat.Analyse & value": "Analyse & Wert",
   "cat.Portfolio & steering": "Portfolio & Steuerung",
@@ -46,6 +47,8 @@ const DE: Strings = {
   "cat.Govern & operate": "Steuern & Betreiben",
 
   // Tiles — title / subtitle
+  "tile.process.title": "Prozess-Funnel",
+  "tile.process.subtitle": "Prozess vor der Erfassung diagnostizieren & bewerten",
   "tile.intake.title": "Erfassung",
   "tile.intake.subtitle": "Bedarf erfassen — Chat, Formular oder Markdown",
   "tile.demands.title": "Bedarfe",

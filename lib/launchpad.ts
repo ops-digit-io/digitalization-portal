@@ -57,7 +57,7 @@ export const LAUNCHPAD: TileGroup[] = [
     // smallest shippable increment, and let the evidenced result become a demand.
     category: "Diagnose (pre-funnel)",
     tiles: [
-      { id: "process", title: "Process Funnel", subtitle: "Diagnose a process before it becomes demand", href: "/process", icon: I.gauge, tone: "violet" },
+      { id: "process", title: "Process Funnel", subtitle: "Diagnose & score a process before intake", href: "/process", icon: I.gauge, tone: "violet" },
     ],
   },
   {
