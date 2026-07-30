@@ -20,7 +20,7 @@ export async function POST(req: Request, { params }: { params: { slug: string; d
   const history = Array.isArray(body.messages) ? body.messages : [];
   const msgs = history.length ? history : [{ role: "user" as const, content: "Starte die Erhebung dieser Dimension." }];
   try {
-    const out = await llm.chat(await coach.build(slug, dim, "live"), msgs, { maxTokens: 4096 });
+    const out = await llm.chat(await coach.build(slug, dim), msgs, { maxTokens: 4096 });
     return NextResponse.json({ text: out.text, usage: out.usage, model: out.model });
   } catch (e) {
     const err = e as Error & { code?: string };

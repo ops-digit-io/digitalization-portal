@@ -1,12 +1,11 @@
 /**
- * Live coaching over the portal's model provider seam (`lib/agent/provider.ts`),
- * replacing PDT's standalone `llm.js`. The methodology is unchanged: coaching runs
- * live when a model key is configured, and degrades to prompt EXPORT when it is not
- * — no secret has to sit on the server for the tool to be useful.
+ * The model-call seam for the Process Funnel agents (coaching, artefact
+ * generation, analysis), over the portal's provider (`lib/agent/provider.ts`).
  *
  * `available()` reflects the portal's own provider selection (Anthropic → OpenAI →
- * offline). When no live key is present, the run-endpoints return 503 and the UI
- * offers the assembled prompt as a copy-out, exactly as in PDT.
+ * offline). When no live key is present the agent run-endpoints return 503 and the
+ * UI degrades to manual rating/authoring — there is no prompt to paste. The
+ * analysis agent additionally has a deterministic offline proposer.
  */
 
 import { getProvider, describeProvider, type ModelMessage } from "../agent/provider";
