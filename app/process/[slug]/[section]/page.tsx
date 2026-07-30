@@ -151,7 +151,7 @@ export default function SectionEditor() {
             </div>
           </div>
           <textarea
-            className="h-[460px] w-full rounded-md border p-3 font-mono text-xs"
+            className="h-[460px] w-full rounded-md border bg-background p-3 font-mono text-xs outline-none focus:ring-2 focus:ring-ring"
             value={content}
             onChange={(e) => setContent(e.target.value)}
             placeholder="The section artefact, in markdown following the target template."
@@ -208,7 +208,7 @@ export default function SectionEditor() {
           {live && (
             <div className="mt-2 flex gap-2">
               <input
-                className="h-9 flex-1 rounded-md border px-3 text-sm"
+                className="h-9 flex-1 rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
                 placeholder="Answer the coach…"
                 value={coachInput}
                 onChange={(e) => setCoachInput(e.target.value)}
@@ -245,7 +245,7 @@ export default function SectionEditor() {
             A failed gate needs a written reason. {detail.gateResult ? `Currently: ${detail.gateResult.passed ? "passed" : "failed"}.` : "Not yet recorded."}
           </p>
           <textarea
-            className="mt-2 w-full rounded-md border p-2 text-sm"
+            className="mt-2 w-full rounded-md border bg-background p-2 text-sm outline-none focus:ring-2 focus:ring-ring"
             rows={2}
             placeholder="Reason (required to fail a gate)"
             value={gateReason}
