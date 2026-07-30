@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import * as store from "@/lib/process/store";
 import { profileOf } from "@/lib/process/profile";
-import { ARTEFACTS } from "@/lib/process/artefacts";
 import { deny, now } from "@/lib/process/guard";
 
 export const runtime = "nodejs";
@@ -15,12 +14,9 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
   const { slug } = params;
   const m = await store.meta(slug);
   if (!m || m.deleted) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
-  const [profile, ratings, filledArtefacts] = await Promise.all([
-    profileOf(slug),
-    store.ratings(slug),
-    Promise.all(ARTEFACTS.map(async (a) => ((await store.readArtefact(slug, a.id)).trim() ? a.id : null))).then((xs) => xs.filter((x): x is string => x !== null)),
-  ]);
-  return NextResponse.json({ meta: m, profile, ratings, filledArtefacts });
+  // filledArtefacts is tracked on meta (updated on write) — no per-artefact fan-out.
+  const [profile, ratings] = await Promise.all([profileOf(slug), store.ratings(slug)]);
+  return NextResponse.json({ meta: m, profile, ratings, filledArtefacts: m.filledArtefacts ?? [] });
 }
 
 export async function DELETE(req: Request, { params }: { params: { slug: string } }) {

@@ -54,6 +54,11 @@ export interface EngagementMeta {
   branch?: string; // chosen Zweig "Z0".."Z3"
   riskClass?: string; // "R1".."R3"
   gates: Record<string, GateVerdict>; // by Tor id "T0".."T5"
+  /** Ids of artefacts that currently have content — kept here so the engagement
+   *  read never has to fan out over every artefact file (perf). */
+  filledArtefacts?: string[];
+  /** Demands the analysis agent disassembled this diagnosis into (in du-demands). */
+  demands?: { id: string; title: string; at: string }[];
   createdAt: string;
   updatedAt: string;
   deleted?: string | null;
@@ -252,13 +257,23 @@ export async function writeDimension(slug: string, dimId: string, content: strin
 export async function readArtefact(slug: string, artefactId: string): Promise<string> {
   return (await getRaw(`${relDir(slug)}/${artefactId}.md`)) ?? "";
 }
-export async function writeArtefact(slug: string, artefactId: string, content: string, now: string): Promise<{ changed: boolean }> {
+export async function writeArtefact(slug: string, artefactId: string, content: string, now: string): Promise<{ changed: boolean; filledArtefacts: string[] }> {
   const rel = `${relDir(slug)}/${artefactId}.md`;
   const prev = await getRaw(rel);
-  if (prev === content) return { changed: false };
+  const m = (await meta(slug))!;
+  const filled = new Set(m.filledArtefacts ?? []);
+  const has = content.trim().length > 0;
+  if (has) filled.add(artefactId);
+  else filled.delete(artefactId);
+  const filledArtefacts = [...filled];
+  if (prev === content) {
+    // Content unchanged, but reconcile the filled index if it drifted.
+    if ((m.filledArtefacts ?? []).length !== filledArtefacts.length) await writeMeta(slug, { filledArtefacts }, now);
+    return { changed: false, filledArtefacts };
+  }
   await putRaw(rel, content, `Update artefact ${artefactId} on ${slugify(slug)}`);
-  await writeMeta(slug, {}, now);
-  return { changed: true };
+  await writeMeta(slug, { filledArtefacts }, now);
+  return { changed: true, filledArtefacts };
 }
 
 // ------------------------------------------------------- risk checks (Tor T3)

@@ -63,6 +63,13 @@ interface Meta {
   branch?: string;
   riskClass?: string;
   gates: Record<string, GateVerdict>;
+  filledArtefacts?: string[];
+  demands?: DemandRef[];
+}
+interface DemandRef {
+  id: string;
+  title: string;
+  at: string;
 }
 interface Phase {
   id: string;
@@ -104,7 +111,42 @@ interface Config {
 interface Engagement {
   meta: Meta;
   profile: Profile;
-  filledArtefacts: string[];
+  filledArtefacts?: string[];
+}
+
+// ------------------------------------------------------------------ Analyse & Bedarfe types
+type Lane = "run" | "regulatory" | "continuous_improvement" | "transform" | "innovation" | "data_ai" | "local";
+
+const LANE_OPTIONS: { id: Lane | ""; label: string }[] = [
+  { id: "", label: "— automatisch —" },
+  { id: "run", label: "run" },
+  { id: "regulatory", label: "regulatory" },
+  { id: "continuous_improvement", label: "continuous_improvement" },
+  { id: "transform", label: "transform" },
+  { id: "innovation", label: "innovation" },
+  { id: "data_ai", label: "data_ai" },
+  { id: "local", label: "local" },
+];
+
+interface DemandProposal {
+  title: string;
+  problem: string;
+  lane?: string;
+  domain?: string;
+  basis?: string;
+}
+interface Proposal extends DemandProposal {
+  _create: boolean;
+}
+interface AnalyseResult {
+  demands: DemandProposal[];
+  live: boolean;
+}
+interface CreatedDemand {
+  id: string;
+  title: string;
+  host?: string;
+  path?: string;
 }
 
 const ANFLUG_LABEL: Record<Anflug, string> = { process: "Prozess-Pull", technology: "Technologie-Push" };
@@ -134,6 +176,7 @@ function barColor(score: number): string {
 }
 
 const PROFIL = "__profil__";
+const ANALYSE = "__analyse__";
 
 // ------------------------------------------------------------------ page
 export default function EngagementCockpit() {
@@ -178,7 +221,8 @@ export default function EngagementCockpit() {
     return <main className="mx-auto max-w-[1100px] px-4 py-6 text-sm text-muted-foreground">Lädt…</main>;
   }
 
-  const { meta, profile, filledArtefacts } = eng;
+  const { meta, profile } = eng;
+  const filledArtefacts = meta.filledArtefacts ?? eng.filledArtefacts ?? [];
   const reportUrl = `/api/process/engagements/${slug}/report?format=md`;
 
   const activePhase = config.phases.find((p) => p.id === tab);
@@ -217,6 +261,7 @@ export default function EngagementCockpit() {
       {/* Tab strip */}
       <div className="mt-4 flex flex-nowrap gap-1 overflow-x-auto border-b">
         <TabButton label="Profil" active={tab === PROFIL} onClick={() => setTab(PROFIL)} />
+        <TabButton label="Analyse & Bedarfe" active={tab === ANALYSE} onClick={() => setTab(ANALYSE)} />
         {config.phases.map((p) => {
           const inPhase = config.artefacts.filter((a) => a.phase === p.id);
           const done = inPhase.filter((a) => filledArtefacts.includes(a.id)).length;
@@ -236,6 +281,7 @@ export default function EngagementCockpit() {
       {/* Tab content */}
       <div className="mt-4">
         {tab === PROFIL && <ProfilTab slug={slug} profile={profile} />}
+        {tab === ANALYSE && <AnalyseTab slug={slug} demands={meta.demands ?? []} onChanged={reload} />}
         {activePhase && (
           <PhaseTab
             key={activePhase.id}
@@ -366,6 +412,188 @@ function ProfilTab({ slug, profile }: { slug: string; profile: Profile }) {
           </Card>
         </section>
       )}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ Analyse & Bedarfe tab
+function AnalyseTab({
+  slug,
+  demands,
+  onChanged,
+}: {
+  slug: string;
+  demands: DemandRef[];
+  onChanged: () => Promise<void>;
+}) {
+  const [running, setRunning] = useState(false);
+  const [live, setLive] = useState<boolean | null>(null);
+  const [proposals, setProposals] = useState<Proposal[] | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [created, setCreated] = useState<CreatedDemand[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function analyse() {
+    setRunning(true);
+    setErr(null);
+    setCreated(null);
+    try {
+      const r = await apiSend<AnalyseResult>("POST", `/engagements/${slug}/analyse`);
+      setLive(r.live);
+      setProposals(r.demands.map((d) => ({ ...d, _create: true })));
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  function update(i: number, patch: Partial<Proposal>) {
+    setProposals((prev) => (prev ? prev.map((p, idx) => (idx === i ? { ...p, ...patch } : p)) : prev));
+  }
+
+  async function createSelected() {
+    if (!proposals) return;
+    const selected: DemandProposal[] = proposals
+      .filter((p) => p._create)
+      .map(({ _create, ...rest }) => rest);
+    if (selected.length === 0) return;
+    setCreating(true);
+    setErr(null);
+    try {
+      const r = await apiSend<{ created: CreatedDemand[] }>("POST", `/engagements/${slug}/demands`, { demands: selected });
+      setCreated(r.created);
+      await onChanged();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  const selectedCount = proposals?.filter((p) => p._create).length ?? 0;
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Der Analyse-Agent zerlegt die Diagnose in einzelne Bedarfe und legt sie im Bedarfs-Funnel an.
+      </p>
+
+      {/* Bereits angelegte Bedarfe */}
+      {demands.length > 0 && (
+        <section>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Bereits angelegte Bedarfe</h3>
+          <Card className="divide-y">
+            {demands.map((d) => (
+              <Link
+                key={d.id}
+                href="/demands"
+                className="flex items-center justify-between gap-3 px-3 py-2 text-sm transition-colors hover:bg-accent"
+              >
+                <span className="min-w-0 truncate">
+                  <span className="font-medium">{d.id}</span> · {d.title}
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground">{d.at}</span>
+              </Link>
+            ))}
+          </Card>
+        </section>
+      )}
+
+      {/* Analyse starten */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button size="sm" disabled={running} onClick={analyse}>
+          {running ? "Analysiert…" : "Analysieren"}
+        </Button>
+        {running && <span className="text-xs text-muted-foreground">Der Agent zerlegt die Diagnose…</span>}
+        {live === false && (
+          <span className="text-xs text-muted-foreground">ohne Modell-Key: regelbasierter Vorschlag</span>
+        )}
+      </div>
+
+      {/* Vorschläge */}
+      {proposals && (
+        <section className="space-y-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vorgeschlagene Bedarfe</h3>
+          {proposals.length === 0 && <p className="text-sm text-muted-foreground">Keine Bedarfe vorgeschlagen.</p>}
+          <div className="space-y-2">
+            {proposals.map((p, i) => (
+              <Card key={i} className="p-3">
+                <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={p._create}
+                    onChange={(e) => update(i, { _create: e.target.checked })}
+                    className="size-4 accent-[hsl(var(--primary))]"
+                  />
+                  anlegen
+                </label>
+
+                <div className="mt-2">
+                  <label className={LABEL}>Titel</label>
+                  <input
+                    value={p.title}
+                    onChange={(e) => update(i, { title: e.target.value })}
+                    className={INPUT}
+                  />
+                </div>
+
+                <div className="mt-2">
+                  <label className={LABEL}>Problem</label>
+                  <textarea
+                    value={p.problem}
+                    onChange={(e) => update(i, { problem: e.target.value })}
+                    className={TEXTAREA}
+                  />
+                </div>
+
+                <div className="mt-2">
+                  <label className={LABEL}>Lane</label>
+                  <select
+                    value={p.lane ?? ""}
+                    onChange={(e) => update(i, { lane: e.target.value || undefined })}
+                    className={INPUT}
+                  >
+                    {LANE_OPTIONS.map((o) => (
+                      <option key={o.id || "_auto"} value={o.id}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {p.basis && <p className="mt-2 text-xs text-muted-foreground">Basis: {p.basis}</p>}
+              </Card>
+            ))}
+          </div>
+
+          {proposals.length > 0 && (
+            <div className="flex flex-wrap items-center gap-3">
+              <Button size="sm" disabled={creating || selectedCount === 0} onClick={createSelected}>
+                {creating ? "Legt an…" : `Ausgewählte Bedarfe anlegen${selectedCount ? ` (${selectedCount})` : ""}`}
+              </Button>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Angelegte Bedarfe (Ergebnis) */}
+      {created && created.length > 0 && (
+        <section>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Angelegt</h3>
+          <Card className="divide-y">
+            {created.map((c) => (
+              <Link
+                key={c.id}
+                href="/demands"
+                className="block px-3 py-2 text-sm transition-colors hover:bg-accent"
+              >
+                <span className="font-medium">{c.id}</span> · {c.title}
+              </Link>
+            ))}
+          </Card>
+        </section>
+      )}
+
+      {err && <p className="text-xs text-destructive">{err}</p>}
     </div>
   );
 }

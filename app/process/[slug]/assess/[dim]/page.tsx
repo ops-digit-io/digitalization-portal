@@ -248,25 +248,30 @@ function RatingSet({
   rating: Rating | undefined;
   onResult: (r: { profile: Profile; ratings: Ratings }) => void;
 }) {
+  // Local state is the source of truth for the UI so every interaction feels instant;
+  // the POST fires in the background and the stored rating reconciles afterwards.
+  const [level, setLevel] = useState<Level | null>(rating?.level ?? null);
   const [evidence, setEvidence] = useState(rating?.evidence ?? "");
   const [confidence, setConfidence] = useState<Confidence | "">(rating?.confidence ?? "");
-  const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Number of in-flight POSTs; while > 0 we do not let a (possibly stale) stored
+  // rating clobber newer local edits.
+  const pending = useRef(0);
 
-  // Keep drafts in sync when the stored rating changes (e.g. after a re-fetch).
+  // Reconcile drafts from the stored rating only when nothing is in flight.
   useEffect(() => {
+    if (pending.current > 0) return;
+    setLevel(rating?.level ?? null);
     setEvidence(rating?.evidence ?? "");
     setConfidence(rating?.confidence ?? "");
-  }, [rating?.evidence, rating?.confidence]);
-
-  const level = rating?.level ?? null;
+  }, [rating?.level, rating?.evidence, rating?.confidence]);
 
   const post = useCallback(
     async (nextLevel: Level | null, opts?: { evidence?: string; confidence?: Confidence | "" }) => {
-      setBusy(true);
       setErr(null);
       const ev = opts?.evidence ?? evidence;
       const cf = opts?.confidence ?? confidence;
+      pending.current += 1;
       try {
         const body: Record<string, unknown> = { critId: criterion.id, level: nextLevel };
         if (component) body.componentId = component.id;
@@ -279,7 +284,7 @@ function RatingSet({
       } catch (e) {
         setErr((e as Error).message);
       } finally {
-        setBusy(false);
+        pending.current -= 1;
       }
     },
     [criterion.id, component, evidence, confidence, slug, onResult],
@@ -299,8 +304,7 @@ function RatingSet({
               type="button"
               role="radio"
               aria-checked={selected}
-              disabled={busy}
-              onClick={() => post(n)}
+              onClick={() => { setLevel(n); void post(n); }}
               className={`flex w-full gap-2 rounded-md border px-2 py-1.5 text-left text-xs ${selected ? "border-primary bg-primary/10" : "bg-background hover:bg-accent"}`}
             >
               <span className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border text-[9px] ${selected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40"}`} aria-hidden>
@@ -329,7 +333,6 @@ function RatingSet({
               <button
                 key={cf}
                 type="button"
-                disabled={busy}
                 onClick={() => {
                   const next = confidence === cf ? "" : cf;
                   setConfidence(next);
@@ -347,8 +350,8 @@ function RatingSet({
       <div className="mt-2 flex items-center gap-3">
         <button
           type="button"
-          disabled={busy || level === null}
-          onClick={() => post(null)}
+          disabled={level === null}
+          onClick={() => { setLevel(null); void post(null); }}
           className="text-xs text-muted-foreground hover:text-destructive disabled:opacity-40"
         >
           Stufe löschen
@@ -371,34 +374,11 @@ function CoachingPanel({
   liveCoaching: boolean;
   initialEvidence: string;
 }) {
-  const [copied, setCopied] = useState(false);
-  const [copyErr, setCopyErr] = useState<string | null>(null);
-
-  async function copyPrompt() {
-    setCopyErr(null);
-    try {
-      const r = await apiGet<{ prompt: string }>(`/engagements/${slug}/dimension/${dim}/prompt`);
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(r.prompt);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      } else {
-        setCopyErr("Zwischenablage nicht verfügbar.");
-      }
-    } catch (e) {
-      setCopyErr((e as Error).message);
-    }
-  }
-
   return (
     <div className="space-y-3">
       <Card className="p-3">
-        <Button variant="outline" size="sm" className="w-full" onClick={copyPrompt}>
-          {copied ? "Kopiert ✓" : "Prompt kopieren (Export)"}
-        </Button>
-        {copyErr && <p className="mt-1 text-xs text-destructive">{copyErr}</p>}
         {liveCoaching ? <Chat slug={slug} dim={dim} /> : (
-          <p className="mt-2 text-xs text-muted-foreground">Live-Coaching aus — nutze Export.</p>
+          <p className="text-xs text-muted-foreground">Live-Coaching aus — manuelle Bewertung weiter möglich.</p>
         )}
       </Card>
 
@@ -440,7 +420,7 @@ function Chat({ slug, dim }: { slug: string; dim: string }) {
   }
 
   if (offline) {
-    return <p className="mt-2 text-xs text-muted-foreground">Live-Coaching aus — nutze Export.</p>;
+    return <p className="mt-2 text-xs text-muted-foreground">Live-Coaching aus — manuelle Bewertung weiter möglich.</p>;
   }
 
   return (
