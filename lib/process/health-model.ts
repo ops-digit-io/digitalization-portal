@@ -73,7 +73,7 @@ export interface HealthProfile {
   ratedCount: number;
   totalCount: number;
   confidenceDominant: Confidence | null;
-  directions: string[];
+  directions: DirectionCode[];
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -116,17 +116,22 @@ function resolveKnockOut(input: ProfileInput, critId: string): KnockOutResult {
   return { id: c.id, label: c.label, koClass: c.knockout!, level, rated: r !== undefined, state };
 }
 
-/** Richtungsvektor — Vorindikation nach §6.4 (indiziert die Zweigprüfung, entscheidet sie nicht). */
-function directions(input: ProfileInput, dims: DimensionResult[]): string[] {
+/**
+ * Richtungsvektor — Vorindikation nach §6.4 (indiziert die Zweigprüfung, entscheidet
+ * sie nicht). Gibt sprachneutrale Codes zurück; die Anzeige-Sprache liegt in
+ * `lib/process/content` (directionText).
+ */
+export type DirectionCode = "Z0" | "Z1" | "Z2" | "Z3" | "enablement" | "feedback";
+function directions(input: ProfileInput, dims: DimensionResult[]): DirectionCode[] {
   const lv = (id: string) => levelOr1(input.ratings, id);
   const dim = (id: string) => dims.find((d) => d.id === id)!.score;
-  const out: string[] = [];
-  if (lv("K3.4") <= 2 && lv("K4.4") <= 2) out.push("Zweig 0 — Killen: konsumentenlose Schritte bei negativem Saldo (K3.4, K4.4).");
-  if (lv("K5.1") <= 2 || lv("K2.2") <= 2) out.push("Zweig 1 — Interfaces (1b vor 1a): K5.1 oder K2.2 ≤ S2; Latenz zwischen den Schritten (K3.2 prüfen).");
-  if (dim("D3") < 3 && dim("D2") >= 3) out.push("Zweig 2 — Prozessdesign: D3 niedrig bei D2 ≥ 3; Latenz in den Schritten, Schleifen/Nacharbeit.");
-  if (lv("K7.1") <= 2 && dim("D2") >= 3) out.push("Zweig 3 — Toolbox-Evolution: Friktion in einem Schritt, K7.1 zeigt Iterationsstau.");
-  if (dim("D8") < 2.5) out.push("Kein Zweig zuerst: Befähigung — D8 < 2,5, sonst wird das Literacy-Delta am Risiko-Tor zum Blocker.");
-  if (dim("D6") < 3 && dims.filter((d) => d.id !== "D6").every((d) => d.score >= 3)) out.push("Feedback-Loop einbauen (Phase 5 vorziehen): der Prozess lebt von Gewohnheit, nicht von Steuerung.");
+  const out: DirectionCode[] = [];
+  if (lv("K3.4") <= 2 && lv("K4.4") <= 2) out.push("Z0");
+  if (lv("K5.1") <= 2 || lv("K2.2") <= 2) out.push("Z1");
+  if (dim("D3") < 3 && dim("D2") >= 3) out.push("Z2");
+  if (lv("K7.1") <= 2 && dim("D2") >= 3) out.push("Z3");
+  if (dim("D8") < 2.5) out.push("enablement");
+  if (dim("D6") < 3 && dims.filter((d) => d.id !== "D6").every((d) => d.score >= 3)) out.push("feedback");
   return out;
 }
 

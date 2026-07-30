@@ -97,6 +97,6 @@ describe("health model", () => {
 
   it("surfaces a Zweig-1 Richtungsvektor when the timestamp knock-out is weak", () => {
     const p = healthProfile(allAt(4, { "K5.1": 2 }));
-    expect(p.directions.some((d) => /Zweig 1/.test(d))).toBe(true);
+    expect(p.directions).toContain("Z1");
   });
 });

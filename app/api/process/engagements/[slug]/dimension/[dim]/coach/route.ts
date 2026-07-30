@@ -16,11 +16,13 @@ export async function POST(req: Request, { params }: { params: { slug: string; d
   if (!dimById[dim]) return NextResponse.json({ error: "no such dimension" }, { status: 404 });
   if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
   if (!llm.available()) return NextResponse.json({ error: "live coaching disabled", code: "NO_KEY" }, { status: 503 });
+  const locale = new URL(req.url).searchParams.get("lang") === "de" ? "de" : "en";
   const body = (await req.json().catch(() => ({}))) as { messages?: { role: "user" | "assistant"; content: string }[] };
   const history = Array.isArray(body.messages) ? body.messages : [];
-  const msgs = history.length ? history : [{ role: "user" as const, content: "Starte die Erhebung dieser Dimension." }];
+  const seed = locale === "de" ? "Starte die Erhebung dieser Dimension." : "Start assessing this dimension.";
+  const msgs = history.length ? history : [{ role: "user" as const, content: seed }];
   try {
-    const out = await llm.chat(await coach.build(slug, dim), msgs, { maxTokens: 4096 });
+    const out = await llm.chat(await coach.build(slug, dim, locale), msgs, { maxTokens: 4096 });
     return NextResponse.json({ text: out.text, usage: out.usage, model: out.model });
   } catch (e) {
     const err = e as Error & { code?: string };

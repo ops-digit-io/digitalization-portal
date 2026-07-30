@@ -6,6 +6,8 @@ import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { apiGet, apiSend, Md } from "@/components/process/ui";
+import { useI18n } from "@/components/providers";
+import * as C from "@/lib/process/content";
 
 const INPUT = "mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring";
 const TEXTAREA = "mt-1 min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring";
@@ -67,8 +69,6 @@ interface ChatMsg {
   content: string;
 }
 
-const CONFIDENCES: Confidence[] = ["S", "P", "I"];
-
 /** Read the current rating for a criterion (+ optional component) from ratings. */
 function currentRating(ratings: Ratings, critId: string, componentId?: string): Rating | undefined {
   if (componentId) return ratings.components[componentId]?.[critId];
@@ -79,6 +79,7 @@ export default function AssessDimension() {
   const params = useParams<{ slug: string; dim: string }>();
   const slug = params.slug;
   const dim = params.dim;
+  const { locale } = useI18n();
 
   const [data, setData] = useState<DimData | null>(null);
   const [config, setConfig] = useState<Config | null>(null);
@@ -114,14 +115,16 @@ export default function AssessDimension() {
   if (error) {
     return (
       <main className="mx-auto max-w-[1100px] px-4 py-6">
-        <Link href={`/process/${slug}`} className="text-sm text-muted-foreground hover:text-foreground">← zurück</Link>
+        <Link href={`/process/${slug}`} className="text-sm text-muted-foreground hover:text-foreground">← {C.pc(locale, "back")}</Link>
         <p className="mt-4 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p>
       </main>
     );
   }
   if (!data || !config) {
-    return <main className="mx-auto max-w-[1100px] px-4 py-6 text-sm text-muted-foreground">Lädt…</main>;
+    return <main className="mx-auto max-w-[1100px] px-4 py-6 text-sm text-muted-foreground">{C.pc(locale, "loading")}</main>;
   }
+
+  const dt = C.dimText(locale, dim);
 
   return (
     <main className="mx-auto max-w-[1100px] px-4 py-6">
@@ -135,11 +138,11 @@ export default function AssessDimension() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold">{data.dimension.id} · {data.dimension.label}</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{data.dimension.question}</p>
+          <h1 className="text-lg font-semibold">{data.dimension.id} · {dt.label}</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{dt.question}</p>
         </div>
         <div className="text-right text-sm">
-          <div className="text-xs text-muted-foreground">Dimensionswert</div>
+          <div className="text-xs text-muted-foreground">{C.pc(locale, "dim.value")}</div>
           <div className="font-semibold">
             {profileDim ? profileDim.score.toFixed(1) : "—"}
             {profileDim ? <span className="ml-1 text-xs font-normal text-muted-foreground">({profileDim.rated}/{profileDim.total})</span> : null}
@@ -148,9 +151,9 @@ export default function AssessDimension() {
       </div>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_380px]">
-        {/* Left: Bewertung */}
+        {/* Left: rating */}
         <section>
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Bewertung</h2>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{C.pc(locale, "section.rating")}</h2>
           <div className="space-y-3">
             {data.criteria.map((c) => (
               <CriterionCard
@@ -167,7 +170,7 @@ export default function AssessDimension() {
 
         {/* Right: Coaching */}
         <section>
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Coaching</h2>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{C.pc(locale, "section.coaching")}</h2>
           <CoachingPanel slug={slug} dim={dim} liveCoaching={config.liveCoaching} initialEvidence={data.evidence} />
         </section>
       </div>
@@ -189,6 +192,8 @@ function CriterionCard({
   ratings: Ratings;
   onResult: (r: { profile: Profile; ratings: Ratings }) => void;
 }) {
+  const { locale } = useI18n();
+  const ct = C.critText(locale, criterion.id);
   const perComp = !!criterion.perComponent;
   // For a per-component criterion, render one rating set per component (fallback to a single "process" set if none).
   const targets: (Component | null)[] = perComp
@@ -201,20 +206,20 @@ function CriterionCard({
     <Card className="p-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium">{criterion.id}</span>
-        <span className="text-sm">{criterion.label}</span>
+        <span className="text-sm">{ct.label}</span>
         {criterion.knockout && (
           <span className="rounded-full bg-[hsl(var(--destructive))] px-2 py-0.5 text-[10px] font-semibold text-white">K.o.</span>
         )}
         {perComp && (
-          <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground">je Kernkomponente</span>
+          <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground">{C.pc(locale, "perComp.badge")}</span>
         )}
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">{criterion.question}</p>
-      <p className="mt-1 text-[11px] text-muted-foreground"><span className="font-medium">Evidenz:</span> {criterion.evidence}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{ct.question}</p>
+      <p className="mt-1 text-[11px] text-muted-foreground"><span className="font-medium">{C.pc(locale, "evidence.inline")}:</span> {ct.evidence}</p>
 
       {perComp && components.length === 0 && (
         <p className="mt-2 text-xs text-amber-600 dark:text-amber-500">
-          Keine Kernkomponenten hinterlegt — im Cockpit ergänzen, dann hier bewerten.
+          {C.pc(locale, "perComp.none")}
         </p>
       )}
 
@@ -248,6 +253,9 @@ function RatingSet({
   rating: Rating | undefined;
   onResult: (r: { profile: Profile; ratings: Ratings }) => void;
 }) {
+  const { locale } = useI18n();
+  const scale = C.critText(locale, criterion.id).scale;
+  const confidences = C.confidenceText(locale);
   // Local state is the source of truth for the UI so every interaction feels instant;
   // the POST fires in the background and the stored rating reconciles afterwards.
   const [level, setLevel] = useState<Level | null>(rating?.level ?? null);
@@ -292,10 +300,10 @@ function RatingSet({
 
   return (
     <div className={component ? "rounded-md border p-2" : ""}>
-      {component && <div className="mb-1.5 text-xs font-medium text-muted-foreground">Komponente: {component.label}</div>}
+      {component && <div className="mb-1.5 text-xs font-medium text-muted-foreground">{C.pc(locale, "component")}: {component.label}</div>}
 
-      <div className="space-y-1" role="radiogroup" aria-label={`${criterion.id} Stufe`}>
-        {criterion.scale.map((text, i) => {
+      <div className="space-y-1" role="radiogroup" aria-label={`${criterion.id}`}>
+        {scale.map((text, i) => {
           const n = (i + 1) as Level;
           const selected = level === n;
           return (
@@ -307,18 +315,18 @@ function RatingSet({
               onClick={() => { setLevel(n); void post(n); }}
               className={`flex w-full gap-2 rounded-md border px-2 py-1.5 text-left text-xs ${selected ? "border-primary bg-primary/10" : "bg-background hover:bg-accent"}`}
             >
-              <span className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border text-[9px] ${selected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40"}`} aria-hidden>
-                {selected ? "✓" : ""}
+              <span className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold ${selected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40 text-muted-foreground"}`} aria-hidden>
+                {n}
               </span>
-              <span><span className="font-semibold">S{n}:</span> {text}</span>
+              <span>{text}</span>
             </button>
           );
         })}
       </div>
 
-      <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+      <div className="mt-2 space-y-2">
         <div>
-          <label className={LABEL}>Evidenz</label>
+          <label className={LABEL}>{C.pc(locale, "field.evidence")}</label>
           <input
             value={evidence}
             onChange={(e) => setEvidence(e.target.value)}
@@ -327,20 +335,21 @@ function RatingSet({
           />
         </div>
         <div>
-          <label className={LABEL}>Konfidenz</label>
-          <div className="mt-1 inline-flex rounded-md border p-0.5 text-xs">
-            {CONFIDENCES.map((cf) => (
+          <label className={LABEL}>{C.pc(locale, "field.confidence")}</label>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {confidences.map((cf) => (
               <button
-                key={cf}
+                key={cf.id}
                 type="button"
+                title={cf.meaning}
                 onClick={() => {
-                  const next = confidence === cf ? "" : cf;
+                  const next = confidence === cf.id ? "" : cf.id;
                   setConfidence(next);
                   if (level !== null) void post(level, { confidence: next });
                 }}
-                className={`rounded px-2 py-1 ${confidence === cf ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+                className={`rounded-md border px-2 py-1 text-xs ${confidence === cf.id ? "border-primary bg-primary/10 text-foreground" : "bg-background text-muted-foreground hover:bg-accent"}`}
               >
-                {cf}
+                {cf.word}
               </button>
             ))}
           </div>
@@ -354,7 +363,7 @@ function RatingSet({
           onClick={() => { setLevel(null); void post(null); }}
           className="text-xs text-muted-foreground hover:text-destructive disabled:opacity-40"
         >
-          Stufe löschen
+          {C.pc(locale, "btn.clearLevel")}
         </button>
         {err && <span className="text-xs text-destructive">{err}</span>}
       </div>
@@ -374,11 +383,12 @@ function CoachingPanel({
   liveCoaching: boolean;
   initialEvidence: string;
 }) {
+  const { locale } = useI18n();
   return (
     <div className="space-y-3">
       <Card className="p-3">
         {liveCoaching ? <Chat slug={slug} dim={dim} /> : (
-          <p className="text-xs text-muted-foreground">Live-Coaching aus — manuelle Bewertung weiter möglich.</p>
+          <p className="text-xs text-muted-foreground">{C.pc(locale, "coach.off")}</p>
         )}
       </Card>
 
@@ -388,6 +398,7 @@ function CoachingPanel({
 }
 
 function Chat({ slug, dim }: { slug: string; dim: string }) {
+  const { locale } = useI18n();
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -408,7 +419,7 @@ function Chat({ slug, dim }: { slug: string; dim: string }) {
     setBusy(true);
     setErr(null);
     try {
-      const r = await apiSend<{ text: string }>("POST", `/engagements/${slug}/dimension/${dim}/coach`, { messages: next });
+      const r = await apiSend<{ text: string }>("POST", `/engagements/${slug}/dimension/${dim}/coach?lang=${locale}`, { messages: next });
       setMessages([...next, { role: "assistant", content: r.text }]);
     } catch (e) {
       const ex = e as Error & { code?: string; status?: number };
@@ -420,32 +431,32 @@ function Chat({ slug, dim }: { slug: string; dim: string }) {
   }
 
   if (offline) {
-    return <p className="mt-2 text-xs text-muted-foreground">Live-Coaching aus — manuelle Bewertung weiter möglich.</p>;
+    return <p className="mt-2 text-xs text-muted-foreground">{C.pc(locale, "coach.off")}</p>;
   }
 
   return (
     <div className="mt-3">
       <div ref={scrollRef} className="max-h-80 space-y-2 overflow-y-auto">
-        {messages.length === 0 && <p className="text-xs text-muted-foreground">Frag den Coach zur Erhebung dieser Dimension.</p>}
+        {messages.length === 0 && <p className="text-xs text-muted-foreground">{C.pc(locale, "coach.ask")}</p>}
         {messages.map((m, i) => (
           <div key={i} className={`rounded-md border p-2 text-sm ${m.role === "user" ? "bg-secondary/40" : "bg-background"}`}>
             <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              {m.role === "user" ? "Du" : "Coach"}
+              {m.role === "user" ? C.pc(locale, "msg.you") : C.pc(locale, "msg.coach")}
             </div>
             {m.role === "assistant" ? <Md>{m.content}</Md> : <p className="whitespace-pre-wrap">{m.content}</p>}
           </div>
         ))}
-        {busy && <p className="text-xs text-muted-foreground">Coach denkt…</p>}
+        {busy && <p className="text-xs text-muted-foreground">{C.pc(locale, "coach.thinking")}</p>}
       </div>
       <div className="mt-2 flex gap-2">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }}
-          placeholder="Nachricht…"
+          placeholder={C.pc(locale, "input.message")}
           className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
         />
-        <Button size="sm" disabled={busy || !input.trim()} onClick={send}>Senden</Button>
+        <Button size="sm" disabled={busy || !input.trim()} onClick={send}>{C.pc(locale, "btn.send")}</Button>
       </div>
       {err && <p className="mt-1 text-xs text-destructive">{err}</p>}
     </div>
@@ -453,6 +464,7 @@ function Chat({ slug, dim }: { slug: string; dim: string }) {
 }
 
 function EvidenceNote({ slug, dim, initial }: { slug: string; dim: string; initial: string }) {
+  const { locale } = useI18n();
   const [value, setValue] = useState(initial);
   const [saved, setSaved] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -475,19 +487,19 @@ function EvidenceNote({ slug, dim, initial }: { slug: string; dim: string; initi
   return (
     <Card className="p-3">
       <div className="flex items-center justify-between">
-        <label className={LABEL}>Notiz / Evidenz</label>
-        <span className="text-[10px] text-muted-foreground">{value === saved ? "gespeichert" : "ungespeichert"}</span>
+        <label className={LABEL}>{C.pc(locale, "note.label")}</label>
+        <span className="text-[10px] text-muted-foreground">{value === saved ? C.pc(locale, "note.saved") : C.pc(locale, "note.unsaved")}</span>
       </div>
       <textarea
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onBlur={save}
-        placeholder="Beobachtungen, Belege, Zitate…"
+        placeholder={C.pc(locale, "note.placeholder")}
         className={TEXTAREA}
       />
       <div className="mt-2 flex items-center gap-3">
         <Button size="sm" variant="outline" disabled={busy || value === saved} onClick={save}>
-          {busy ? "Speichert…" : "Speichern"}
+          {busy ? C.pc(locale, "btn.saving") : C.pc(locale, "btn.save")}
         </Button>
         {err && <span className="text-xs text-destructive">{err}</span>}
       </div>

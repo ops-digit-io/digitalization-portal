@@ -16,27 +16,36 @@ import { artefactById, artefactsOf } from "./artefacts";
 import { byPhase } from "./phases";
 import * as store from "./store";
 import { shared, dimensionCoach } from "./prompts";
+import * as C from "./content";
+import type { Locale } from "../i18n";
 
-function criteriaBlock(dimId: string): string {
+/** Directive that pins the agent's reply language to the user's locale. */
+function speak(locale: Locale): string {
+  return locale === "de" ? "Antworte auf Deutsch." : "Respond in English.";
+}
+
+function criteriaBlock(dimId: string, locale: Locale): string {
   return criteriaOf(dimId)
     .map((c) => {
-      const scale = c.scale.map((s, i) => `  S${i + 1}: ${s}`).join("\n");
-      return `### ${c.id} — ${c.label}${c.knockout ? ` 〔K.o. ${c.knockout}〕` : ""}${c.perComponent ? " (je Kernkomponente)" : ""}
-Frage: ${c.question}
-Evidenz: ${c.evidence}
+      const ct = C.critText(locale, c.id);
+      const scale = ct.scale.map((s, i) => `  ${i + 1}: ${s}`).join("\n");
+      return `### ${c.id} — ${ct.label}${c.knockout ? ` 〔K.o. ${c.knockout}〕` : ""}${c.perComponent ? " (je Kernkomponente)" : ""}
+Frage: ${ct.question}
+Evidenz: ${ct.evidence}
 Skala:
 ${scale}`;
     })
     .join("\n\n");
 }
 
-export async function build(slug: string, dimId: string): Promise<string> {
+export async function build(slug: string, dimId: string, locale: Locale = "en"): Promise<string> {
   const dim = dimById[dimId];
   if (!dim) throw new Error(`unknown dimension ${dimId}`);
+  const dt = C.dimText(locale, dimId);
   const m = (await store.meta(slug))!;
   const [sharedText, stance, draft] = await Promise.all([shared(), dimensionCoach(), store.readDimension(slug, dimId)]);
 
-  const head = `Du erhebst die Dimension ${dim.id} — „${dim.label}" (Gewicht ${dim.weight} %) — einer
+  const head = `Du erhebst die Dimension ${dim.id} — „${dt.label}" (Gewicht ${dim.weight} %) — einer
 Prozessdiagnose bei OESL Automotive.
 
 Engagement: ${m.title}
@@ -47,16 +56,17 @@ Anflugrichtung: ${m.anflug === "technology" ? "Technologie-Push" : "Prozess-Pull
 ${m.components.length ? `Kernkomponenten: ${m.components.map((c) => c.label).join(", ")}` : ""}
 Heutiges Datum: ${new Date().toISOString().slice(0, 10)}
 
-Kernfrage der Dimension: ${dim.question}`;
+Kernfrage der Dimension: ${dt.question}`;
 
   const tail = `\n\nFühre das Gespräch Kriterium für Kriterium. Frage nach Evidenz, nicht nach Gefühl.
-Liefere am Ende je Kriterium: vorgeschlagene S-Stufe + einzeilige Evidenznotiz + Konfidenz.`;
+Liefere am Ende je Kriterium: vorgeschlagene Stufe (1–5) + einzeilige Evidenznotiz + Konfidenz.
+${speak(locale)}`;
 
   return [
     head,
     sharedText,
     `<coaching-stance>\n${stance || "(keine Stance im Registry)"}\n</coaching-stance>`,
-    `<kriterien dimension="${dim.id}">\n${criteriaBlock(dimId)}\n</kriterien>`,
+    `<kriterien dimension="${dim.id}">\n${criteriaBlock(dimId, locale)}\n</kriterien>`,
     draft.trim() ? `<bisherige-evidenz>\nBaue darauf auf; verwirf nichts Belegtes.\n\n${draft}\n</bisherige-evidenz>` : "",
     tail,
   ]
@@ -69,9 +79,10 @@ Liefere am Ende je Kriterium: vorgeschlagene S-Stufe + einzeilige Evidenznotiz +
  * its template, the engagement context and the artefacts already produced in
  * earlier phases. Drives .../artefact/[id]/generate.
  */
-export async function buildArtefact(slug: string, artefactId: string): Promise<string> {
+export async function buildArtefact(slug: string, artefactId: string, locale: Locale = "en"): Promise<string> {
   const a = artefactById[artefactId];
   if (!a) throw new Error(`unknown artefact ${artefactId}`);
+  const at = C.artefactText(locale, artefactId);
   const m = (await store.meta(slug))!;
   const [sharedText, current] = await Promise.all([shared(), store.readArtefact(slug, artefactId)]);
 
@@ -81,10 +92,10 @@ export async function buildArtefact(slug: string, artefactId: string): Promise<s
   const priorParts: string[] = [];
   for (const p of priorArtefacts) {
     const c = (await store.readArtefact(slug, p.id)).trim();
-    if (c) priorParts.push(`<artefakt phase="${p.phase}" titel="${p.title}">\n${c.slice(0, 2000)}\n</artefakt>`);
+    if (c) priorParts.push(`<artefakt phase="${p.phase}" titel="${C.artefactText(locale, p.id).title}">\n${c.slice(0, 2000)}\n</artefakt>`);
   }
 
-  const head = `Du erzeugst das Artefakt „${a.title}" (Phase ${byPhase[a.phase]?.n} — ${byPhase[a.phase]?.label})
+  const head = `Du erzeugst das Artefakt „${at.title}" (Phase ${byPhase[a.phase]?.n} — ${C.phaseText(locale, a.phase).label})
 einer Prozessdiagnose bei OESL Automotive.
 
 Engagement: ${m.title}
@@ -94,21 +105,22 @@ Einheit: ${m.unit || "(nicht erfasst)"}
 Anflug: ${m.anflug === "technology" ? "Technologie-Push" : "Prozess-Pull"}
 ${m.components.length ? `Kernkomponenten: ${m.components.map((c) => c.label).join(", ")}` : ""}
 
-Zweck dieses Artefakts: ${a.purpose}
+Zweck dieses Artefakts: ${at.purpose}
 
 DISZIPLIN
 - Fülle die Vorlage aus. Erfinde keine Zahlen oder Namen; wo etwas nicht erhoben ist,
   schreibe „nicht erhoben" und nenne, was es erheben würde. Keine eckigen Platzhalter.
-- Zahlen tragen ihre Konfidenzstufe (S/P/I). Eine reine S-Zahl ist keine Baseline.
+- Zahlen tragen ihre Konfidenzstufe (Selbstauskunft/Stichprobe/instrumentiert). Eine reine Selbstauskunft ist keine Baseline.
 - Behalte Überschriften und Tabellenspalten der Vorlage bei; sie werden gerendert.`;
 
   const tail = `\n\nErhebe das Fehlende Schritt für Schritt. Wenn du genug hast, liefere das fertige Artefakt
-in einem einzigen fenced-Markdown-Block, damit es verbatim gespeichert werden kann.`;
+in einem einzigen fenced-Markdown-Block, damit es verbatim gespeichert werden kann.
+${speak(locale)}`;
 
   return [
     head,
     sharedText,
-    `<vorlage>\n${a.template}\n</vorlage>`,
+    `<vorlage>\n${at.template}\n</vorlage>`,
     priorParts.length ? `<vorherige-artefakte>\n${priorParts.join("\n\n")}\n</vorherige-artefakte>` : "",
     current.trim() ? `<aktueller-stand>\nBaue darauf auf; verwirf nichts Belegtes.\n\n${current}\n</aktueller-stand>` : "",
     tail,

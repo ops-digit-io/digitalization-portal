@@ -1,12 +1,15 @@
 /**
- * Kurzform-Selbst-Assessment als Intake-Vorfilter (Katalog A §7.3, Ablauf B §7).
+ * Short-form self-assessment as an intake pre-filter (catalogue A §7.3, flow B §7).
  *
- * Sieben Kriterien, die ein Spoke ohne Assessor grob selbst einstuft — billig,
- * parallelisierbar, 1.400-fähig. Sie decken die drei K.o.s, den Business-Bezug und
- * die Datenlage ab; mehr braucht die Triage nicht. Das volle Assessment prüft sie
- * nach (systematische Abweichung Selbstbild ↔ Befund ist selbst ein D8-Befund).
+ * Seven criteria a spoke rates roughly on its own — cheap, parallelisable, scales
+ * to the whole plant. They cover the three knock-outs, the business link and the
+ * data situation; triage needs no more. The full assessment checks them (a
+ * systematic gap between self-image and finding is itself a D8 finding).
  *
- * Der Vorfilter läuft VOR dem Intake: nur was ihn passiert, bekommt Hub-Zeit.
+ * The pre-filter runs BEFORE intake: only what passes it gets hub time.
+ *
+ * `triage()` returns a language-neutral verdict (a recommendation plus warning
+ * codes); the display language is applied in the UI via `lib/process/content`.
  */
 
 import { SELF_ASSESSMENT, byId, type Level } from "./criteria";
@@ -15,78 +18,58 @@ export const SELF_CRITERIA = SELF_ASSESSMENT.map((id) => byId[id]!);
 
 export type Recommendation = "aufnehmen" | "enabler" | "zurueckstellen" | "selbsthilfe";
 
+/** Non-blocking findings surfaced for the intake conversation (localised in the UI). */
+export type WarnCode = "no-goal" | "thin-value" | "no-map" | "no-leadtime";
+
 export interface Triage {
   recommendation: Recommendation;
-  headline: string;
-  reason: string;
-  /** Non-blocking warnings surfaced for the intake conversation. */
-  warnings: string[];
-  /** Coverage: how many of the 7 have been rated. */
+  warnings: WarnCode[];
+  /** For the enabler case: which optimisation knock-out(s) sit at level 1. */
+  enablerWhich: ("K5.1" | "K2.2")[];
+  /** Coverage: how many of the seven have been rated. */
   rated: number;
   total: number;
 }
 
-const REC_HEADLINE: Record<Recommendation, string> = {
-  aufnehmen: "Aufnehmen",
-  enabler: "Aufnehmen — als Enabler (Zweig 1b)",
-  zurueckstellen: "Zurückstellen",
-  selbsthilfe: "An den Spoke — Selbsthilfe mit Playbook",
-};
-
 /**
- * Triage from the seven self-rated levels (S1–S5). The hard gate is the spoke
- * (K8.1): kein Spoke → keine Aufnahme. An Optimierungs-K.o. (K5.1/K2.2 = S1)
- * bedeutet Aufnahme nur als Enabler. Ein sonst gesundes, gut verstandenes Bild
- * kann per Playbook in die Selbsthilfe. Alles andere: aufnehmen.
+ * Triage from the seven self-rated levels. The hard gate is the spoke (K8.1):
+ * no spoke → no intake. An optimisation knock-out (K5.1/K2.2 = level 1) means
+ * intake only as an enabler. An otherwise healthy, well-understood picture can go
+ * to self-help with a playbook. Everything else is admitted.
  */
 export function triage(levels: Record<string, Level | undefined>): Triage {
   const L = (id: string) => levels[id];
   const rated = SELF_ASSESSMENT.filter((id) => L(id) !== undefined).length;
   const total = SELF_ASSESSMENT.length;
-  const warnings: string[] = [];
 
-  // Non-blocking findings for the intake conversation.
-  if (L("K4.1") === 1) warnings.push("Ziel-Statement fehlt (K4.1=S1) — am Recon-Tor Kill-Kandidat, wenn kein Ziel formulierbar ist.");
-  if ((L("K4.4") ?? 5) <= 2) warnings.push("Mengengerüst/Business-Bezug dünn (K4.4) — Addressable Value vor der Priorisierung schärfen.");
-  if ((L("K1.1") ?? 5) <= 2) warnings.push("Keine aktuelle Prozessdarstellung (K1.1) — die Recon erzeugt sie, aber der Start ist teurer.");
-  if ((L("K3.1") ?? 5) <= 2) warnings.push("Durchlaufzeit nicht gemessen (K3.1) — Stufe P in der Baseline nachziehen.");
+  const warnings: WarnCode[] = [];
+  if (L("K4.1") === 1) warnings.push("no-goal");
+  if ((L("K4.4") ?? 5) <= 2) warnings.push("thin-value");
+  if ((L("K1.1") ?? 5) <= 2) warnings.push("no-map");
+  if ((L("K3.1") ?? 5) <= 2) warnings.push("no-leadtime");
 
   const spoke = L("K8.1");
   if (spoke === 1) {
-    return {
-      recommendation: "zurueckstellen", headline: REC_HEADLINE.zurueckstellen,
-      reason: "Kein benannter Verantwortlicher mit Änderungsbefugnis (K8.1=S1). Kein Engagement ohne Spoke — auch nicht bei hohem Value.",
-      warnings, rated, total,
-    };
+    return { recommendation: "zurueckstellen", warnings, enablerWhich: [], rated, total };
   }
 
   const ts = L("K5.1");
   const iface = L("K2.2");
   if (ts === 1 || iface === 1) {
-    const which = [ts === 1 ? "Messbarkeit (K5.1)" : null, iface === 1 ? "Interface-Zugang (K2.2)" : null].filter(Boolean).join(" und ");
-    return {
-      recommendation: "enabler", headline: REC_HEADLINE.enabler,
-      reason: `Optimierungs-K.o.: ${which} auf S1. Erste und einzige Intervention: das herstellen (Zweig 1b) — kein Optimierungsversprechen darüber hinaus.`,
-      warnings, rated, total,
-    };
+    const enablerWhich: ("K5.1" | "K2.2")[] = [];
+    if (ts === 1) enablerWhich.push("K5.1");
+    if (iface === 1) enablerWhich.push("K2.2");
+    return { recommendation: "enabler", warnings, enablerWhich, rated, total };
   }
 
-  // Sonst gesund und gut verstanden → kann der Spoke mit Playbook selbst tragen.
+  // Otherwise healthy and well-understood → the spoke can carry it with a playbook.
   const healthy =
     (spoke ?? 0) >= 4 &&
     (L("K5.1") ?? 0) >= 4 && (L("K2.2") ?? 0) >= 4 &&
     (L("K1.1") ?? 0) >= 4 && (L("K3.1") ?? 0) >= 4 && (L("K4.1") ?? 0) >= 4;
   if (rated === total && healthy) {
-    return {
-      recommendation: "selbsthilfe", headline: REC_HEADLINE.selbsthilfe,
-      reason: "Spoke stark, messbar, dokumentiert, Ziel klar — das trägt der Spoke mit einem Playbook selbst. Hub-Zeit für schwierigere Prozesse aufsparen.",
-      warnings, rated, total,
-    };
+    return { recommendation: "selbsthilfe", warnings, enablerWhich: [], rated, total };
   }
 
-  return {
-    recommendation: "aufnehmen", headline: REC_HEADLINE.aufnehmen,
-    reason: "Spoke-Minimum plausibel und keine K.o. auf S1. Der Prozess geht ins volle Assessment.",
-    warnings, rated, total,
-  };
+  return { recommendation: "aufnehmen", warnings, enablerWhich: [], rated, total };
 }

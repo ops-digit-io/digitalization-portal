@@ -1,7 +1,7 @@
 /**
  * The Kurzform intake pre-filter (Katalog §7.3): the spoke gate blocks, an
  * optimisation knock-out routes to the enabler, a strong-and-clear picture goes to
- * self-help, everything else is admitted.
+ * self-help, everything else is admitted. Triage is language-neutral (codes only).
  */
 
 import { describe, it, expect } from "vitest";
@@ -16,14 +16,16 @@ describe("self-assessment triage", () => {
     expect(triage(all(4, { "K8.1": 1 })).recommendation).toBe("zurueckstellen");
   });
 
-  it("timestamp knock-out (K5.1=S1) with a spoke → enabler", () => {
+  it("timestamp knock-out (K5.1=S1) with a spoke → enabler, flags K5.1", () => {
     const t = triage(all(4, { "K5.1": 1 }));
     expect(t.recommendation).toBe("enabler");
-    expect(/Zweig 1b/.test(t.reason)).toBe(true);
+    expect(t.enablerWhich).toContain("K5.1");
   });
 
-  it("interface knock-out (K2.2=S1) → enabler", () => {
-    expect(triage(all(4, { "K2.2": 1 })).recommendation).toBe("enabler");
+  it("interface knock-out (K2.2=S1) → enabler, flags K2.2", () => {
+    const t = triage(all(4, { "K2.2": 1 }));
+    expect(t.recommendation).toBe("enabler");
+    expect(t.enablerWhich).toContain("K2.2");
   });
 
   it("strong, measurable, documented, clear goal → selbsthilfe", () => {
@@ -34,8 +36,8 @@ describe("self-assessment triage", () => {
     expect(triage(all(3)).recommendation).toBe("aufnehmen");
   });
 
-  it("surfaces a non-blocking warning when the goal statement is missing", () => {
+  it("surfaces a non-blocking warning code when the goal statement is missing", () => {
     const t = triage(all(3, { "K4.1": 1 }));
-    expect(t.warnings.some((w) => /Ziel-Statement/.test(w))).toBe(true);
+    expect(t.warnings).toContain("no-goal");
   });
 });
