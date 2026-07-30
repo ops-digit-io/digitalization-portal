@@ -10,6 +10,9 @@ const nextConfig = {
       "/api/registry/sync": ["./skills/**/*", "./playbooks/**/*"],
       "/api/intake/turn": ["./skills/**/*", "./playbooks/**/*"],
       "/api/intake/enhance": ["./playbooks/**/*"],
+      // The Process Funnel routes read their ported templates/schemas/prompts and
+      // the tool playbook from ./process-funnel at runtime — ship them too.
+      "/api/process/**": ["./process-funnel/**/*"],
     },
   },
   webpack: (config) => {
