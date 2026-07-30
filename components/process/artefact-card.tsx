@@ -19,7 +19,7 @@ interface Loaded {
   content: string;
 }
 
-/** One editable Markdown artefact: load template, edit, save, preview, prompt-export, optional AI generate. */
+/** One editable Markdown artefact: load template, edit, save, preview, optional AI generate. */
 export function ArtefactCard({
   slug,
   artefact,
@@ -38,7 +38,6 @@ export function ArtefactCard({
   const [preview, setPreview] = useState(false);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
 
@@ -63,29 +62,18 @@ export function ArtefactCard({
     if (next) void ensureLoaded();
   }
 
+  // Fire-and-forget-ish: saving never blocks typing and never re-fetches the engagement.
   async function save() {
     setBusy(true);
     setErr(null);
     setHint(null);
     try {
       await apiSend<{ changed: boolean }>("PUT", `/engagements/${slug}/artefact/${artefact.id}`, { content });
-      setSaved(new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }));
+      setSaved("gespeichert ✓");
     } catch (e) {
       setErr((e as Error).message);
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function copyPrompt() {
-    setErr(null);
-    try {
-      const r = await apiGet<{ prompt: string }>(`/engagements/${slug}/artefact/${artefact.id}/prompt`);
-      await navigator.clipboard.writeText(r.prompt);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch (e) {
-      setErr((e as Error).message);
     }
   }
 
@@ -99,11 +87,11 @@ export function ArtefactCard({
         `/engagements/${slug}/artefact/${artefact.id}/generate`,
       );
       setContent(r.content);
-      setSaved(new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }));
+      setSaved("gespeichert ✓");
     } catch (e) {
-      const ex = e as Error & { code?: string };
-      if (ex.code === "NO_KEY") {
-        setHint("Kein Modell-Key — nutze Prompt-Export.");
+      const ex = e as Error & { code?: string; status?: number };
+      if (ex.code === "NO_KEY" || ex.status === 503) {
+        setHint("Kein Modell-Key — Artefakt manuell erfassen.");
       } else {
         setErr(ex.message);
       }
@@ -163,15 +151,12 @@ export function ArtefactCard({
                 <Button size="sm" variant="outline" onClick={() => setPreview((p) => !p)}>
                   {preview ? "Bearbeiten" : "Vorschau"}
                 </Button>
-                <Button size="sm" variant="outline" onClick={copyPrompt}>
-                  {copied ? "Kopiert ✓" : "Prompt kopieren"}
-                </Button>
                 {live && (
                   <Button size="sm" variant="outline" disabled={busy} onClick={generate}>
                     Mit KI erzeugen
                   </Button>
                 )}
-                {saved && <span className="text-xs text-muted-foreground">gespeichert {saved}</span>}
+                {saved && <span className="text-xs text-muted-foreground">{saved}</span>}
               </div>
 
               {hint && <p className="mt-1 text-xs text-amber-600 dark:text-amber-500">{hint}</p>}
