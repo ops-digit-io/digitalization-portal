@@ -45,7 +45,7 @@ describe("process store (git-backed, local fallback)", () => {
     const m = await s.create({ title: "Tender Copilot", owner: "Ada", champion: "Lin", anflug: "technology", components: ["ERP", "Excel-Liste"] }, now);
     expect(m.anflug).toBe("technology");
     expect(m.components.map((c) => c.label)).toEqual(["ERP", "Excel-Liste"]);
-    expect(m.phase).toBe("P0");
+    expect(m.phase).toBe("discovery"); // the first stage of the anamnesis
   });
 
   it("round-trips a criterion rating and a per-component D7 rating", async () => {

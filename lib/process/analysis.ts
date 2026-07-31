@@ -13,7 +13,7 @@ import { saveNewDemand } from "../demands-store";
 import type { Lane } from "../types";
 import * as store from "./store";
 import { profileFrom } from "./profile";
-import { readArtefact } from "./store";
+import { readSection } from "./store";
 import * as C from "./content";
 import type { Locale } from "../i18n";
 
@@ -158,10 +158,10 @@ async function diagnosisFacts(slug: string): Promise<{ summary: string; meta: st
   const dims = profile.dimensions.map((d) => `${d.id} ${d.label}: ${d.score ?? "—"}`).join("; ");
   const kos = profile.knockOuts.map((k) => `${k.id} ${k.label}: ${k.level ? "S" + k.level : "—"} (${k.state})`).join("; ");
   // A couple of narrative artefacts that carry the findings, if present.
-  const [diagnose, hypothese, friktion] = await Promise.all([
-    readArtefact(slug, "a3-diagnose"),
-    readArtefact(slug, "a3-hypothese"),
-    readArtefact(slug, "a1-friktionsliste"),
+  const [diagnose, increment, flow] = await Promise.all([
+    readSection(slug, "diagnosis"),
+    readSection(slug, "increment"),
+    readSection(slug, "flow"),
   ]);
   const summary = [
     `Prozess: ${m!.title} · Anflug: ${m!.anflug} · Status: ${profile.status} (${profile.reason})`,
@@ -169,9 +169,9 @@ async function diagnosisFacts(slug: string): Promise<{ summary: string; meta: st
     `Knock-outs: ${kos}`,
     profile.directions.length ? `Richtungsvektor: ${profile.directions.join(" | ")}` : "",
     m!.branch ? `Gewählter Zweig: ${m!.branch}${m!.riskClass ? ` · Risikoklasse ${m!.riskClass}` : ""}` : "",
-    diagnose.trim() ? `\n[Diagnose-Entscheid]\n${diagnose.slice(0, 1200)}` : "",
-    hypothese.trim() ? `\n[Interventionshypothese]\n${hypothese.slice(0, 800)}` : "",
-    friktion.trim() ? `\n[Friktionsliste]\n${friktion.slice(0, 800)}` : "",
+    diagnose.trim() ? `\n[Diagnosis & Branch]\n${diagnose.slice(0, 1200)}` : "",
+    increment.trim() ? `\n[Value Increment & Velocity]\n${increment.slice(0, 800)}` : "",
+    flow.trim() ? `\n[Flow, Friction & Latency]\n${flow.slice(0, 800)}` : "",
   ].filter(Boolean).join("\n");
   return { summary, meta: m!, profile };
 }

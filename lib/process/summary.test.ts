@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from "vitest";
 import { summarize } from "./summary";
-import { artefactsOf } from "./artefacts";
+import { sectionsOf } from "./sections";
 import type { EngagementMeta, Ratings } from "./store";
 import { CRITERIA, type Level } from "./criteria";
 
@@ -38,23 +38,27 @@ describe("engagement summary", () => {
     expect(s.koFailed).toContain("K8.1");
   });
 
-  it("reports one progress entry per phase, counting only filled artefacts", () => {
-    const p1 = artefactsOf("P1");
-    const s = summarize(meta({ filledArtefacts: [p1[0]!.id] }), { criteria: {}, components: {} });
-    expect(s.phases).toHaveLength(6);
-    expect(s.phases.map((p) => p.n)).toEqual([0, 1, 2, 3, 4, 5]);
-    const one = s.phases.find((p) => p.id === "P1")!;
+  it("reports one progress entry per stage, counting only filled sections", () => {
+    const recon = sectionsOf("recon");
+    const s = summarize(meta({ filledSections: [recon[0]!.key] }), { criteria: {}, components: {} });
+    expect(s.stages).toHaveLength(5);
+    expect(s.stages.map((x) => x.id)).toEqual(["discovery", "recon", "measurement", "capacity", "decision"]);
+    const one = s.stages.find((x) => x.id === "recon")!;
     expect(one.done).toBe(1);
-    expect(one.total).toBe(p1.length);
+    expect(one.total).toBe(recon.length);
   });
 
-  it("carries the recorded gate verdict per phase", () => {
+  it("carries the gate verdicts per stage — a failure in the stage dominates", () => {
     const s = summarize(
-      meta({ gates: { T0: { passed: true, reason: "", at: "" }, T2: { passed: false, reason: "thin", at: "" } } }),
+      meta({ gates: {
+        profile: { passed: true, reason: "", at: "" },        // discovery
+        purpose: { passed: false, reason: "no goal", at: "" }, // discovery too
+        diagnostics: { passed: true, reason: "", at: "" },     // measurement
+      } }),
       { criteria: {}, components: {} },
     );
-    expect(s.phases.find((p) => p.id === "P0")?.gate).toBe("pass");
-    expect(s.phases.find((p) => p.id === "P2")?.gate).toBe("fail");
-    expect(s.phases.find((p) => p.id === "P1")?.gate).toBeNull();
+    expect(s.stages.find((x) => x.id === "discovery")?.gate).toBe("fail");
+    expect(s.stages.find((x) => x.id === "measurement")?.gate).toBe("pass");
+    expect(s.stages.find((x) => x.id === "recon")?.gate).toBeNull();
   });
 });

@@ -1,8 +1,8 @@
 /**
  * Assembles the system guidance the coaching AGENT runs on for ONE health
  * dimension (coach-then-rate). There is no prompt to paste — this drives the live
- * coach at .../dimension/[dim]/coach and the artefact generator at
- * .../artefact/[id]/generate.
+ * coach at .../dimension/[dim]/coach and the section generator at
+ * .../section/[key]/generate.
  *
  * Injects: the shared guidance + the coaching-stance playbook (from the registry),
  * then this dimension's criteria straight from the Kriterienkatalog (question,
@@ -12,8 +12,7 @@
  */
 
 import { dimById, criteriaOf } from "./criteria";
-import { artefactById, artefactsOf } from "./artefacts";
-import { byPhase } from "./phases";
+import { sectionByKey, SECTIONS, groupById } from "./sections";
 import * as store from "./store";
 import { shared, dimensionCoach } from "./prompts";
 import * as C from "./content";
@@ -75,28 +74,26 @@ ${speak(locale)}`;
 }
 
 /**
- * System guidance the agent runs on to GENERATE a phase artefact (Markdown) from
- * its template, the engagement context and the artefacts already produced in
- * earlier phases. Drives .../artefact/[id]/generate.
+ * System guidance the agent runs on to GENERATE one anamnesis section (Markdown)
+ * from its template, the engagement context and the sections already produced
+ * earlier in the sequence. Drives .../section/[key]/generate.
  */
-export async function buildArtefact(slug: string, artefactId: string, locale: Locale = "en"): Promise<string> {
-  const a = artefactById[artefactId];
-  if (!a) throw new Error(`unknown artefact ${artefactId}`);
-  const at = C.artefactText(locale, artefactId);
+export async function buildSection(slug: string, key: string, locale: Locale = "en"): Promise<string> {
+  const sec = sectionByKey[key];
+  if (!sec) throw new Error(`unknown section ${key}`);
+  const group = groupById[sec.group];
   const m = (await store.meta(slug))!;
-  const [sharedText, current] = await Promise.all([shared(), store.readArtefact(slug, artefactId)]);
+  const [sharedText, current] = await Promise.all([shared(), store.readSection(slug, key)]);
 
-  // Prior context: the artefacts of earlier phases that already have content.
-  const phaseN = byPhase[a.phase]?.n ?? 0;
-  const priorArtefacts = ARTEFACTS_BEFORE(phaseN);
+  // Prior context: the sections earlier in the sequence that already have content.
   const priorParts: string[] = [];
-  for (const p of priorArtefacts) {
-    const c = (await store.readArtefact(slug, p.id)).trim();
-    if (c) priorParts.push(`<artefakt phase="${p.phase}" titel="${C.artefactText(locale, p.id).title}">\n${c.slice(0, 2000)}\n</artefakt>`);
+  for (const p of SECTIONS.filter((x) => x.order < sec.order)) {
+    const c = (await store.readSection(slug, p.key)).trim();
+    if (c) priorParts.push(`<abschnitt key="${p.key}" titel="${p.label}">\n${c.slice(0, 2000)}\n</abschnitt>`);
   }
 
-  const head = `Du erzeugst das Artefakt „${at.title}" (Phase ${byPhase[a.phase]?.n} — ${C.phaseText(locale, a.phase).label})
-einer Prozessdiagnose bei OESL Automotive.
+  const head = `Du erzeugst den Abschnitt „${sec.label}" (Stufe ${group?.order} — ${group?.label}, Schritt ${sec.order} von 14)
+einer Prozess-Anamnese bei OESL Automotive.
 
 Engagement: ${m.title}
 Prozessverantwortlicher: ${m.owner || "(nicht erfasst)"}
@@ -105,23 +102,24 @@ Einheit: ${m.unit || "(nicht erfasst)"}
 Anflug: ${m.anflug === "technology" ? "Technologie-Push" : "Prozess-Pull"}
 ${m.components.length ? `Kernkomponenten: ${m.components.map((c) => c.label).join(", ")}` : ""}
 
-Zweck dieses Artefakts: ${at.purpose}
+Zweck dieses Abschnitts: ${sec.description}
+${sec.gateQuestion ? `Tor-Frage (dieser Abschnitt ist ein Tor): ${sec.gateQuestion}` : ""}
 
 DISZIPLIN
 - Fülle die Vorlage aus. Erfinde keine Zahlen oder Namen; wo etwas nicht erhoben ist,
   schreibe „nicht erhoben" und nenne, was es erheben würde. Keine eckigen Platzhalter.
-- Zahlen tragen ihre Konfidenzstufe (Selbstauskunft/Stichprobe/instrumentiert). Eine reine Selbstauskunft ist keine Baseline.
+- Zahlen tragen ihre Konfidenzstufe (Selbstauskunft/Stichprobe/instrumentiert).
 - Behalte Überschriften und Tabellenspalten der Vorlage bei; sie werden gerendert.`;
 
-  const tail = `\n\nErhebe das Fehlende Schritt für Schritt. Wenn du genug hast, liefere das fertige Artefakt
-in einem einzigen fenced-Markdown-Block, damit es verbatim gespeichert werden kann.
+  const tail = `\n\nErhebe das Fehlende Schritt für Schritt. Wenn du genug hast, liefere den fertigen Abschnitt
+in einem einzigen fenced-Markdown-Block, damit er verbatim gespeichert werden kann.
 ${speak(locale)}`;
 
   return [
     head,
     sharedText,
-    `<vorlage>\n${at.template}\n</vorlage>`,
-    priorParts.length ? `<vorherige-artefakte>\n${priorParts.join("\n\n")}\n</vorherige-artefakte>` : "",
+    `<vorlage>\n${sec.template}\n</vorlage>`,
+    priorParts.length ? `<vorherige-abschnitte>\n${priorParts.join("\n\n")}\n</vorherige-abschnitte>` : "",
     current.trim() ? `<aktueller-stand>\nBaue darauf auf; verwirf nichts Belegtes.\n\n${current}\n</aktueller-stand>` : "",
     tail,
   ]
@@ -129,9 +127,4 @@ ${speak(locale)}`;
     .join("\n\n");
 }
 
-/** Artefacts of all phases strictly before phase number n. */
-function ARTEFACTS_BEFORE(n: number) {
-  const out = [] as ReturnType<typeof artefactsOf>;
-  for (let i = 0; i < n; i++) out.push(...artefactsOf(`P${i}`));
-  return out;
-}
+
