@@ -1,18 +1,21 @@
 /**
  * The compact per-engagement summary the landscape tiles are drawn from.
  *
- * A list of processes is only useful if each entry carries its health at a
- * glance: the traffic light (never an average — a failed knock-out dominates it,
- * doc A §6.2), how much of the catalogue is actually assessed, and how far each
- * stage of the anamnesis has come. Stage progress and gate verdicts come straight
- * off `meta` (the filled-section index + gates), so the only extra read per
- * engagement is its ratings.
+ * The traffic light comes from the SOURCE TOOL'S score model: the grader scores
+ * each section against its schema, those scores roll up into five dimensions, and
+ * the light is read off that — never an average. Two rules from the model govern
+ * it and are worth restating here because they are what make the light honest:
+ *   1. a knock-out is not a low score. It dominates the colour instead of being
+ *      averaged into it;
+ *   2. bad news counts on partial evidence, good news does not — a dimension
+ *      backed by half its sections can turn the light red, but never green.
+ *
+ * Stage progress and gate verdicts come straight off `meta`, so no extra I/O.
  */
 
 import { SECTION_GROUPS, sectionsOf } from "./sections";
-import { profileFrom } from "./profile";
-import type { Status } from "./health-model";
-import { filledOf, type EngagementMeta, type Ratings } from "./store";
+import { scoreProfile, trafficLight, type Light } from "./score-model";
+import { filledOf, type EngagementMeta } from "./store";
 
 export interface StageProgress {
   id: string;
@@ -26,48 +29,59 @@ export interface StageProgress {
 }
 
 export interface EngagementSummary {
-  status: Status;
-  /** 0..1 share of the 29 criteria actually assessed. */
+  light: Light;
+  reason: string;
+  /** 0..1 share of the fourteen sections carrying a score. */
   coverage: number;
-  ratedCount: number;
-  totalCount: number;
+  sectionsAssessed: number;
+  sectionsTotal: number;
+  /** Overall 0..100, or null while too little is assessed to say. */
+  overall: number | null;
   /**
-   * Knock-outs that were actually assessed and came out at level 1 — an
-   * evidenced failure worth naming on a tile. Unrated knock-outs also count as
-   * level 1 for the status (§1.3), but naming those would read as a finding
-   * where nobody has looked yet; the grey light and coverage say that instead.
+   * Knock-outs standing failed, by label — these alone force the light red, so
+   * they are what a tile must name. Reported separately from `gateFailures`,
+   * which the model keeps for the non-knock-out gates.
    */
   koFailed: string[];
+  /** Non-knock-out gates recorded as failed. */
+  gateFailures: string[];
   stages: StageProgress[];
 }
 
-export function summarize(m: EngagementMeta, r: Ratings): EngagementSummary {
-  const p = profileFrom(m, r);
+export function summarize(m: EngagementMeta): EngagementSummary {
   const filled = new Set(filledOf(m));
+
+  // The gate verdicts the model reads are the recorded ones, keyed by section.
+  const gateResults: Record<string, boolean> = {};
+  for (const [key, v] of Object.entries(m.gates ?? {})) if (v) gateResults[key] = v.passed;
+
+  const profile = scoreProfile(m.sectionScores ?? {}, gateResults);
+  const light = trafficLight(profile);
 
   const stages: StageProgress[] = [...SECTION_GROUPS]
     .sort((a, b) => a.order - b.order)
     .map((g) => {
       const secs = sectionsOf(g.id);
       const verdicts = secs.map((s) => m.gates?.[s.key]).filter(Boolean);
-      const gate: StageProgress["gate"] =
-        verdicts.length === 0 ? null : verdicts.some((v) => v && !v.passed) ? "fail" : "pass";
       return {
         id: g.id,
         n: g.order,
         label: g.label,
         done: secs.filter((s) => filled.has(s.key)).length,
         total: secs.length,
-        gate,
+        gate: verdicts.length === 0 ? null : verdicts.some((v) => v && !v.passed) ? "fail" : "pass",
       };
     });
 
   return {
-    status: p.status,
-    coverage: p.coverage,
-    ratedCount: p.ratedCount,
-    totalCount: p.totalCount,
-    koFailed: p.knockOuts.filter((k) => k.state === "fail" && k.rated).map((k) => k.id),
+    light: light.light,
+    reason: light.reason,
+    coverage: profile.coverage,
+    sectionsAssessed: profile.sectionsAssessed,
+    sectionsTotal: profile.sectionsTotal,
+    overall: profile.overall,
+    koFailed: profile.knockOuts.filter((k) => k.state === "fail").map((k) => k.label),
+    gateFailures: profile.gateFailures,
     stages,
   };
 }

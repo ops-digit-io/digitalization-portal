@@ -191,6 +191,13 @@ const STATUS: Record<Locale, Record<Status, { pill: string; full: string }>> = {
     grau: { pill: "Grau", full: "Grau — nicht erhoben" },
   },
 };
+/** The score model's traffic light, in words (hue is never the interface). */
+export function lightLabel(locale: Locale, l: "red" | "amber" | "green" | "grey"): string {
+  const EN = { red: "Red", amber: "Amber", green: "Green", grey: "Not assessed" };
+  const DE = { red: "Rot", amber: "Gelb", green: "Grün", grey: "Nicht erhoben" };
+  return (en(locale) ? EN : DE)[l];
+}
+
 export function statusPill(locale: Locale, s: Status): string { return STATUS[en(locale) ? "en" : "de"][s].pill; }
 export function statusFull(locale: Locale, s: Status): string { return STATUS[en(locale) ? "en" : "de"][s].full; }
 

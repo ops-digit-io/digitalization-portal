@@ -15,12 +15,9 @@ export async function GET() {
   const d = await deny();
   if (d) return d;
   const metas = await store.list();
-  const engagements = await Promise.all(
-    metas.map(async (m) => ({
-      ...m,
-      summary: summarize(m, await store.ratings(m.slug).catch(() => ({ criteria: {}, components: {} }))),
-    })),
-  );
+  // The summary is read entirely off meta now (grader scores + gates), so the
+  // landscape needs no per-engagement fan-out at all.
+  const engagements = metas.map((m) => ({ ...m, summary: summarize(m) }));
   return NextResponse.json({ engagements });
 }
 

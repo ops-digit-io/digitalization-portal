@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { sectionByKey } from "@/lib/process/sections";
+import { grade } from "@/lib/process/grader";
+import { schemaOf } from "@/lib/process/schemas";
 import * as store from "@/lib/process/store";
 import { deny, now } from "@/lib/process/guard";
 
@@ -24,5 +26,11 @@ export async function PUT(req: Request, { params }: { params: { slug: string; ke
   if (!sectionByKey[key]) return NextResponse.json({ error: "no such section" }, { status: 404 });
   if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as { content?: string };
-  return NextResponse.json(await store.writeSection(slug, key, String(body.content ?? ""), now()));
+  const content = String(body.content ?? "");
+  // Grade against the section's schema on the way in, so the score is always in
+  // step with the document rather than a stale number from an earlier save.
+  const schema = schemaOf(key);
+  const result = schema ? grade(content, schema) : null;
+  const saved = await store.writeSection(slug, key, content, now(), result?.score);
+  return NextResponse.json({ ...saved, grade: result });
 }

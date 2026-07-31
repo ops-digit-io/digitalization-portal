@@ -61,6 +61,8 @@ export interface EngagementMeta {
   filledSections?: string[];
   /** Legacy name from the phase/artefact model; read once, then migrated. */
   filledArtefacts?: string[];
+  /** Grader score (0..100) per section key, recomputed whenever a section is saved. */
+  sectionScores?: Record<string, number>;
   /** Demands the analysis agent disassembled this diagnosis into (in du-demands). */
   demands?: { id: string; title: string; at: string }[];
   createdAt: string;
@@ -266,7 +268,14 @@ export function filledOf(m: Pick<EngagementMeta, "filledSections" | "filledArtef
 export async function readSection(slug: string, key: string): Promise<string> {
   return (await getRaw(`${relDir(slug)}/${key}.md`)) ?? "";
 }
-export async function writeSection(slug: string, key: string, content: string, now: string): Promise<{ changed: boolean; filledSections: string[] }> {
+export async function writeSection(
+  slug: string,
+  key: string,
+  content: string,
+  now: string,
+  /** Grader score for this content, when the caller computed one. */
+  score?: number,
+): Promise<{ changed: boolean; filledSections: string[]; sectionScores: Record<string, number> }> {
   const rel = `${relDir(slug)}/${key}.md`;
   const prev = await getRaw(rel);
   const m = (await meta(slug))!;
@@ -275,14 +284,22 @@ export async function writeSection(slug: string, key: string, content: string, n
   if (has) filled.add(key);
   else filled.delete(key);
   const filledSections = [...filled];
+
+  // The grader's verdict travels with the document: an empty section has no
+  // score at all, which is a different statement from "scored and bad".
+  const sectionScores = { ...(m.sectionScores ?? {}) };
+  if (has && typeof score === "number") sectionScores[key] = score;
+  else if (!has) delete sectionScores[key];
+
   if (prev === content) {
-    // Content unchanged, but reconcile the filled index if it drifted.
-    if (filledOf(m).length !== filledSections.length) await writeMeta(slug, { filledSections }, now);
-    return { changed: false, filledSections };
+    if (filledOf(m).length !== filledSections.length || m.sectionScores?.[key] !== sectionScores[key]) {
+      await writeMeta(slug, { filledSections, sectionScores }, now);
+    }
+    return { changed: false, filledSections, sectionScores };
   }
   await putRaw(rel, content, `Update section ${key} on ${slugify(slug)}`);
-  await writeMeta(slug, { filledSections }, now);
-  return { changed: true, filledSections };
+  await writeMeta(slug, { filledSections, sectionScores }, now);
+  return { changed: true, filledSections, sectionScores };
 }
 
 // ------------------------------------------------- advisory artefacts + verdicts
