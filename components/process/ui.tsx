@@ -6,8 +6,10 @@
  * of the portal), and the traffic-light badge.
  */
 
+import { isValidElement } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Mermaid } from "@/components/process/mermaid";
 
 export const BASE = "/api/process";
 
@@ -60,7 +62,35 @@ export function SectionLabel({ children, as = "h2" }: { children: React.ReactNod
 export function Md({ children }: { children: string }) {
   return (
     <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:font-semibold prose-table:text-sm">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{children}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          // A fenced block arrives as <pre><code>. For a diagram the <pre> has to
+          // go: a block-level figure cannot legally live inside it, and the code
+          // styling would frame the drawing.
+          pre({ children, ...props }) {
+            const only = Array.isArray(children) ? children[0] : children;
+            if (isValidElement<{ className?: string }>(only) && /\blanguage-mermaid\b/.test(only.props.className ?? "")) {
+              return <>{children}</>;
+            }
+            return <pre {...props}>{children}</pre>;
+          },
+          // A ```mermaid fence is a diagram, not code — the phase templates ship
+          // flowcharts and they only read as diagrams.
+          code({ className, children: code, ...props }) {
+            if (/\blanguage-mermaid\b/.test(className ?? "")) {
+              return <Mermaid chart={String(code).replace(/\n$/, "")} />;
+            }
+            return (
+              <code className={className} {...props}>
+                {code}
+              </code>
+            );
+          },
+        }}
+      >
+        {children}
+      </ReactMarkdown>
     </div>
   );
 }

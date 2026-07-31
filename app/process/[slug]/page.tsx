@@ -230,6 +230,43 @@ export default function EngagementCockpit() {
 
   const activePhase = config.phases.find((p) => p.id === tab);
 
+  // One model for the strip, so the keyboard handler and the markup agree.
+  const tabs: { id: string; label: string; current?: boolean; count?: string; gate?: "pass" | "fail" | null }[] = [
+    { id: PROFIL, label: C.pc(locale, "tab.profile") },
+    { id: ANALYSE, label: C.pc(locale, "tab.analyse") },
+    ...config.phases.map((p) => {
+      const inPhase = config.artefacts.filter((a) => a.phase === p.id);
+      const done = inPhase.filter((a) => filledArtefacts.includes(a.id)).length;
+      const verdict = meta.gates[p.gate.id];
+      return {
+        id: p.id,
+        label: `${p.n} · ${C.phaseText(locale, p.id).label}`,
+        current: p.id === meta.phase,
+        ...(inPhase.length ? { count: `${done}/${inPhase.length}` } : {}),
+        gate: verdict ? (verdict.passed ? ("pass" as const) : ("fail" as const)) : null,
+      };
+    }),
+  ];
+
+  /** Arrow keys move along the strip and wrap; Home/End jump to the ends. */
+  function onTabKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+    if (!keys.includes(e.key)) return;
+    e.preventDefault();
+    const i = tabs.findIndex((t) => t.id === tab);
+    const last = tabs.length - 1;
+    const next =
+      e.key === "Home" ? 0
+      : e.key === "End" ? last
+      : e.key === "ArrowLeft" ? (i <= 0 ? last : i - 1)
+      : (i >= last ? 0 : i + 1);
+    const id = tabs[next]?.id;
+    if (!id) return;
+    setTab(id);
+    // Follow-focus: the newly selected tab is the strip's only tab stop.
+    requestAnimationFrame(() => document.getElementById(`tab-${id}`)?.focus());
+  }
+
   return (
     <main className="mx-auto max-w-[1100px] px-4 py-6">
       <nav className="mb-2 text-sm text-muted-foreground">
@@ -293,30 +330,35 @@ export default function EngagementCockpit() {
         </div>
       </Card>
 
-      {/* Tab strip */}
-      <div className="mt-4 flex flex-nowrap gap-1 overflow-x-auto border-b">
-        <TabButton label={C.pc(locale, "tab.profile")} active={tab === PROFIL} onClick={() => setTab(PROFIL)} />
-        <TabButton label={C.pc(locale, "tab.analyse")} active={tab === ANALYSE} onClick={() => setTab(ANALYSE)} />
-        {config.phases.map((p) => {
-          const inPhase = config.artefacts.filter((a) => a.phase === p.id);
-          const done = inPhase.filter((a) => filledArtefacts.includes(a.id)).length;
-          const verdict = meta.gates[p.gate.id];
-          return (
-            <TabButton
-              key={p.id}
-              label={`${p.n} · ${C.phaseText(locale, p.id).label}`}
-              active={tab === p.id}
-              current={p.id === meta.phase}
-              count={inPhase.length ? `${done}/${inPhase.length}` : undefined}
-              gate={verdict ? (verdict.passed ? "pass" : "fail") : null}
-              onClick={() => setTab(p.id)}
-            />
-          );
-        })}
+      {/* Tab strip — a real tablist: one tab stop, arrow keys move between tabs */}
+      <div
+        role="tablist"
+        aria-label={C.pc(locale, "tabs.label")}
+        className="mt-4 flex flex-nowrap gap-1 overflow-x-auto border-b"
+        onKeyDown={onTabKeyDown}
+      >
+        {tabs.map((t) => (
+          <TabButton
+            key={t.id}
+            id={t.id}
+            label={t.label}
+            active={tab === t.id}
+            current={t.current}
+            count={t.count}
+            gate={t.gate}
+            onClick={() => setTab(t.id)}
+          />
+        ))}
       </div>
 
       {/* Tab content */}
-      <div className="mt-4">
+      <div
+        id={`panel-${tab}`}
+        role="tabpanel"
+        aria-labelledby={`tab-${tab}`}
+        tabIndex={0}
+        className="mt-4 outline-none"
+      >
         {tab === PROFIL && <ProfilTab slug={slug} profile={profile} locale={locale} />}
         {tab === ANALYSE && <AnalyseTab slug={slug} demands={meta.demands ?? []} onChanged={reload} locale={locale} />}
         {activePhase && (
@@ -339,6 +381,7 @@ export default function EngagementCockpit() {
 
 // ------------------------------------------------------------------ tab button
 function TabButton({
+  id,
   label,
   active,
   current,
@@ -346,6 +389,7 @@ function TabButton({
   gate,
   onClick,
 }: {
+  id: string;
   label: string;
   active: boolean;
   current?: boolean;
@@ -357,7 +401,12 @@ function TabButton({
   return (
     <button
       type="button"
-      aria-current={active ? "true" : undefined}
+      role="tab"
+      id={`tab-${id}`}
+      aria-selected={active}
+      aria-controls={`panel-${id}`}
+      // Roving tabindex: the strip is one tab stop, arrows move within it.
+      tabIndex={active ? 0 : -1}
       onClick={onClick}
       className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm transition-colors ${
         active ? "border-b-2 border-foreground font-medium text-foreground" : "text-muted-foreground hover:text-foreground"
