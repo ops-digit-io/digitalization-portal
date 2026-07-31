@@ -122,14 +122,15 @@ interface Engagement {
 // ------------------------------------------------------------------ Analyse & Bedarfe types
 type Lane = "run" | "regulatory" | "continuous_improvement" | "transform" | "innovation" | "data_ai" | "local";
 
+// Lane wording follows the rest of the portal (see app/demands, app/board).
 const LANE_OPTIONS: { id: Lane | ""; label: string }[] = [
-  { id: "", label: "— automatisch —" },
+  { id: "", label: "" }, // filled from the dictionary at render time
   { id: "run", label: "run" },
   { id: "regulatory", label: "regulatory" },
-  { id: "continuous_improvement", label: "continuous_improvement" },
+  { id: "continuous_improvement", label: "continuous improvement" },
   { id: "transform", label: "transform" },
   { id: "innovation", label: "innovation" },
-  { id: "data_ai", label: "data_ai" },
+  { id: "data_ai", label: "data & AI" },
   { id: "local", label: "local" },
 ];
 
@@ -360,7 +361,16 @@ export default function EngagementCockpit() {
         className="mt-4 outline-none"
       >
         {tab === PROFIL && <ProfilTab slug={slug} profile={profile} locale={locale} />}
-        {tab === ANALYSE && <AnalyseTab slug={slug} demands={meta.demands ?? []} onChanged={reload} locale={locale} />}
+        {tab === ANALYSE && (
+          <AnalyseTab
+            slug={slug}
+            demands={meta.demands ?? []}
+            onChanged={reload}
+            locale={locale}
+            profile={profile}
+            onGoProfile={() => setTab(PROFIL)}
+          />
+        )}
         {activePhase && (
           <PhaseTab
             key={activePhase.id}
@@ -518,11 +528,15 @@ function AnalyseTab({
   demands,
   onChanged,
   locale,
+  profile,
+  onGoProfile,
 }: {
   slug: string;
   demands: DemandRef[];
   onChanged: () => Promise<void>;
   locale: Locale;
+  profile: Profile;
+  onGoProfile: () => void;
 }) {
   const [running, setRunning] = useState(false);
   const [live, setLive] = useState<boolean | null>(null);
@@ -531,12 +545,18 @@ function AnalyseTab({
   const [created, setCreated] = useState<CreatedDemand[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
+  // Analysing an unassessed diagnosis would derive demands from the §1.3
+  // convention rather than from evidence, so the step is blocked outright.
+  const nothingAssessed = profile.ratedCount === 0;
+  const pct = Math.round(profile.coverage * 100);
+  const thin = !nothingAssessed && profile.coverage < 0.5;
+
   async function analyse() {
     setRunning(true);
     setErr(null);
     setCreated(null);
     try {
-      const r = await apiSend<AnalyseResult>("POST", `/engagements/${slug}/analyse`);
+      const r = await apiSend<AnalyseResult>("POST", `/engagements/${slug}/analyse?lang=${locale}`);
       setLive(r.live);
       setProposals(r.demands.map((d) => ({ ...d, _create: true })));
     } catch (e) {
@@ -559,7 +579,7 @@ function AnalyseTab({
     setCreating(true);
     setErr(null);
     try {
-      const r = await apiSend<{ created: CreatedDemand[] }>("POST", `/engagements/${slug}/demands`, { demands: selected });
+      const r = await apiSend<{ created: CreatedDemand[] }>("POST", `/engagements/${slug}/demands?lang=${locale}`, { demands: selected });
       setCreated(r.created);
       await onChanged();
     } catch (e) {
@@ -573,9 +593,10 @@ function AnalyseTab({
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        {C.pc(locale, "analyse.intro")}
-      </p>
+      <div className="space-y-2">
+        <p className="text-sm text-muted-foreground">{C.pc(locale, "analyse.intro")}</p>
+        <p className="border-l-2 border-border pl-3 text-xs text-muted-foreground">{C.pc(locale, "analyse.order")}</p>
+      </div>
 
       {/* Demands already created */}
       {demands.length > 0 && (
@@ -598,34 +619,64 @@ function AnalyseTab({
         </section>
       )}
 
-      {/* Analyse starten */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Button size="sm" disabled={running} onClick={analyse}>
-          {running ? C.pc(locale, "btn.analysing") : C.pc(locale, "btn.analyse")}
-        </Button>
-        {running && <span className="text-xs text-muted-foreground">{C.pc(locale, "analyse.running")}</span>}
-        {live === false && (
-          <span className="text-xs text-muted-foreground">{C.pc(locale, "analyse.offline")}</span>
+      {/* Step 1 — analyse */}
+      <section>
+        <SectionLabel as="h3">{C.pc(locale, "analyse.step1")}</SectionLabel>
+        {nothingAssessed ? (
+          <Card className="flex flex-wrap items-center gap-3 border-amber-500/40 bg-amber-500/5 p-3">
+            <p className="min-w-0 flex-1 text-sm text-muted-foreground">{C.pc(locale, "analyse.blocked")}</p>
+            <Button size="sm" variant="outline" onClick={onGoProfile}>{C.pc(locale, "analyse.goAssess")}</Button>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {thin && (
+              <p className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground">
+                {C.pc(locale, "analyse.thin").replace("{pct}", String(pct))}
+              </p>
+            )}
+            <div className="flex flex-wrap items-center gap-3">
+              <Button size="sm" disabled={running} onClick={analyse}>
+                {running ? C.pc(locale, "btn.analysing") : C.pc(locale, "btn.analyse")}
+              </Button>
+              {running && <span className="text-xs text-muted-foreground">{C.pc(locale, "analyse.running")}</span>}
+              {live === false && !running && (
+                <span className="text-xs text-muted-foreground">{C.pc(locale, "analyse.offline")}</span>
+              )}
+            </div>
+          </div>
         )}
-      </div>
+      </section>
 
-      {/* Proposals */}
+      {/* Step 2 — review and create */}
       {proposals && (
         <section className="space-y-3">
-          <SectionLabel as="h3">{C.pc(locale, "proposals.heading")}</SectionLabel>
-          {proposals.length === 0 && <p className="text-sm text-muted-foreground">{C.pc(locale, "proposals.none")}</p>}
+          <SectionLabel as="h3">{C.pc(locale, "analyse.step2")}</SectionLabel>
+          {proposals.length === 0 && (
+            <p className="text-sm text-muted-foreground">{C.pc(locale, "analyse.empty")}</p>
+          )}
+          {proposals.length > 0 && (
+            <p className="text-xs text-muted-foreground">{C.pc(locale, "analyse.destination")}</p>
+          )}
           <div className="space-y-2">
             {proposals.map((p, i) => (
-              <Card key={i} className="p-3">
-                <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    checked={p._create}
-                    onChange={(e) => update(i, { _create: e.target.checked })}
-                    className="size-4 accent-[hsl(var(--primary))]"
-                  />
-                  {C.pc(locale, "proposals.create")}
-                </label>
+              <Card key={i} className={`p-3 ${p._create ? "" : "opacity-60"}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={p._create}
+                      onChange={(e) => update(i, { _create: e.target.checked })}
+                      className="size-4 accent-[hsl(var(--primary))]"
+                    />
+                    {C.pc(locale, "proposals.create")}
+                  </label>
+                  {/* Why this demand exists — the line that makes it checkable. */}
+                  {p.basis && (
+                    <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
+                      {C.pc(locale, "analyse.basis")}: {p.basis}
+                    </span>
+                  )}
+                </div>
 
                 <div className="mt-2">
                   <label className={LABEL}>{C.pc(locale, "field.title")}</label>
@@ -653,12 +704,13 @@ function AnalyseTab({
                     className={INPUT}
                   >
                     {LANE_OPTIONS.map((o) => (
-                      <option key={o.id || "_auto"} value={o.id}>{o.id === "" ? C.pc(locale, "lane.auto") : o.label}</option>
+                      <option key={o.id || "_auto"} value={o.id}>
+                        {o.id === "" ? C.pc(locale, "lane.auto") : o.label}
+                      </option>
                     ))}
                   </select>
                 </div>
 
-                {p.basis && <p className="mt-2 text-xs text-muted-foreground">{C.pc(locale, "proposals.basis")}: {p.basis}</p>}
               </Card>
             ))}
           </div>
@@ -688,6 +740,9 @@ function AnalyseTab({
               </Link>
             ))}
           </Card>
+          <Link href="/demands" className="mt-2 inline-block text-xs font-medium text-primary hover:underline">
+            {C.pc(locale, "analyse.openFunnel")} →
+          </Link>
         </section>
       )}
 
