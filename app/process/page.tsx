@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
 import { apiGet, apiSend } from "@/components/process/ui";
 import { useI18n } from "@/components/providers";
 import * as C from "@/lib/process/content";
@@ -77,7 +78,8 @@ export default function ProcessFunnel() {
   const [rows, setRows] = useState<EngagementRow[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // create form
+  // create form (in an accessible modal, decoupled from the list)
+  const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [owner, setOwner] = useState("");
   const [champion, setChampion] = useState("");
@@ -86,6 +88,11 @@ export default function ProcessFunnel() {
   const [componentsText, setComponentsText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  function openCreate() {
+    setFormError(null);
+    setCreateOpen(true);
+  }
 
   // Kurzform self-assessment pre-filter (§7.3)
   const [preOpen, setPreOpen] = useState(false);
@@ -155,18 +162,23 @@ export default function ProcessFunnel() {
         <span className="text-foreground">{C.pc(locale, "funnel.title")}</span>
       </nav>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-lg font-semibold">{C.pc(locale, "funnel.title")}</h1>
-        <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">{C.pc(locale, "badge.prefunnel")}</span>
-        {config && config.liveCoaching === false && (
-          <span className="rounded-full border px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-            {C.pc(locale, "badge.offline")}
-          </span>
-        )}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-lg font-semibold">{C.pc(locale, "funnel.title")}</h1>
+            <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">{C.pc(locale, "badge.prefunnel")}</span>
+            {config && config.liveCoaching === false && (
+              <span className="rounded-full border px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                {C.pc(locale, "badge.offline")}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            {C.pc(locale, "funnel.tagline")}
+          </p>
+        </div>
+        <Button className="shrink-0" onClick={openCreate}>+ {C.pc(locale, "create.open")}</Button>
       </div>
-      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-        {C.pc(locale, "funnel.tagline")}
-      </p>
 
       {loadError && (
         <p className="mt-4 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">{loadError}</p>
@@ -178,8 +190,9 @@ export default function ProcessFunnel() {
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{C.pc(locale, "list.heading")}</h2>
           {rows === null && !loadError && <p className="text-sm text-muted-foreground">{C.pc(locale, "loading")}</p>}
           {rows !== null && rows.length === 0 && (
-            <Card className="p-6 text-center text-sm text-muted-foreground">
-              {C.pc(locale, "list.empty")}
+            <Card className="flex flex-col items-center gap-3 p-8 text-center text-sm text-muted-foreground">
+              <span>{C.pc(locale, "list.empty")}</span>
+              <Button onClick={openCreate}>+ {C.pc(locale, "create.open")}</Button>
             </Card>
           )}
           {rows !== null && rows.length > 0 && (
@@ -206,7 +219,7 @@ export default function ProcessFunnel() {
           )}
         </section>
 
-        {/* Right: pre-filter + create */}
+        {/* Right: pre-filter (the create form lives in the dialog, decoupled from the list) */}
         <section className="space-y-4">
           {/* Kurzform-Selbstbewertung als Vorfilter */}
           <Card className="p-4">
@@ -265,64 +278,93 @@ export default function ProcessFunnel() {
               </div>
             )}
           </Card>
+        </section>
+      </div>
 
-          {/* New diagnosis */}
-          <Card className="p-4">
-            <h2 className="font-semibold">{C.pc(locale, "create.title")}</h2>
-            <p className="mt-1 text-xs text-muted-foreground">{C.pc(locale, "create.sub")}</p>
+      {/* New-diagnosis dialog — decoupled from the list for a clearer, focus-trapped flow */}
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} labelledBy="create-dialog-title">
+        <form
+          className="p-5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 id="create-dialog-title" className="text-base font-semibold">{C.pc(locale, "create.title")}</h2>
+              <p className="mt-1 text-xs text-muted-foreground">{C.pc(locale, "create.sub")}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCreateOpen(false)}
+              aria-label={C.pc(locale, "dialog.close")}
+              className="-mr-1 -mt-1 grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <span aria-hidden className="text-lg leading-none">×</span>
+            </button>
+          </div>
 
-            <div className="mt-4 space-y-3">
+          <div className="mt-4 space-y-3">
+            <div>
+              <label htmlFor="cd-process" className={LABEL}>{C.pc(locale, "field.process")} *</label>
+              <input id="cd-process" data-autofocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder={C.pc(locale, "placeholder.process")} className={INPUT} />
+              {slug && <p className="mt-1 text-xs text-muted-foreground">/process/{slug}</p>}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className={LABEL}>{C.pc(locale, "field.process")} *</label>
-                <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={C.pc(locale, "placeholder.process")} className={INPUT} />
-                {slug && <p className="mt-1 text-xs text-muted-foreground">/process/{slug}</p>}
+                <label htmlFor="cd-owner" className={LABEL}>{C.pc(locale, "field.owner")}</label>
+                <input id="cd-owner" value={owner} onChange={(e) => setOwner(e.target.value)} className={INPUT} />
               </div>
               <div>
-                <label className={LABEL}>{C.pc(locale, "field.owner")}</label>
-                <input value={owner} onChange={(e) => setOwner(e.target.value)} className={INPUT} />
+                <label htmlFor="cd-champion" className={LABEL}>{C.pc(locale, "field.champion")}</label>
+                <input id="cd-champion" value={champion} onChange={(e) => setChampion(e.target.value)} className={INPUT} />
               </div>
-              <div>
-                <label className={LABEL}>{C.pc(locale, "field.champion")}</label>
-                <input value={champion} onChange={(e) => setChampion(e.target.value)} className={INPUT} />
+            </div>
+            <div>
+              <label htmlFor="cd-unit" className={LABEL}>{C.pc(locale, "field.unit")}</label>
+              <input id="cd-unit" value={unit} onChange={(e) => setUnit(e.target.value)} className={INPUT} />
+            </div>
+            <div>
+              <span className={LABEL}>{C.pc(locale, "field.anflug")}</span>
+              <div className="mt-1 inline-flex rounded-md border p-0.5 text-sm">
+                {(["process", "technology"] as const).map((a) => (
+                  <button
+                    key={a}
+                    type="button"
+                    aria-pressed={a === anflug}
+                    onClick={() => setAnflug(a)}
+                    className={`rounded px-3 py-1 ${a === anflug ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+                  >
+                    {C.anflugLabel(locale, a)}
+                  </button>
+                ))}
               </div>
-              <div>
-                <label className={LABEL}>{C.pc(locale, "field.unit")}</label>
-                <input value={unit} onChange={(e) => setUnit(e.target.value)} className={INPUT} />
-              </div>
-              <div>
-                <label className={LABEL}>{C.pc(locale, "field.anflug")}</label>
-                <div className="mt-1 inline-flex rounded-md border p-0.5 text-sm">
-                  {(["process", "technology"] as const).map((a) => (
-                    <button
-                      key={a}
-                      type="button"
-                      onClick={() => setAnflug(a)}
-                      className={`rounded px-3 py-1 ${a === anflug ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
-                    >
-                      {C.anflugLabel(locale, a)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className={LABEL}>{C.pc(locale, "field.components")}</label>
-                <input value={componentsText} onChange={(e) => setComponentsText(e.target.value)} placeholder={C.pc(locale, "placeholder.components")} className={INPUT} />
-              </div>
+            </div>
+            <div>
+              <label htmlFor="cd-components" className={LABEL}>{C.pc(locale, "field.components")}</label>
+              <input id="cd-components" value={componentsText} onChange={(e) => setComponentsText(e.target.value)} placeholder={C.pc(locale, "placeholder.components")} className={INPUT} />
+            </div>
 
-              {triage && triage.recommendation === "zurueckstellen" && (
-                <p className="rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-1.5 text-xs text-destructive">
-                  {C.pc(locale, "create.deferWarn")}
-                </p>
-              )}
-              {formError && <p className="text-sm text-destructive">{formError}</p>}
+            {triage && triage.recommendation === "zurueckstellen" && (
+              <p className="rounded-md border border-destructive/40 bg-destructive/5 px-2.5 py-1.5 text-xs text-destructive">
+                {C.pc(locale, "create.deferWarn")}
+              </p>
+            )}
+            {Object.keys(levels).length > 0 && (
+              <p className="text-[11px] text-muted-foreground">{C.pc(locale, "prefilter.seeded")}</p>
+            )}
+            {formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
 
-              <Button className="w-full" disabled={!title.trim() || submitting} onClick={submit}>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>{C.pc(locale, "btn.cancel")}</Button>
+              <Button type="submit" disabled={!title.trim() || submitting}>
                 {submitting ? C.pc(locale, "btn.starting") : C.pc(locale, "btn.start")}
               </Button>
             </div>
-          </Card>
-        </section>
-      </div>
+          </div>
+        </form>
+      </Dialog>
     </main>
   );
 }
