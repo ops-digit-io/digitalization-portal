@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { DIMENSIONS, CRITERIA, KNOCKOUTS, SELF_ASSESSMENT } from "@/lib/process/criteria";
-import { PHASES, BRANCHES, BRANCH_TIEBREAKER, RISK_CHECKS, RISK_CLASSES, CONFIDENCE_LADDER, ANFLUG, DIRECTION_RULES } from "@/lib/process/phases";
-import { ARTEFACTS } from "@/lib/process/artefacts";
+import { SECTION_GROUPS, SECTIONS } from "@/lib/process/sections";
+import { CONFIDENCE_LADDER, ANFLUG, DIRECTION_RULES } from "@/lib/process/phases";
 import * as llm from "@/lib/process/llm";
 import { deny } from "@/lib/process/guard";
 
@@ -16,12 +16,15 @@ export async function GET() {
     criteria: CRITERIA,
     knockouts: KNOCKOUTS.map((k) => k.id),
     selfAssessment: SELF_ASSESSMENT,
-    phases: PHASES,
-    artefacts: ARTEFACTS.map((a) => ({ id: a.id, phase: a.phase, title: a.title, purpose: a.purpose })),
-    branches: BRANCHES,
-    branchTiebreaker: BRANCH_TIEBREAKER,
-    riskChecks: RISK_CHECKS,
-    riskClasses: RISK_CLASSES,
+    // The anamnesis: five stages, fourteen sections in a fixed sequence. The
+    // template is deliberately NOT shipped here — it is large and only the open
+    // section needs it (fetched per section).
+    groups: SECTION_GROUPS,
+    sections: SECTIONS.map((s) => ({
+      key: s.key, label: s.label, order: s.order, group: s.group,
+      gate: s.gate, blocking: s.blocking, description: s.description,
+      ...(s.gateQuestion ? { gateQuestion: s.gateQuestion } : {}),
+    })),
     confidenceLadder: CONFIDENCE_LADDER,
     anflug: ANFLUG,
     directionRules: DIRECTION_RULES,

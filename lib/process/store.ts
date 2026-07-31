@@ -50,12 +50,16 @@ export interface EngagementMeta {
   unit: string;
   anflug: Anflug;
   components: Component[];
-  phase: string; // current phase id "P0".."P5"
+  phase: string; // current stage: a SECTION_GROUPS id, e.g. "discovery"
   branch?: string; // chosen Zweig "Z0".."Z3"
   riskClass?: string; // "R1".."R3"
-  gates: Record<string, GateVerdict>; // by Tor id "T0".."T5"
-  /** Ids of artefacts that currently have content — kept here so the engagement
-   *  read never has to fan out over every artefact file (perf). */
+  gates: Record<string, GateVerdict>; // by gated SECTION key, e.g. "profile"
+  /** Keys of the anamnesis sections that currently have content — kept here so
+   *  the engagement read never has to fan out over every section file (perf).
+   *  This is also what drives the sequence: a section unlocks when every key in
+   *  its `blocking` list appears here. */
+  filledSections?: string[];
+  /** Legacy name from the phase/artefact model; read once, then migrated. */
   filledArtefacts?: string[];
   /** Demands the analysis agent disassembled this diagnosis into (in du-demands). */
   demands?: { id: string; title: string; at: string }[];
@@ -179,7 +183,7 @@ export async function create(
     unit: String(input.unit || "").trim(),
     anflug: input.anflug === "technology" ? "technology" : "process",
     components,
-    phase: "P0",
+    phase: "discovery",
     gates: {},
     createdAt: now,
     updatedAt: now,
@@ -254,26 +258,31 @@ export async function writeDimension(slug: string, dimId: string, content: strin
 }
 
 // -------------------------------------------- phase artefacts (Markdown)
-export async function readArtefact(slug: string, artefactId: string): Promise<string> {
-  return (await getRaw(`${relDir(slug)}/${artefactId}.md`)) ?? "";
+/** The filled-section index, tolerating engagements written under the old model. */
+export function filledOf(m: Pick<EngagementMeta, "filledSections" | "filledArtefacts"> | null): string[] {
+  return m?.filledSections ?? m?.filledArtefacts ?? [];
 }
-export async function writeArtefact(slug: string, artefactId: string, content: string, now: string): Promise<{ changed: boolean; filledArtefacts: string[] }> {
-  const rel = `${relDir(slug)}/${artefactId}.md`;
+
+export async function readSection(slug: string, key: string): Promise<string> {
+  return (await getRaw(`${relDir(slug)}/${key}.md`)) ?? "";
+}
+export async function writeSection(slug: string, key: string, content: string, now: string): Promise<{ changed: boolean; filledSections: string[] }> {
+  const rel = `${relDir(slug)}/${key}.md`;
   const prev = await getRaw(rel);
   const m = (await meta(slug))!;
-  const filled = new Set(m.filledArtefacts ?? []);
+  const filled = new Set(filledOf(m));
   const has = content.trim().length > 0;
-  if (has) filled.add(artefactId);
-  else filled.delete(artefactId);
-  const filledArtefacts = [...filled];
+  if (has) filled.add(key);
+  else filled.delete(key);
+  const filledSections = [...filled];
   if (prev === content) {
     // Content unchanged, but reconcile the filled index if it drifted.
-    if ((m.filledArtefacts ?? []).length !== filledArtefacts.length) await writeMeta(slug, { filledArtefacts }, now);
-    return { changed: false, filledArtefacts };
+    if (filledOf(m).length !== filledSections.length) await writeMeta(slug, { filledSections }, now);
+    return { changed: false, filledSections };
   }
-  await putRaw(rel, content, `Update artefact ${artefactId} on ${slugify(slug)}`);
-  await writeMeta(slug, { filledArtefacts }, now);
-  return { changed: true, filledArtefacts };
+  await putRaw(rel, content, `Update section ${key} on ${slugify(slug)}`);
+  await writeMeta(slug, { filledSections }, now);
+  return { changed: true, filledSections };
 }
 
 // ------------------------------------------------------- risk checks (Tor T3)

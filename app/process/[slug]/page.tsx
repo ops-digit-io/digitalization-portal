@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { apiGet, apiSend, SectionLabel } from "@/components/process/ui";
-import { ArtefactCard } from "@/components/process/artefact-card";
+import { SectionCard, type SectionMeta } from "@/components/process/section-card";
 import { useI18n } from "@/components/providers";
 import type { Locale } from "@/lib/i18n";
 import * as C from "@/lib/process/content";
@@ -68,7 +68,7 @@ interface Meta {
   branch?: string;
   riskClass?: string;
   gates: Record<string, GateVerdict>;
-  filledArtefacts?: string[];
+  filledSections?: string[];
   demands?: DemandRef[];
 }
 interface DemandRef {
@@ -76,47 +76,21 @@ interface DemandRef {
   title: string;
   at: string;
 }
-interface Phase {
-  id: string;
-  n: number;
-  label: string;
-  purpose: string;
-  gate: { id: string; label: string; condition: string; fail: string };
-}
-interface Artefact {
-  id: string;
-  phase: string;
-  title: string;
-  purpose: string;
-}
-interface Branch {
+interface StageGroup {
   id: string;
   label: string;
-  when: string;
-  conditions: string[];
-}
-interface RiskClass {
-  id: string;
-  label: string;
-  tactic: string;
-}
-interface RiskCheck {
-  n: number;
-  label: string;
-  how: string;
+  subtitle: string;
+  order: number;
 }
 interface Config {
-  phases: Phase[];
-  artefacts: Artefact[];
-  branches: Branch[];
-  riskClasses: RiskClass[];
-  riskChecks: RiskCheck[];
+  groups: StageGroup[];
+  sections: SectionMeta[];
   liveCoaching: boolean;
 }
 interface Engagement {
   meta: Meta;
   profile: Profile;
-  filledArtefacts?: string[];
+  filledSections?: string[];
 }
 
 // ------------------------------------------------------------------ Analyse & Bedarfe types
@@ -226,27 +200,33 @@ export default function EngagementCockpit() {
   }
 
   const { meta, profile } = eng;
-  const filledArtefacts = meta.filledArtefacts ?? eng.filledArtefacts ?? [];
+  const filled = meta.filledSections ?? eng.filledSections ?? [];
   const reportUrl = `/api/process/engagements/${slug}/report?format=md`;
 
-  const activePhase = config.phases.find((p) => p.id === tab);
+  const activeStage = config.groups.find((g) => g.id === tab);
+  const byKey = Object.fromEntries(config.sections.map((x) => [x.key, x]));
+  const stagesInOrder = [...config.groups].sort((a, b) => a.order - b.order);
+  // Engagements written under the earlier phase model carry a stale id ("P0"),
+  // which is no longer a stage — fall back to the first stage rather than "—".
+  const currentStage = config.groups.find((g) => g.id === meta.phase) ?? stagesInOrder[0]!;
 
   // One model for the strip, so the keyboard handler and the markup agree.
+  // Analysis sits LAST: it reads the finished anamnesis, so it is the closing step.
   const tabs: { id: string; label: string; current?: boolean; count?: string; gate?: "pass" | "fail" | null }[] = [
     { id: PROFIL, label: C.pc(locale, "tab.profile") },
-    { id: ANALYSE, label: C.pc(locale, "tab.analyse") },
-    ...config.phases.map((p) => {
-      const inPhase = config.artefacts.filter((a) => a.phase === p.id);
-      const done = inPhase.filter((a) => filledArtefacts.includes(a.id)).length;
-      const verdict = meta.gates[p.gate.id];
+    ...stagesInOrder.map((g) => {
+      const secs = config.sections.filter((x) => x.group === g.id).sort((a, b) => a.order - b.order);
+      const done = secs.filter((x) => filled.includes(x.key)).length;
+      const verdicts = secs.map((x) => meta.gates[x.key]).filter(Boolean);
       return {
-        id: p.id,
-        label: `${p.n} · ${C.phaseText(locale, p.id).label}`,
-        current: p.id === meta.phase,
-        ...(inPhase.length ? { count: `${done}/${inPhase.length}` } : {}),
-        gate: verdict ? (verdict.passed ? ("pass" as const) : ("fail" as const)) : null,
+        id: g.id,
+        label: `${g.order} · ${g.label}`,
+        current: g.id === currentStage.id,
+        ...(secs.length ? { count: `${done}/${secs.length}` } : {}),
+        gate: verdicts.length === 0 ? null : verdicts.some((v) => v && !v.passed) ? ("fail" as const) : ("pass" as const),
       };
     }),
+    { id: ANALYSE, label: C.pc(locale, "tab.analyse") },
   ];
 
   /** Arrow keys move along the strip and wrap; Home/End jump to the ends. */
@@ -319,13 +299,11 @@ export default function EngagementCockpit() {
             <div>
               <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{C.pc(locale, "stat.phase")}</dt>
               <dd className="mt-1 text-sm font-medium leading-tight">
-                {config.phases.find((p) => p.id === meta.phase)?.n ?? "—"} · {C.phaseText(locale, meta.phase).label}
+                {`${currentStage.order} · ${currentStage.label}`}
               </dd>
-              {meta.branch && (
-                <p className="mt-1.5 text-[11px] text-muted-foreground">
-                  {meta.branch} · {C.branchText(locale, meta.branch).label}{meta.riskClass ? ` · ${meta.riskClass}` : ""}
-                </p>
-              )}
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                {filled.length}/{config.sections.length} {C.pc(locale, "sections.heading").toLowerCase()}
+              </p>
             </div>
           </dl>
         </div>
@@ -361,6 +339,20 @@ export default function EngagementCockpit() {
         className="mt-4 outline-none"
       >
         {tab === PROFIL && <ProfilTab slug={slug} profile={profile} locale={locale} />}
+        {activeStage && (
+          <StageTab
+            key={activeStage.id}
+            slug={slug}
+            stage={activeStage}
+            sections={config.sections.filter((x) => x.group === activeStage.id).sort((a, b) => a.order - b.order)}
+            byKey={byKey}
+            filled={filled}
+            gates={meta.gates}
+            live={config.liveCoaching}
+            locale={locale}
+            onChanged={reload}
+          />
+        )}
         {tab === ANALYSE && (
           <AnalyseTab
             slug={slug}
@@ -369,19 +361,6 @@ export default function EngagementCockpit() {
             locale={locale}
             profile={profile}
             onGoProfile={() => setTab(PROFIL)}
-          />
-        )}
-        {activePhase && (
-          <PhaseTab
-            key={activePhase.id}
-            slug={slug}
-            phase={activePhase}
-            meta={meta}
-            profile={profile}
-            config={config}
-            filledArtefacts={filledArtefacts}
-            onChanged={reload}
-            locale={locale}
           />
         )}
       </div>
@@ -751,158 +730,64 @@ function AnalyseTab({
   );
 }
 
-// ------------------------------------------------------------------ Phase tab
-function PhaseTab({
+// ------------------------------------------------------------------ Stage tab
+/**
+ * One stage of the anamnesis: its sections in sequence. A section is locked
+ * until every key in its `blocking` list has content — the sequence is the point,
+ * so a locked section is shown greyed with what it waits for, never hidden.
+ */
+function StageTab({
   slug,
-  phase,
-  meta,
-  profile,
-  config,
-  filledArtefacts,
-  onChanged,
+  stage,
+  sections,
+  byKey,
+  filled,
+  gates,
+  live,
   locale,
+  onChanged,
 }: {
   slug: string;
-  phase: Phase;
-  meta: Meta;
-  profile: Profile;
-  config: Config;
-  filledArtefacts: string[];
-  onChanged: () => Promise<void>;
+  stage: StageGroup;
+  sections: SectionMeta[];
+  byKey: Record<string, SectionMeta | undefined>;
+  filled: string[];
+  gates: Record<string, GateVerdict>;
+  live: boolean;
   locale: Locale;
+  onChanged: () => Promise<void>;
 }) {
-  const artefacts = config.artefacts.filter((a) => a.phase === phase.id);
+  const done = new Set(filled);
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">{C.phaseText(locale, phase.id).purpose}</p>
-
-      <GateControl slug={slug} phase={phase} verdict={meta.gates[phase.gate.id]} current={phase.id === meta.phase} onChanged={onChanged} locale={locale} />
-
-      {artefacts.length > 0 && (
-        <section>
-          <SectionLabel as="h3">{C.pc(locale, "artefacts.heading")}</SectionLabel>
-          <div className="space-y-2">
-            {artefacts.map((a) => (
-              <ArtefactCard
-                key={a.id}
-                slug={slug}
-                artefact={a}
-                filled={filledArtefacts.includes(a.id)}
-                live={config.liveCoaching}
-                locale={locale}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {phase.id === "P1" && <CatalogScoring slug={slug} dimensions={profile.dimensions} locale={locale} />}
-
-      {phase.id === "P3" && (
-        <section className="space-y-3">
-          <div className="grid gap-3 lg:grid-cols-2">
-            <BranchPicker slug={slug} branches={config.branches} chosen={meta.branch} onChanged={onChanged} locale={locale} />
-            <RiskClassPicker slug={slug} classes={config.riskClasses} chosen={meta.riskClass} onChanged={onChanged} locale={locale} />
-          </div>
-          <RiskChecks slug={slug} locale={locale} />
-        </section>
-      )}
-    </div>
-  );
-}
-
-// ------------------------------------------------------------------ gate control
-function GateControl({
-  slug,
-  phase,
-  verdict,
-  current,
-  onChanged,
-  locale,
-}: {
-  slug: string;
-  phase: Phase;
-  verdict: GateVerdict | undefined;
-  current: boolean;
-  onChanged: () => Promise<void>;
-  locale: Locale;
-}) {
-  const gt = C.phaseText(locale, phase.id).gate;
-  const [failing, setFailing] = useState(false);
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function setGate(passed: boolean, why: string) {
-    setBusy(true);
-    setErr(null);
-    try {
-      await apiSend("POST", `/engagements/${slug}/gate`, { torId: phase.gate.id, passed, reason: why });
-      await onChanged();
-      setFailing(false);
-      setReason("");
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function setCurrent() {
-    setBusy(true);
-    setErr(null);
-    try {
-      await apiSend("PATCH", `/engagements/${slug}/meta`, { phase: phase.id });
-      await onChanged();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const verdictMark = verdict ? (verdict.passed ? C.pc(locale, "gate.pass") : C.pc(locale, "gate.fail")) : C.pc(locale, "gate.open");
-  const verdictCls = verdict ? (verdict.passed ? "text-[hsl(var(--ok))]" : "text-destructive") : "text-muted-foreground";
-
-  return (
-    <Card className="p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-semibold">{C.pc(locale, "gate.label")} · {phase.gate.id} — {gt.label}</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">{gt.condition}</p>
-        </div>
-        <span className={`text-sm font-semibold ${verdictCls}`}>{verdictMark}</span>
+      <div>
+        <p className="text-sm text-muted-foreground">{stage.subtitle}</p>
+        <p className="mt-1 border-l-2 border-border pl-3 text-xs text-muted-foreground">{C.pc(locale, "anamnesis.intro")}</p>
       </div>
 
-      {verdict && !verdict.passed && verdict.reason && (
-        <p className="mt-2 text-xs text-destructive">{C.pc(locale, "gate.reason")}: {verdict.reason}</p>
-      )}
-
-      {!failing ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" disabled={busy} onClick={() => setGate(true, "")}>{C.pc(locale, "btn.gatePass")}</Button>
-          <Button size="sm" variant="outline" disabled={busy} onClick={() => setFailing(true)}>{C.pc(locale, "btn.gateFail")}</Button>
-          {!current && (
-            <Button size="sm" variant="ghost" disabled={busy} onClick={setCurrent}>{C.pc(locale, "btn.setCurrent")}</Button>
-          )}
+      <section>
+        <SectionLabel as="h3">{C.pc(locale, "sections.heading")}</SectionLabel>
+        <div className="space-y-2">
+          {sections.map((sec) => {
+            const missing = sec.blocking.filter((b) => !done.has(b));
+            return (
+              <SectionCard
+                key={sec.key}
+                slug={slug}
+                section={sec}
+                filled={done.has(sec.key)}
+                locked={missing.length > 0}
+                blockedBy={missing.map((b) => byKey[b]?.label ?? b)}
+                {...(gates[sec.key] ? { verdict: gates[sec.key]! } : {})}
+                live={live}
+                locale={locale}
+                onChanged={onChanged}
+              />
+            );
+          })}
         </div>
-      ) : (
-        <div className="mt-3">
-          <label className={LABEL}>{C.pc(locale, "gate.failReason")}</label>
-          <textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder={C.pc(locale, "gate.failPlaceholder")}
-            className={TEXTAREA}
-          />
-          <div className="mt-2 flex gap-2">
-            <Button size="sm" disabled={busy || !reason.trim()} onClick={() => setGate(false, reason.trim())}>{C.pc(locale, "btn.confirmFail")}</Button>
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setFailing(false); setReason(""); }}>{C.pc(locale, "btn.cancel")}</Button>
-          </div>
-        </div>
-      )}
-      {err && <p className="mt-2 text-xs text-destructive">{err}</p>}
-    </Card>
+      </section>
+    </div>
   );
 }
 
@@ -925,214 +810,5 @@ function CatalogScoring({ slug, dimensions, locale }: { slug: string; dimensions
         ))}
       </Card>
     </section>
-  );
-}
-
-// ------------------------------------------------------------------ branch picker
-function BranchPicker({
-  slug,
-  branches,
-  chosen,
-  onChanged,
-  locale,
-}: {
-  slug: string;
-  branches: Branch[];
-  chosen: string | undefined;
-  onChanged: () => Promise<void>;
-  locale: Locale;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const active = branches.find((b) => b.id === chosen);
-  const activeText = active ? C.branchText(locale, active.id) : null;
-
-  async function pick(id: string) {
-    setBusy(true);
-    setErr(null);
-    try {
-      await apiSend("PATCH", `/engagements/${slug}/meta`, { branch: chosen === id ? null : id });
-      await onChanged();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Card className="p-3">
-      <h3 className="text-sm font-semibold">{C.pc(locale, "branch.heading")}</h3>
-      <div className="mt-2 flex flex-wrap gap-2">
-        {branches.map((b) => (
-          <button
-            key={b.id}
-            type="button"
-            disabled={busy}
-            onClick={() => pick(b.id)}
-            className={`rounded-md border px-2.5 py-1 text-xs ${b.id === chosen ? "bg-primary text-primary-foreground" : "bg-background hover:bg-accent"}`}
-          >
-            {b.id} · {C.branchText(locale, b.id).label}
-          </button>
-        ))}
-      </div>
-      {activeText && (
-        <div className="mt-2 text-xs text-muted-foreground">
-          <p className="italic">{activeText.when}</p>
-          <ul className="mt-1 list-disc space-y-0.5 pl-4">
-            {activeText.conditions.map((c, i) => <li key={i}>{c}</li>)}
-          </ul>
-        </div>
-      )}
-      {err && <p className="mt-1 text-xs text-destructive">{err}</p>}
-    </Card>
-  );
-}
-
-// ------------------------------------------------------------------ risk class picker
-function RiskClassPicker({
-  slug,
-  classes,
-  chosen,
-  onChanged,
-  locale,
-}: {
-  slug: string;
-  classes: RiskClass[];
-  chosen: string | undefined;
-  onChanged: () => Promise<void>;
-  locale: Locale;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function pick(id: string) {
-    setBusy(true);
-    setErr(null);
-    try {
-      await apiSend("PATCH", `/engagements/${slug}/meta`, { riskClass: chosen === id ? null : id });
-      await onChanged();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Card className="p-3">
-      <h3 className="text-sm font-semibold">{C.pc(locale, "risk.heading")}</h3>
-      <div className="mt-2 space-y-1.5">
-        {classes.map((c) => {
-          const rt = C.riskClassText(locale, c.id);
-          return (
-          <button
-            key={c.id}
-            type="button"
-            disabled={busy}
-            onClick={() => pick(c.id)}
-            className={`block w-full rounded-md border px-2.5 py-1.5 text-left text-xs ${c.id === chosen ? "border-primary bg-primary/10" : "bg-background hover:bg-accent"}`}
-          >
-            <span className="font-medium">{c.id} · {rt.label}</span>
-            <span className="mt-0.5 block text-muted-foreground">{rt.tactic}</span>
-          </button>
-          );
-        })}
-      </div>
-      {err && <p className="mt-1 text-xs text-destructive">{err}</p>}
-    </Card>
-  );
-}
-
-// ------------------------------------------------------------------ risk checks
-function RiskChecks({ slug, locale }: { slug: string; locale: Locale }) {
-  const [open, setOpen] = useState(false);
-  const [checks, setChecks] = useState<RiskCheck[] | null>(null);
-  const [answers, setAnswers] = useState<Record<string, { answer: string; evidence: string }>>({});
-  const [savingN, setSavingN] = useState<number | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function ensureLoaded() {
-    if (checks) return;
-    try {
-      const r = await apiGet<{ checks: RiskCheck[]; answers: Record<string, { answer: string; evidence: string }> }>(
-        `/engagements/${slug}/risk`,
-      );
-      setChecks(r.checks);
-      setAnswers(r.answers || {});
-    } catch (e) {
-      setErr((e as Error).message);
-    }
-  }
-
-  function toggle() {
-    const next = !open;
-    setOpen(next);
-    if (next) void ensureLoaded();
-  }
-
-  function setField(n: number, field: "answer" | "evidence", value: string) {
-    setAnswers((prev) => {
-      const cur = prev[String(n)] ?? { answer: "", evidence: "" };
-      return { ...prev, [String(n)]: { ...cur, [field]: value } };
-    });
-  }
-
-  async function save(n: number) {
-    const cur = answers[String(n)] ?? { answer: "", evidence: "" };
-    setSavingN(n);
-    setErr(null);
-    try {
-      const r = await apiSend<{ answers: Record<string, { answer: string; evidence: string }> }>(
-        "POST",
-        `/engagements/${slug}/risk`,
-        { n, answer: cur.answer, evidence: cur.evidence },
-      );
-      setAnswers(r.answers || {});
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setSavingN(null);
-    }
-  }
-
-  return (
-    <Card className="p-3">
-      <button type="button" onClick={toggle} className="flex w-full items-center justify-between text-left">
-        <h3 className="text-sm font-semibold">{C.pc(locale, "riskchecks.heading")}</h3>
-        <span className="text-xs text-muted-foreground">{open ? C.pc(locale, "collapse") : C.pc(locale, "expand")}</span>
-      </button>
-      {open && (
-        <div className="mt-3 space-y-3">
-          {checks === null && !err && <p className="text-sm text-muted-foreground">{C.pc(locale, "loading")}</p>}
-          {checks?.map((c) => {
-            const cur = answers[String(c.n)] ?? { answer: "", evidence: "" };
-            const rt = C.riskCheckText(locale, c.n);
-            return (
-              <div key={c.n} className="rounded-md border p-2">
-                <div className="text-sm font-medium">{c.n}. {rt.label}</div>
-                <p className="mt-0.5 text-xs text-muted-foreground">{rt.how}</p>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  <div>
-                    <label className={LABEL}>{C.pc(locale, "field.answer")}</label>
-                    <input value={cur.answer} onChange={(e) => setField(c.n, "answer", e.target.value)} className={INPUT} />
-                  </div>
-                  <div>
-                    <label className={LABEL}>{C.pc(locale, "field.evidence")}</label>
-                    <input value={cur.evidence} onChange={(e) => setField(c.n, "evidence", e.target.value)} className={INPUT} />
-                  </div>
-                </div>
-                <div className="mt-2">
-                  <Button size="sm" variant="outline" disabled={savingN === c.n} onClick={() => save(c.n)}>
-                    {savingN === c.n ? C.pc(locale, "btn.saving") : C.pc(locale, "btn.save")}
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
-          {err && <p className="text-xs text-destructive">{err}</p>}
-        </div>
-      )}
-    </Card>
   );
 }

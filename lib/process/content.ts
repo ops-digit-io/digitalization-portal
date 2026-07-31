@@ -16,8 +16,6 @@ import type { Locale } from "../i18n";
 import { byId, dimById, type Level } from "./criteria";
 import { EN_CRITERIA, EN_DIMENSIONS } from "./criteria.en";
 import { byPhase, BRANCHES, RISK_CHECKS, RISK_CLASSES, CONFIDENCE_LADDER } from "./phases";
-import { artefactById } from "./artefacts";
-import { EN_ARTEFACTS } from "./artefacts.en";
 import type { Recommendation, WarnCode } from "./self-assessment";
 
 const en = (locale: Locale) => locale !== "de";
@@ -324,14 +322,6 @@ export function warnText(locale: Locale, code: WarnCode): string {
   return WARN[en(locale) ? "en" : "de"][code];
 }
 
-// ----------------------------------------------------------------- artefact text
-export interface ArtefactText { title: string; purpose: string; template: string }
-export function artefactText(locale: Locale, id: string): ArtefactText {
-  const de = artefactById[id]!;
-  if (en(locale) && EN_ARTEFACTS[id]) return EN_ARTEFACTS[id]!;
-  return { title: de.title, purpose: de.purpose, template: de.template };
-}
-
 // ----------------------------------------------------------------- misc labels
 export function anflugLabel(locale: Locale, a: "process" | "technology"): string {
   if (en(locale)) return a === "technology" ? "Technology push" : "Process pull";
@@ -434,6 +424,12 @@ const UI_EN: Record<string, string> = {
   "btn.confirmFail": "Confirm fail",
   "btn.cancel": "Cancel",
   "artefacts.heading": "Artefacts",
+  "sections.heading": "Sections",
+  "section.locked": "locked",
+  "section.gate": "gate",
+  "section.gateQuestion": "Gate question",
+  "section.waitingFor": "Waiting for",
+  "anamnesis.intro": "The anamnesis is a sequence, not a checklist: each section unlocks when the ones it depends on are done, and a gate section can fail and stop the run.",
   "catalog.heading": "Catalogue scoring (D1–D8)",
   "btn.assess": "assess",
   "branch.heading": "Branch",
@@ -567,6 +563,12 @@ const UI_DE: Record<string, string> = {
   "btn.confirmFail": "Verfehlen bestätigen",
   "btn.cancel": "Abbrechen",
   "artefacts.heading": "Artefakte",
+  "sections.heading": "Abschnitte",
+  "section.locked": "gesperrt",
+  "section.gate": "Tor",
+  "section.gateQuestion": "Tor-Frage",
+  "section.waitingFor": "Wartet auf",
+  "anamnesis.intro": "Die Anamnese ist eine Sequenz, keine Checkliste: Jeder Abschnitt wird frei, wenn die Abschnitte, von denen er abhängt, fertig sind — und ein Tor-Abschnitt kann scheitern und den Lauf stoppen.",
   "catalog.heading": "Katalog-Scoring (D1–D8)",
   "btn.assess": "bewerten",
   "branch.heading": "Zweig",

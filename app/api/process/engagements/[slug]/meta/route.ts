@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
-import { BRANCHES, RISK_CLASSES, PHASES } from "@/lib/process/phases";
+import { SECTION_GROUPS } from "@/lib/process/sections";
 import * as store from "@/lib/process/store";
 import { deny, now } from "@/lib/process/guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const BRANCH_IDS = new Set(BRANCHES.map((b) => b.id));
-const RISK_IDS = new Set(RISK_CLASSES.map((r) => r.id));
-const PHASE_IDS = new Set(PHASES.map((p) => p.id));
+const STAGE_IDS = new Set(SECTION_GROUPS.map((g) => g.id));
 
-/** Patch engagement header/decision fields: owner, champion, unit, components,
- *  current phase, chosen Zweig, Risikoklasse. Only known fields are applied. */
+/**
+ * Patch engagement header fields: owner, champion, unit, components and the
+ * current stage. The chosen branch is no longer a header field — it is recorded
+ * in the `diagnosis` section, where its evidence sits.
+ */
 export async function PATCH(req: Request, { params }: { params: { slug: string } }) {
   const d = await deny();
   if (d) return d;
@@ -28,11 +29,7 @@ export async function PATCH(req: Request, { params }: { params: { slug: string }
       .filter(Boolean)
       .map((label, i) => ({ id: `k${i + 1}`, label }));
   }
-  if (typeof body.phase === "string" && PHASE_IDS.has(body.phase)) patch.phase = body.phase;
-  if (body.branch === null) patch.branch = undefined;
-  else if (typeof body.branch === "string" && BRANCH_IDS.has(body.branch)) patch.branch = body.branch;
-  if (body.riskClass === null) patch.riskClass = undefined;
-  else if (typeof body.riskClass === "string" && RISK_IDS.has(body.riskClass)) patch.riskClass = body.riskClass;
+  if (typeof body.phase === "string" && STAGE_IDS.has(body.phase)) patch.phase = body.phase;
 
   return NextResponse.json(await store.writeMeta(slug, patch, now()));
 }

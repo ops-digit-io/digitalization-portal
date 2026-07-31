@@ -8,7 +8,7 @@
  *   · the traffic light is a BAR ACROSS THE TOP EDGE — the first thing the eye
  *     lands on, readable across a room, and never hue alone (a word sits in the
  *     foot beside it),
- *   · one segment per phase, filled by the artefacts actually written, turning
+ *   · one segment per stage, filled by the sections actually written, turning
  *     red where that phase's gate was failed — the shape of the engagement at a
  *     glance,
  *   · the foot carries how much of the catalogue is really assessed, because a
@@ -20,9 +20,10 @@ import type { Locale } from "@/lib/i18n";
 import * as C from "@/lib/process/content";
 import type { Status } from "@/lib/process/health-model";
 
-export interface PhaseProgress {
+export interface StageProgress {
   id: string;
   n: number;
+  label: string;
   done: number;
   total: number;
   gate: "pass" | "fail" | null;
@@ -33,7 +34,7 @@ export interface Summary {
   ratedCount: number;
   totalCount: number;
   koFailed: string[];
-  phases: PhaseProgress[];
+  stages: StageProgress[];
 }
 export interface EngagementRow {
   slug: string;
@@ -94,16 +95,16 @@ export function EngagementTile({ row, locale }: { row: EngagementRow; locale: Lo
           </div>
         )}
 
-        {/* One segment per phase: artefact fill, red where the gate was failed. */}
+        {/* One segment per stage: section fill, red where a gate in it was failed. */}
         {s && (
           <div>
-            <div className="flex gap-1" role="img" aria-label={`${C.pc(locale, "tile.phases")}: ${s.phases.map((p) => `${p.n} ${p.done}/${p.total}`).join(", ")}`}>
-              {s.phases.map((p) => {
+            <div className="flex gap-1" role="img" aria-label={`${C.pc(locale, "tile.phases")}: ${s.stages.map((p) => `${p.label} ${p.done}/${p.total}`).join(", ")}`}>
+              {s.stages.map((p) => {
                 const fill = p.gate === "fail" ? 100 : p.total ? (p.done / p.total) * 100 : 0;
                 return (
                   <span
                     key={p.id}
-                    title={`${p.n} · ${C.phaseText(locale, p.id).label} — ${p.done}/${p.total}${p.gate ? ` · ${C.pc(locale, p.gate === "pass" ? "gate.pass" : "gate.fail")}` : ""}`}
+                    title={`${p.n} · ${p.label} — ${p.done}/${p.total}${p.gate ? ` · ${C.pc(locale, p.gate === "pass" ? "gate.pass" : "gate.fail")}` : ""}`}
                     className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-secondary"
                   >
                     <i
@@ -115,7 +116,7 @@ export function EngagementTile({ row, locale }: { row: EngagementRow; locale: Lo
               })}
             </div>
             <div className="mt-1 flex gap-1 text-[9.5px] font-semibold tracking-wide text-muted-foreground/70">
-              {s.phases.map((p) => (
+              {s.stages.map((p) => (
                 <span key={p.id} className="flex-1 text-center tabular-nums">{p.n}</span>
               ))}
             </div>

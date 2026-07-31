@@ -14,9 +14,9 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
   const { slug } = params;
   const m = await store.meta(slug);
   if (!m || m.deleted) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
-  // filledArtefacts is tracked on meta (updated on write) — no per-artefact fan-out.
+  // The filled index is tracked on meta (updated on write) — no per-section fan-out.
   const [profile, ratings] = await Promise.all([profileOf(slug), store.ratings(slug)]);
-  return NextResponse.json({ meta: m, profile, ratings, filledArtefacts: m.filledArtefacts ?? [] });
+  return NextResponse.json({ meta: m, profile, ratings, filledSections: store.filledOf(m) });
 }
 
 export async function DELETE(req: Request, { params }: { params: { slug: string } }) {
