@@ -23,7 +23,8 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { SECTIONS } from "./sections";
 import * as store from "./store";
-import { shared, advisoryPrompt, playbook } from "./prompts";
+import { shared, advisoryPrompt, playbook, agentPrompt } from "./prompts";
+import { render } from "./render";
 
 export interface AdvisoryItem {
   key: string;
@@ -165,7 +166,7 @@ export async function build(slug: string, key: string): Promise<string> {
   const m = (await store.meta(slug))!;
   const filled = store.filledOf(m);
   const missing = a.needs.filter((k) => !filled.includes(k));
-  const [existing, prior, sharedText, guidance, targetTemplate, anamnesis, book] = await Promise.all([
+  const [existing, prior, sharedText, guidance, targetTemplate, anamnesis, book, headTpl] = await Promise.all([
     store.readAdvisory(slug, key),
     store.readDecisions(slug),
     shared(),
@@ -173,36 +174,19 @@ export async function build(slug: string, key: string): Promise<string> {
     template(key),
     fullAnamnesis(slug),
     key === "target-tech" || key === "improvements" ? playbook() : Promise.resolve(""),
+    agentPrompt("advisory"),
   ]);
   const mine = prior.filter((d) => d.advisoryKey === key);
 
   return [
-    `You are running the advisory pass "${a.label}" on a process diagnosis for OESL Automotive.
-
-Engagement: ${m.title}
-Process owner: ${m.owner || "(not recorded)"}
-Unit / cost centre: ${m.unit || "(not recorded)"}
-Today's date: ${new Date().toISOString().slice(0, 10)}
-
-Purpose of this pass: ${a.description}
-
-OUTPUT DISCIPLINE
-The template contains instructions addressed to YOU — blockquotes telling you how to fill it,
-bracketed hints, and example rows. None of that belongs in the finished artefact. Strip it.
-What you hand back must read as a finished document to someone who has never seen the template.
-
-Concretely: no square-bracket placeholders; no "fill every placeholder" lines; no example table
-rows left with their brackets in. Where something is genuinely not established, write
-"not established" and say what would establish it. Delete table rows you have nothing to put in
-rather than leaving them empty. Copy the headings and field labels exactly — those are read by
-a machine.
-
-THE MOST IMPORTANT RULE OF THIS LAYER
-What you produce is a PROPOSAL, not a finding. The anamnesis below is established
-reality — a named person put their name to it. Your output is derived, and it will
-sometimes be wrong. Mark every proposal as a proposal, give each one a stable id so
-a verdict can be attached to it, and never restate a proposal as if the process
-owner had said it.`,
+    render(headTpl, {
+      passLabel: a.label,
+      title: m.title,
+      owner: m.owner || "(not recorded)",
+      unit: m.unit || "(not recorded)",
+      today: new Date().toISOString().slice(0, 10),
+      description: a.description,
+    }),
     sharedText,
     missing.length
       ? `<caution>\nThese sections this pass depends on are still empty: ${missing.join(", ")}.\nSay so in your output and keep the affected proposals explicitly provisional.\n</caution>`

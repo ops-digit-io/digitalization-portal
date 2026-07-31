@@ -18,6 +18,16 @@ export function dimensionCoach(): Promise<string> {
 }
 
 /**
+ * The framing an agent runs on, by name (`process-agent-<name>`). Every prompt
+ * this module sends to a model lives in the library rather than in the code, so
+ * the wording is editable in the Skills & Playbooks catalog without a deploy —
+ * the code supplies only the facts, via {{placeholders}}.
+ */
+export function agentPrompt(name: string): Promise<string> {
+  return body(`process-agent-${name}`);
+}
+
+/**
  * The coaching prompt for ONE anamnesis section: how to run that interview —
  * the interviewer's stance, what to establish, what not to chase, and why the
  * section decides whether the engagement goes on. One per section key.
