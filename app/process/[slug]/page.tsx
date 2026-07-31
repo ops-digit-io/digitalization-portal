@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { apiGet, apiSend } from "@/components/process/ui";
+import { apiGet, apiSend, SectionLabel } from "@/components/process/ui";
 import { ArtefactCard } from "@/components/process/artefact-card";
 import { useI18n } from "@/components/providers";
 import type { Locale } from "@/lib/i18n";
@@ -238,26 +238,58 @@ export default function EngagementCockpit() {
         <span className="text-foreground">{meta.title}</span>
       </nav>
 
-      {/* Header */}
-      <Card className="p-4">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="text-lg font-semibold">{meta.title}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {meta.owner || C.pc(locale, "row.noOwner")}
-              {meta.champion ? ` · ${C.pc(locale, "field.champion")} ${meta.champion}` : ""}
-              {meta.unit ? ` · ${meta.unit}` : ""}
-            </p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{C.pc(locale, "field.anflug")}: {C.anflugLabel(locale, meta.anflug)}</p>
+      {/* Header — identity, the light with its reason, and the numbers behind it */}
+      <Card className="overflow-hidden p-0">
+        <span className={`block h-1 w-full ${STATUS_CLS[profile.status]}`} aria-hidden />
+        <div className="p-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-lg font-semibold">{meta.title}</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {meta.owner || C.pc(locale, "row.noOwner")}
+                {meta.champion ? ` · ${C.pc(locale, "field.champion")} ${meta.champion}` : ""}
+                {meta.unit ? ` · ${meta.unit}` : ""}
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{C.pc(locale, "field.anflug")}: {C.anflugLabel(locale, meta.anflug)}</p>
+            </div>
+            <div className="max-w-md text-right">
+              <StatusPill status={profile.status} locale={locale} />
+              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{C.explainStatus(locale, profile)}</p>
+              <a href={`${reportUrl}&lang=${locale}`} className="mt-1.5 inline-block text-xs font-medium text-primary hover:underline" download>
+                {C.pc(locale, "report.link")}
+              </a>
+            </div>
           </div>
-          <div className="text-right">
-            <StatusPill status={profile.status} locale={locale} />
-            <p className="mt-1 max-w-md text-xs text-muted-foreground">{C.explainStatus(locale, profile)}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{C.pc(locale, "coverage")} {Math.round(profile.coverage * 100)} %</p>
-            <a href={`${reportUrl}&lang=${locale}`} className="mt-1 inline-block text-xs font-medium text-primary hover:underline" download>
-              {C.pc(locale, "report.link")}
-            </a>
-          </div>
+
+          {/* The numbers the light rests on — a green light over 8 % coverage is not a green process. */}
+          <dl className="mt-4 grid gap-4 border-t pt-3 sm:grid-cols-3">
+            <div>
+              <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{C.pc(locale, "stat.coverage")}</dt>
+              <dd className="mt-1 flex items-baseline gap-1.5">
+                <span className="text-2xl font-semibold tabular-nums leading-none">{Math.round(profile.coverage * 100)}</span>
+                <span className="text-xs text-muted-foreground">% · {profile.ratedCount}/{profile.totalCount}</span>
+              </dd>
+              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+                <div className="h-full bg-foreground/70" style={{ width: `${Math.round(profile.coverage * 100)}%` }} />
+              </div>
+            </div>
+            <div>
+              <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{C.pc(locale, "stat.portfolio")}</dt>
+              <dd className="mt-1 text-2xl font-semibold tabular-nums leading-none">{profile.portfolioValue}</dd>
+              <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">{C.pc(locale, "stat.portfolioNote")}</p>
+            </div>
+            <div>
+              <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{C.pc(locale, "stat.phase")}</dt>
+              <dd className="mt-1 text-sm font-medium leading-tight">
+                {config.phases.find((p) => p.id === meta.phase)?.n ?? "—"} · {C.phaseText(locale, meta.phase).label}
+              </dd>
+              {meta.branch && (
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  {meta.branch} · {C.branchText(locale, meta.branch).label}{meta.riskClass ? ` · ${meta.riskClass}` : ""}
+                </p>
+              )}
+            </div>
+          </dl>
         </div>
       </Card>
 
@@ -268,6 +300,7 @@ export default function EngagementCockpit() {
         {config.phases.map((p) => {
           const inPhase = config.artefacts.filter((a) => a.phase === p.id);
           const done = inPhase.filter((a) => filledArtefacts.includes(a.id)).length;
+          const verdict = meta.gates[p.gate.id];
           return (
             <TabButton
               key={p.id}
@@ -275,6 +308,7 @@ export default function EngagementCockpit() {
               active={tab === p.id}
               current={p.id === meta.phase}
               count={inPhase.length ? `${done}/${inPhase.length}` : undefined}
+              gate={verdict ? (verdict.passed ? "pass" : "fail") : null}
               onClick={() => setTab(p.id)}
             />
           );
@@ -309,24 +343,36 @@ function TabButton({
   active,
   current,
   count,
+  gate,
   onClick,
 }: {
   label: string;
   active: boolean;
   current?: boolean;
   count?: string;
+  /** The phase gate's verdict, once recorded — passed reads ✓, failed reads ✕. */
+  gate?: "pass" | "fail" | null;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
+      aria-current={active ? "true" : undefined}
       onClick={onClick}
       className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm transition-colors ${
         active ? "border-b-2 border-foreground font-medium text-foreground" : "text-muted-foreground hover:text-foreground"
       }`}
     >
-      {current && <span className="size-1.5 rounded-full bg-primary" aria-label="aktuelle Phase" />}
+      {current && <span className="size-1.5 rounded-full bg-primary" aria-hidden />}
       {label}
+      {gate && (
+        <span
+          aria-hidden
+          className={`text-xs font-semibold ${gate === "pass" ? "text-[hsl(var(--ok))]" : "text-destructive"}`}
+        >
+          {gate === "pass" ? "✓" : "✕"}
+        </span>
+      )}
       {count && <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">{count}</span>}
     </button>
   );
@@ -338,7 +384,7 @@ function ProfilTab({ slug, profile, locale }: { slug: string; profile: Profile; 
     <div className="space-y-4">
       {/* Knock-outs */}
       <section>
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{C.pc(locale, "ko.heading")}</h2>
+        <SectionLabel>{C.pc(locale, "ko.heading")}</SectionLabel>
         <div className="flex flex-wrap gap-2">
           {profile.knockOuts.map((k) => {
             const tone =
@@ -368,7 +414,7 @@ function ProfilTab({ slug, profile, locale }: { slug: string; profile: Profile; 
 
       {/* Dimension profile */}
       <section>
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{C.pc(locale, "dim.heading")}</h2>
+        <SectionLabel>{C.pc(locale, "dim.heading")}</SectionLabel>
         <Card className="divide-y">
           {profile.dimensions.map((d) => (
             <Link
@@ -376,9 +422,9 @@ function ProfilTab({ slug, profile, locale }: { slug: string; profile: Profile; 
               href={`/process/${slug}/assess/${d.id}`}
               className="flex items-center gap-3 px-3 py-2 transition-colors hover:bg-accent"
             >
-              <div className="w-40 shrink-0">
-                <div className="text-sm font-medium">{d.id} · {C.dimText(locale, d.id).label}</div>
-                <div className="text-xs text-muted-foreground">{C.pc(locale, "dim.weight")} {d.weight}%</div>
+              <div className="w-56 shrink-0">
+                <div className="text-sm font-medium leading-snug">{d.id} · {C.dimText(locale, d.id).label}</div>
+                <div className="mt-0.5 text-xs text-muted-foreground">{C.pc(locale, "dim.weight")} {d.weight}%</div>
               </div>
               <div className="flex-1">
                 <div className="h-2.5 w-full overflow-hidden rounded-full bg-secondary">
@@ -400,7 +446,7 @@ function ProfilTab({ slug, profile, locale }: { slug: string; profile: Profile; 
       {/* Direction vector */}
       {profile.directions.length > 0 && (
         <section>
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{C.pc(locale, "directions.heading")}</h2>
+          <SectionLabel>{C.pc(locale, "directions.heading")}</SectionLabel>
           <Card className="p-3">
             <ul className="space-y-1 text-sm">
               {profile.directions.map((code) => (
@@ -485,7 +531,7 @@ function AnalyseTab({
       {/* Demands already created */}
       {demands.length > 0 && (
         <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{C.pc(locale, "analyse.existing")}</h3>
+          <SectionLabel as="h3">{C.pc(locale, "analyse.existing")}</SectionLabel>
           <Card className="divide-y">
             {demands.map((d) => (
               <Link
@@ -517,7 +563,7 @@ function AnalyseTab({
       {/* Proposals */}
       {proposals && (
         <section className="space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{C.pc(locale, "proposals.heading")}</h3>
+          <SectionLabel as="h3">{C.pc(locale, "proposals.heading")}</SectionLabel>
           {proposals.length === 0 && <p className="text-sm text-muted-foreground">{C.pc(locale, "proposals.none")}</p>}
           <div className="space-y-2">
             {proposals.map((p, i) => (
@@ -581,7 +627,7 @@ function AnalyseTab({
       {/* Created demands (result) */}
       {created && created.length > 0 && (
         <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{C.pc(locale, "created.heading")}</h3>
+          <SectionLabel as="h3">{C.pc(locale, "created.heading")}</SectionLabel>
           <Card className="divide-y">
             {created.map((c) => (
               <Link
@@ -630,7 +676,7 @@ function PhaseTab({
 
       {artefacts.length > 0 && (
         <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{C.pc(locale, "artefacts.heading")}</h3>
+          <SectionLabel as="h3">{C.pc(locale, "artefacts.heading")}</SectionLabel>
           <div className="space-y-2">
             {artefacts.map((a) => (
               <ArtefactCard
@@ -760,7 +806,7 @@ function GateControl({
 function CatalogScoring({ slug, dimensions, locale }: { slug: string; dimensions: DimensionResult[]; locale: Locale }) {
   return (
     <section>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{C.pc(locale, "catalog.heading")}</h3>
+      <SectionLabel as="h3">{C.pc(locale, "catalog.heading")}</SectionLabel>
       <Card className="divide-y">
         {dimensions.map((d) => (
           <div key={d.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">

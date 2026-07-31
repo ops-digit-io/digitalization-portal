@@ -43,6 +43,20 @@ export async function apiSend<T = unknown>(method: string, path: string, body?: 
   return data as T;
 }
 
+/**
+ * A section label: small caps followed by a hairline that runs to the edge.
+ * It groups a page into readable bands without spending a heading level or a box.
+ */
+export function SectionLabel({ children, as = "h2" }: { children: React.ReactNode; as?: "h2" | "h3" }) {
+  const Tag = as;
+  return (
+    <Tag className="mb-2 flex items-center gap-2.5 text-[10.5px] font-bold uppercase tracking-[0.13em] text-muted-foreground">
+      <span className="shrink-0">{children}</span>
+      <span className="h-px flex-1 bg-border" aria-hidden />
+    </Tag>
+  );
+}
+
 export function Md({ children }: { children: string }) {
   return (
     <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:font-semibold prose-table:text-sm">

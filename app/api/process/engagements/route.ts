@@ -1,15 +1,27 @@
 import { NextResponse } from "next/server";
 import * as store from "@/lib/process/store";
 import { byId, type Level } from "@/lib/process/criteria";
+import { summarize } from "@/lib/process/summary";
 import { deny, now } from "@/lib/process/guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/**
+ * The landscape. Each row carries its health summary so a tile can show the
+ * traffic light and phase progress without the client fanning out per process.
+ */
 export async function GET() {
   const d = await deny();
   if (d) return d;
-  return NextResponse.json({ engagements: await store.list() });
+  const metas = await store.list();
+  const engagements = await Promise.all(
+    metas.map(async (m) => ({
+      ...m,
+      summary: summarize(m, await store.ratings(m.slug).catch(() => ({ criteria: {}, components: {} }))),
+    })),
+  );
+  return NextResponse.json({ engagements });
 }
 
 export async function POST(req: Request) {

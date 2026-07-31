@@ -205,6 +205,9 @@ export interface ProfileLike {
 }
 export function explainStatus(locale: Locale, p: ProfileLike): string {
   const E = en(locale);
+  /** "D7 1.0" / "D7 1,0" — one decimal, so a score never reads as a bare integer. */
+  const dim1 = (d: { id: string; score: number }) =>
+    `${d.id} ${E ? d.score.toFixed(1) : d.score.toFixed(1).replace(".", ",")}`;
   const koFail = p.knockOuts.filter((k) => k.state === "fail");
   const belowRed = p.dimensions.filter((d) => d.score < 2.0);
   const belowGreen = p.dimensions.filter((d) => d.score < 3.0);
@@ -227,7 +230,7 @@ export function explainStatus(locale: Locale, p: ProfileLike): string {
     return `Mindestens ein K.o. auf S1: ${list}${note}. Optimierungsaussagen sind wertlos — erst Enabler, dann neu scoren.`;
   }
   if (belowRed.length >= 2) {
-    const list = belowRed.map((d) => `${d.id} ${d.score}`).join(", ");
+    const list = belowRed.map(dim1).join(", ");
     return E
       ? `At least two dimensions below 2.0: ${list}. One outlier is a finding, two are a pattern.`
       : `Mindestens zwei Dimensionen < 2,0: ${list}. Ein Ausreißer ist ein Befund, zwei sind ein Muster.`;
@@ -239,7 +242,10 @@ export function explainStatus(locale: Locale, p: ProfileLike): string {
   }
   const bits: string[] = [];
   if (koOpen.length) bits.push(E ? `${koOpen.map((k) => k.id).join(", ")} at level 2` : `${koOpen.map((k) => k.id).join(", ")} auf S2`);
-  if (belowGreen.length) bits.push(`${belowGreen.map((d) => `${d.id} ${d.score}`).join(", ")} < 3${E ? ".0" : ",0"}`);
+  if (belowGreen.length) {
+    const list = belowGreen.map(dim1).join(", ");
+    bits.push(E ? `below 3.0 — ${list}` : `unter 3,0 — ${list}`);
+  }
   return E
     ? `Needs attention: ${bits.join("; ") || "under supervision"}. (${pct}% assessed)`
     : `Handlungsbedarf: ${bits.join("; ") || "unter Aufsicht"}. (${pct} % erhoben)`;
@@ -348,6 +354,10 @@ const UI_EN: Record<string, string> = {
   "badge.offline": "offline · rule-based analysis",
   "funnel.tagline": "Process health before the engagement: assess, branch, and clarify the change risk — one cockpit per diagnosis.",
   "list.heading": "Diagnoses",
+  "tile.notAssessed": "not assessed",
+  "tile.assessed": "assessed",
+  "tile.koFailed": "knock-out failed",
+  "tile.phases": "Phases",
   "loading": "Loading…",
   "list.empty": "No diagnosis yet. Start one on the right.",
   "row.noOwner": "no owner",
@@ -370,6 +380,10 @@ const UI_EN: Record<string, string> = {
   "rated": "rated",
   "back": "Back",
   "coverage": "Coverage",
+  "stat.coverage": "Catalogue assessed",
+  "stat.portfolio": "Portfolio value",
+  "stat.portfolioNote": "ranking only — never reported alone",
+  "stat.phase": "Current phase",
   "report.link": "Report (Markdown)",
   "tab.profile": "Profile",
   "tab.analyse": "Analysis & demands",
@@ -462,6 +476,10 @@ const UI_DE: Record<string, string> = {
   "badge.offline": "offline · Analyse regelbasiert",
   "funnel.tagline": "Prozessgesundheit vor dem Engagement: bewerten, verzweigen, das Änderungsrisiko klären — ein Cockpit je Diagnose.",
   "list.heading": "Diagnosen",
+  "tile.notAssessed": "nicht erhoben",
+  "tile.assessed": "erhoben",
+  "tile.koFailed": "K.o. gescheitert",
+  "tile.phases": "Phasen",
   "loading": "Lädt…",
   "list.empty": "Noch keine Diagnose. Rechts eine neue starten.",
   "row.noOwner": "kein Owner",
@@ -484,6 +502,10 @@ const UI_DE: Record<string, string> = {
   "rated": "bewertet",
   "back": "zurück",
   "coverage": "Abdeckung",
+  "stat.coverage": "Katalog erhoben",
+  "stat.portfolio": "Portfolio-Wert",
+  "stat.portfolioNote": "nur zur Reihung — nie allein berichtet",
+  "stat.phase": "Aktuelle Phase",
   "report.link": "Bericht (Markdown)",
   "tab.profile": "Profil",
   "tab.analyse": "Analyse & Bedarfe",
