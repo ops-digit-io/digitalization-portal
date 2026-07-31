@@ -14,7 +14,7 @@
  */
 
 import { SECTION_GROUPS, sectionsOf } from "./sections";
-import { scoreProfile, trafficLight, type Light } from "./score-model";
+import { scoreProfile, trafficLight, type Light, type TextCode } from "./score-model";
 import { filledOf, type EngagementMeta } from "./store";
 
 export interface StageProgress {
@@ -31,6 +31,10 @@ export interface StageProgress {
 export interface EngagementSummary {
   light: Light;
   reason: string;
+  /** `reason` and the drivers again, translatable — see score-model's TextCode. */
+  reasonCode: TextCode;
+  drivers: string[];
+  driverCodes: TextCode[];
   /** 0..1 share of the fourteen sections carrying a score. */
   coverage: number;
   sectionsAssessed: number;
@@ -42,7 +46,7 @@ export interface EngagementSummary {
    * they are what a tile must name. Reported separately from `gateFailures`,
    * which the model keeps for the non-knock-out gates.
    */
-  koFailed: string[];
+  koFailed: { key: string; label: string }[];
   /** Non-knock-out gates recorded as failed. */
   gateFailures: string[];
   stages: StageProgress[];
@@ -76,11 +80,16 @@ export function summarize(m: EngagementMeta): EngagementSummary {
   return {
     light: light.light,
     reason: light.reason,
+    reasonCode: light.reasonCode,
+    drivers: light.drivers,
+    driverCodes: light.driverCodes,
     coverage: profile.coverage,
     sectionsAssessed: profile.sectionsAssessed,
     sectionsTotal: profile.sectionsTotal,
     overall: profile.overall,
-    koFailed: profile.knockOuts.filter((k) => k.state === "fail").map((k) => k.label),
+    // Key AND label: the key is what the display layer translates by, the label
+    // is what it falls back to.
+    koFailed: profile.knockOuts.filter((k) => k.state === "fail").map((k) => ({ key: k.key, label: k.label })),
     gateFailures: profile.gateFailures,
     stages,
   };

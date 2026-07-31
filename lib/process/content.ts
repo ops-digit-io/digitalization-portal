@@ -16,6 +16,7 @@ import type { Locale } from "../i18n";
 import { byId, dimById, type Level } from "./criteria";
 import { EN_CRITERIA, EN_DIMENSIONS } from "./criteria.en";
 import { byPhase, BRANCHES, RISK_CHECKS, RISK_CLASSES, CONFIDENCE_LADDER } from "./phases";
+import { SECTIONS_DE, STAGES_DE, ADVISORY_DE, SCORE_DIMENSIONS_DE, KNOCK_OUTS_DE } from "./model.de";
 import type { Recommendation, WarnCode } from "./self-assessment";
 
 const en = (locale: Locale) => locale !== "de";
@@ -382,7 +383,7 @@ const UI_EN: Record<string, string> = {
   "digest.heading": "Engagement digest",
   "stat.portfolio": "Portfolio value",
   "stat.portfolioNote": "ranking only — never reported alone",
-  "stat.phase": "Current phase",
+  "stat.phase": "Current stage",
   "report.link": "Report (Markdown)",
   "tabs.label": "Diagnosis sections",
   "tab.overview": "Overview",
@@ -411,6 +412,8 @@ const UI_EN: Record<string, string> = {
   "digest.influencedBy": "Influenced by",
   "digest.notDiscussed": "not discussed in the anamnesis",
   "digest.gaps": "Gaps",
+  "digest.noneRecorded": "none recorded",
+  "digest.cost": "cost",
   "score.heading": "Score profile",
   "score.overall": "Overall",
   "score.notAssessed": "not assessed",
@@ -565,12 +568,12 @@ const UI_DE: Record<string, string> = {
   "digest.heading": "Engagement-Überblick",
   "stat.portfolio": "Portfolio-Wert",
   "stat.portfolioNote": "nur zur Reihung — nie allein berichtet",
-  "stat.phase": "Aktuelle Phase",
+  "stat.phase": "Aktuelle Stufe",
   "report.link": "Bericht (Markdown)",
   "tabs.label": "Abschnitte der Diagnose",
   "tab.overview": "Überblick",
   "tab.catalogue": "Katalog",
-  "tab.advisory": "Advisory",
+  "tab.advisory": "Beratung",
   "digest.none": "Noch kein Überblick.",
   "digest.derivedFrom": "Abgeleitet aus den Abschnitten unten.",
   "digest.generate": "Überblick erzeugen",
@@ -594,6 +597,8 @@ const UI_DE: Record<string, string> = {
   "digest.influencedBy": "Beeinflusst von",
   "digest.notDiscussed": "in der Anamnese nicht besprochen",
   "digest.gaps": "Lücken",
+  "digest.noneRecorded": "nichts erfasst",
+  "digest.cost": "Kosten",
   "score.heading": "Score-Profil",
   "score.overall": "Gesamt",
   "score.notAssessed": "nicht erhoben",
@@ -714,4 +719,160 @@ const UI_DE: Record<string, string> = {
 export function pc(locale: Locale, key: string): string {
   const dict = en(locale) ? UI_EN : UI_DE;
   return dict[key] ?? UI_EN[key] ?? key;
+}
+
+// =============================================================== ported model
+//
+// `sections.ts`, `advisory.ts` and `score-model.ts` are verbatim ports and stay
+// English — the grader matches English headings and the score model was checked
+// against the original case by case. The German reading is an overlay keyed by
+// the same ids (see model.de.ts), so nothing in the engine has to move.
+//
+// English therefore always resolves to the source object's own string: there is
+// no second English copy to drift.
+
+export function sectionText<T extends { key: string; label: string; description: string; gateQuestion?: string }>(
+  locale: Locale,
+  s: T,
+): { label: string; description: string; gateQuestion?: string } {
+  const de = SECTIONS_DE[s.key];
+  if (en(locale) || !de) {
+    return { label: s.label, description: s.description, ...(s.gateQuestion ? { gateQuestion: s.gateQuestion } : {}) };
+  }
+  // A gate question the overlay does not carry falls back to the English one
+  // rather than vanishing — a missing gate question is worse than a foreign one.
+  const q = de.gateQuestion ?? s.gateQuestion;
+  return { label: de.label, description: de.description, ...(q ? { gateQuestion: q } : {}) };
+}
+
+export function stageText<T extends { id: string; label: string; subtitle: string }>(
+  locale: Locale,
+  g: T,
+): { label: string; subtitle: string } {
+  const de = STAGES_DE[g.id];
+  return en(locale) || !de ? { label: g.label, subtitle: g.subtitle } : de;
+}
+
+export function advisoryText<T extends { key: string; label: string; description: string }>(
+  locale: Locale,
+  a: T,
+): { label: string; description: string } {
+  const de = ADVISORY_DE[a.key];
+  return en(locale) || !de ? { label: a.label, description: a.description } : de;
+}
+
+export function scoreDimLabel(locale: Locale, key: string, fallback: string): string {
+  return (en(locale) ? undefined : SCORE_DIMENSIONS_DE[key]) ?? fallback;
+}
+
+export function koLabel(locale: Locale, key: string, fallback: string): string {
+  return (en(locale) ? undefined : KNOCK_OUTS_DE[key]?.label) ?? fallback;
+}
+
+// ------------------------------------------------- the score model's sentences
+//
+// The engine writes its own English prose and carries a matching code for every
+// sentence (TextCode). English reads the prose; German is built from the code, so
+// no one has to parse a sentence back into facts to translate it.
+
+type Params = Record<string, string | number>;
+
+const deSection = (key: string) => SECTIONS_DE[key]?.label ?? key;
+const deDim = (key: string) => SCORE_DIMENSIONS_DE[key] ?? key;
+const deKo = (key: string) => KNOCK_OUTS_DE[key];
+/** "visibility,carry" → "Sichtbarkeit, Organisatorische Tragfähigkeit" */
+const deDims = (csv: string) => String(csv).split(",").filter(Boolean).map(deDim).join(", ");
+
+function deCode(code: string, p: Params): string {
+  const s = (k: string) => String(p[k] ?? "");
+  switch (code) {
+    // knock-out notes
+    case "ko.verdict": return `erfasstes Verdikt zu „${deSection(s("source"))}“`;
+    case "ko.notAssessed": return `${deSection(s("section"))} nicht erhoben`;
+    case "ko.weakEvidence":
+      return `${deSection(s("section"))} mit ${s("score")} bewertet — das Artefakt trägt den Beleg nicht`;
+    case "ko.noVerdict":
+      return `${deSection(s("section"))} mit ${s("score")} bewertet, aber es ist kein Gate-Verdikt erfasst`;
+
+    // the light
+    case "light.noProfile": return "Es konnte kein Profil berechnet werden.";
+    case "light.koFailedOne": {
+      const k = deKo(s("ko"));
+      return k ? `Knock-out nicht bestanden: ${k.label}. ${k.consequence}` : "Knock-out nicht bestanden.";
+    }
+    case "light.koFailedMany":
+      return `${s("n")} Knock-outs nicht bestanden: ${String(p.kos ?? "").split(",").filter(Boolean)
+        .map((k) => deKo(k)?.label ?? k).join(", ")}.`;
+    case "light.visibilityFloor":
+      return `Die Sichtbarkeit liegt bei ${s("score")}. Was an diesem Prozess ausgeliefert wird, ließe sich nicht ablesen — also lässt sich auch nichts auf Belegen verbessern.`;
+    case "light.dimsBelow":
+      return `${s("n")} Dimensionen unter ${s("floor")}: ${deDims(s("dims"))}. Eine ist ein Befund, zwei sind ein Muster.`;
+    case "light.greyEmpty": return "Nicht erhoben. Es ist noch kein Abschnitt ausgefüllt.";
+    case "light.greyThin":
+      return `Nicht erhoben. Erst ${s("pct")} % des Modells sind durch ein Artefakt belegt.`;
+    case "light.green":
+      return "Alle drei Knock-outs freigegeben, jede Dimension erhoben und auf oder über der Grün-Schwelle.";
+
+    // drivers
+    case "driver.koFailed": {
+      const k = deKo(s("ko"));
+      return k ? `${k.label}: nicht bestanden — ${k.consequence}` : "Knock-out nicht bestanden";
+    }
+    case "driver.visibilityFloor":
+      return `Sichtbarkeit ${s("score")} — unter ${s("floor")}; kein Inkrement wäre ablesbar.`;
+    case "driver.dimBelow":
+      return `${deDim(s("dim"))} ${s("score")} — unter ${s("floor")}.`;
+    case "driver.weakest": return `Schwächste Dimension: ${deDim(s("dim"))} ${s("score")}`;
+    case "driver.weakestNone": return "Schwächste Dimension: keine bewertet";
+
+    // what still blocks green
+    case "blocker.gateFailed":
+      return `Gate nicht bestanden und noch nicht erneut gefahren: ${String(p.sections ?? "").split(",")
+        .filter(Boolean).map(deSection).join(", ")}`;
+    case "blocker.koNoVerdict": return `${s("n")} Knock-out(s) ohne erfasstes Verdikt`;
+    case "blocker.dimsUnassessed": return `${deDims(s("dims"))} nicht ausreichend erhoben`;
+    case "blocker.dimsWeak":
+      return `${String(p.dims ?? "").split(",").filter(Boolean).map((pair) => {
+        const [k = "", v = ""] = pair.split(":");
+        return `${deDim(k)} ${v}`;
+      }).join(", ")} unter ${s("floor")}`;
+    case "blocker.coverage": return `Erhebungsgrad ${s("pct")} % unter ${s("floor")} %`;
+
+    default: return "";
+  }
+}
+
+export interface LightLike {
+  reason: string;
+  drivers: string[];
+  reasonCode?: { code: string; params?: Params };
+  driverCodes?: { code: string; params?: Params }[];
+}
+
+/** The one-line reason for the colour. */
+export function explainLight(locale: Locale, t: LightLike): string {
+  if (en(locale) || !t.reasonCode) return t.reason;
+  // Amber has no sentence of its own: it IS the list of what still blocks green.
+  if (t.reasonCode.code === "light.amber") {
+    const list = lightDrivers(locale, t);
+    return list.length ? `Zu tun: ${list.join("; ")}.` : t.reason;
+  }
+  return deCode(t.reasonCode.code, t.reasonCode.params ?? {}) || t.reason;
+}
+
+/** The reason, itemised. */
+export function lightDrivers(locale: Locale, t: LightLike): string[] {
+  if (en(locale) || !t.driverCodes) return t.drivers;
+  return t.driverCodes.map((c, i) => deCode(c.code, c.params ?? {}) || t.drivers[i] || "").filter(Boolean);
+}
+
+/** A knock-out's one-line note ("diagnostics not assessed"). */
+export function koNote(locale: Locale, k: { note: string; noteCode?: { code: string; params?: Params } }): string {
+  if (en(locale) || !k.noteCode) return k.note;
+  return deCode(k.noteCode.code, k.noteCode.params ?? {}) || k.note;
+}
+
+/** Stage label when only the id is at hand (tiles, progress strips). */
+export function stageLabel(locale: Locale, id: string, fallback: string): string {
+  return (en(locale) ? undefined : STAGES_DE[id]?.label) ?? fallback;
 }

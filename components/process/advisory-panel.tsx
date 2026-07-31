@@ -61,6 +61,7 @@ export function AdvisoryPanel({
   /** section key → human label, for naming what a pass is still missing. */
   sectionLabels: Record<string, string | undefined>;
 }) {
+  const text = C.advisoryText(locale, item);
   const [open, setOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [content, setContent] = useState("");
@@ -144,7 +145,7 @@ export function AdvisoryPanel({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="grid size-6 shrink-0 place-items-center rounded-full border font-mono text-xs">{item.icon}</span>
-            <span className="text-sm font-medium">{item.label}</span>
+            <span className="text-sm font-medium">{text.label}</span>
             {content.trim() && (
               <span className="rounded-full bg-[hsl(var(--ok))]/15 px-2 py-0.5 text-[10px] font-medium text-[hsl(var(--ok))]">
                 {C.pc(locale, "artefact.filled")}
@@ -156,7 +157,7 @@ export function AdvisoryPanel({
               </span>
             )}
           </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">{item.description}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{text.description}</p>
         </div>
         <span className="shrink-0 text-xs text-muted-foreground">
           {open ? C.pc(locale, "artefact.close") : C.pc(locale, "artefact.open")}

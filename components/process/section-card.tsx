@@ -137,6 +137,9 @@ export function SectionCard({
     }
   }
 
+  // Label, description and gate question come from the display overlay: the
+  // section definition itself is a verbatim English port.
+  const text = C.sectionText(locale, section);
   const state = locked ? "locked" : filled ? "filled" : "empty";
   const stateCls =
     state === "filled"
@@ -156,7 +159,7 @@ export function SectionCard({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] tabular-nums text-muted-foreground">{section.order}</span>
-            <span className="text-sm font-medium">{section.label}</span>
+            <span className="text-sm font-medium">{text.label}</span>
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${stateCls}`}>
               {C.pc(locale, state === "filled" ? "artefact.filled" : state === "locked" ? "section.locked" : "artefact.empty")}
             </span>
@@ -175,7 +178,7 @@ export function SectionCard({
               </span>
             )}
           </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">{section.description}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{text.description}</p>
           {locked && blockedBy.length > 0 && (
             <p className="mt-1 text-xs text-amber-600 dark:text-amber-500">
               {C.pc(locale, "section.waitingFor")}: {blockedBy.join(", ")}
@@ -191,9 +194,9 @@ export function SectionCard({
 
       {open && !locked && (
         <div className="mt-3">
-          {section.gateQuestion && (
+          {text.gateQuestion && (
             <p className="mb-3 border-l-2 border-border pl-3 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">{C.pc(locale, "section.gateQuestion")}:</span> {section.gateQuestion}
+              <span className="font-medium text-foreground">{C.pc(locale, "section.gateQuestion")}:</span> {text.gateQuestion}
             </p>
           )}
 
