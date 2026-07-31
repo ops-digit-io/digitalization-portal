@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
-import { apiGet, apiSend } from "@/components/process/ui";
+import { apiGet, apiSend, SectionLabel } from "@/components/process/ui";
+import { EngagementTile, type EngagementRow } from "@/components/process/engagement-tile";
 import { useI18n } from "@/components/providers";
 import * as C from "@/lib/process/content";
 
@@ -18,17 +19,6 @@ type Level = 1 | 2 | 3 | 4 | 5;
 
 interface Config {
   liveCoaching: boolean;
-}
-
-interface EngagementRow {
-  slug: string;
-  title: string;
-  owner: string;
-  champion: string;
-  unit: string;
-  anflug: Anflug;
-  phase: string;
-  updatedAt: string;
 }
 
 interface Criterion {
@@ -64,11 +54,6 @@ function slugify(s: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 60);
-}
-
-function fmtDate(s: string): string {
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
 }
 
 export default function ProcessFunnel() {
@@ -187,7 +172,7 @@ export default function ProcessFunnel() {
       <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_380px]">
         {/* Left: list */}
         <section>
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{C.pc(locale, "list.heading")}</h2>
+          <SectionLabel>{C.pc(locale, "list.heading")}</SectionLabel>
           {rows === null && !loadError && <p className="text-sm text-muted-foreground">{C.pc(locale, "loading")}</p>}
           {rows !== null && rows.length === 0 && (
             <Card className="flex flex-col items-center gap-3 p-8 text-center text-sm text-muted-foreground">
@@ -196,24 +181,9 @@ export default function ProcessFunnel() {
             </Card>
           )}
           {rows !== null && rows.length > 0 && (
-            <div className="space-y-2">
+            <div className="grid gap-3 sm:grid-cols-2">
               {rows.map((r) => (
-                <Link key={r.slug} href={`/process/${r.slug}`} className="block">
-                  <Card className="p-3 transition-colors hover:bg-accent">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate font-medium">{r.title}</div>
-                        <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                          {r.owner || C.pc(locale, "row.noOwner")}{r.unit ? ` · ${r.unit}` : ""}
-                        </div>
-                      </div>
-                      <div className="shrink-0 text-right text-xs text-muted-foreground">
-                        <div>{C.anflugLabel(locale, r.anflug)}</div>
-                        <div className="mt-0.5">{r.phase} · {fmtDate(r.updatedAt)}</div>
-                      </div>
-                    </div>
-                  </Card>
-                </Link>
+                <EngagementTile key={r.slug} row={r} locale={locale} />
               ))}
             </div>
           )}
