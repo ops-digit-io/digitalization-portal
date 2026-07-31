@@ -16,7 +16,8 @@ export async function POST(req: Request, { params }: { params: { slug: string } 
   const proposals = Array.isArray(body.demands) ? body.demands.filter((p) => p && String(p.title || "").trim()) : [];
   if (!proposals.length) return NextResponse.json({ error: "no demands to create" }, { status: 400 });
   try {
-    const created = await createDemands(slug, proposals, now());
+    const locale = new URL(req.url).searchParams.get("lang") === "de" ? "de" : "en";
+    const created = await createDemands(slug, proposals, now(), locale);
     return NextResponse.json({ created });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });
