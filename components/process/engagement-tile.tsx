@@ -18,7 +18,7 @@
 import Link from "next/link";
 import type { Locale } from "@/lib/i18n";
 import * as C from "@/lib/process/content";
-import type { Status } from "@/lib/process/health-model";
+import type { Light } from "@/lib/process/score-model";
 
 export interface StageProgress {
   id: string;
@@ -29,10 +29,12 @@ export interface StageProgress {
   gate: "pass" | "fail" | null;
 }
 export interface Summary {
-  status: Status;
+  light: Light;
+  reason: string;
   coverage: number;
-  ratedCount: number;
-  totalCount: number;
+  sectionsAssessed: number;
+  sectionsTotal: number;
+  overall: number | null;
   koFailed: string[];
   stages: StageProgress[];
 }
@@ -47,11 +49,11 @@ export interface EngagementRow {
   summary?: Summary;
 }
 
-const LIGHT: Record<Status, string> = {
-  gruen: "bg-[hsl(var(--ok))]",
-  gelb: "bg-[hsl(var(--warn))]",
-  rot: "bg-[hsl(var(--destructive))]",
-  grau: "bg-muted-foreground/40",
+const LIGHT: Record<Light, string> = {
+  green: "bg-[hsl(var(--ok))]",
+  amber: "bg-[hsl(var(--warn))]",
+  red: "bg-[hsl(var(--destructive))]",
+  grey: "bg-muted-foreground/40",
 };
 
 function fmtDate(s: string): string {
@@ -61,7 +63,7 @@ function fmtDate(s: string): string {
 
 export function EngagementTile({ row, locale }: { row: EngagementRow; locale: Locale }) {
   const s = row.summary;
-  const status: Status = s?.status ?? "grau";
+  const light: Light = s?.light ?? "grey";
   const pct = Math.round((s?.coverage ?? 0) * 100);
 
   return (
@@ -70,7 +72,7 @@ export function EngagementTile({ row, locale }: { row: EngagementRow; locale: Lo
       className="group flex min-h-[170px] flex-col overflow-hidden rounded-xl border bg-card transition-colors hover:border-foreground/25 hover:bg-accent/40"
     >
       {/* The light, as a bar across the top edge. */}
-      <span className={`h-1 w-full shrink-0 ${LIGHT[status]}`} aria-hidden />
+      <span className={`h-1 w-full shrink-0 ${LIGHT[light]}`} aria-hidden />
 
       <div className="flex flex-1 flex-col gap-2.5 px-4 pb-3.5 pt-3.5">
         <div className="min-w-0">
@@ -124,11 +126,13 @@ export function EngagementTile({ row, locale }: { row: EngagementRow; locale: Lo
         )}
 
         <div className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground">
-          <span className={`size-2 shrink-0 rounded-full ${LIGHT[status]}`} aria-hidden />
-          <span className="font-medium text-foreground">
-            {status === "grau" ? C.pc(locale, "tile.notAssessed") : C.statusPill(locale, status)}
+          <span className={`size-2 shrink-0 rounded-full ${LIGHT[light]}`} aria-hidden />
+          <span className="font-medium text-foreground" title={s?.reason}>
+            {light === "grey" ? C.pc(locale, "tile.notAssessed") : C.lightLabel(locale, light)}
           </span>
-          {s && s.ratedCount > 0 && <span className="truncate">· {pct}% {C.pc(locale, "tile.assessed")}</span>}
+          {s && s.sectionsAssessed > 0 && (
+            <span className="truncate">· {pct}% {C.pc(locale, "tile.assessed")}{s.overall !== null ? ` · ${s.overall}` : ""}</span>
+          )}
           <span className="ml-auto shrink-0 tabular-nums">{fmtDate(row.updatedAt)}</span>
         </div>
       </div>

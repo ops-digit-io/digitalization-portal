@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { DIMENSIONS, CRITERIA, KNOCKOUTS, SELF_ASSESSMENT } from "@/lib/process/criteria";
 import { SECTION_GROUPS, SECTIONS } from "@/lib/process/sections";
+import { ADVISORY } from "@/lib/process/advisory";
 import { CONFIDENCE_LADDER, ANFLUG, DIRECTION_RULES } from "@/lib/process/phases";
 import * as llm from "@/lib/process/llm";
 import { deny } from "@/lib/process/guard";
@@ -24,6 +25,12 @@ export async function GET() {
       key: s.key, label: s.label, order: s.order, group: s.group,
       gate: s.gate, blocking: s.blocking, description: s.description,
       ...(s.gateQuestion ? { gateQuestion: s.gateQuestion } : {}),
+    })),
+    // The advisory layer sits above the anamnesis — proposals, not findings.
+    // `file` stays server-side; the client addresses a pass by key.
+    advisory: ADVISORY.map((a) => ({
+      key: a.key, label: a.label, order: a.order,
+      icon: a.icon, description: a.description, needs: a.needs,
     })),
     confidenceLadder: CONFIDENCE_LADDER,
     anflug: ANFLUG,

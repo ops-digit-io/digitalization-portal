@@ -8,6 +8,8 @@
 
 import { getProvider, type ToolSpec } from "../agent/provider";
 import { loadGoverning, stripFrontmatter } from "../agent/governing";
+import { agentPrompt } from "./prompts";
+import { render } from "./render";
 import { buildDemand, classifyDemand, EMPTY_ANSWERS, type DemandAnswers } from "../demand";
 import { saveNewDemand } from "../demands-store";
 import type { Lane } from "../types";
@@ -198,7 +200,11 @@ export async function analyse(
 
   // The ```facts block lets the offline provider echo the deterministic seed;
   // a live model refines/expands it against the diagnosis.
-  const user = `Hier ist die Diagnose. Zerlege sie in einzelne, umsetzbare Bedarfe und rufe propose_demands auf. ${speak}\n\n${summary}\n\n\`\`\`facts\n${JSON.stringify({ demands: seed })}\n\`\`\``;
+  const user = render(await agentPrompt("analysis-user"), {
+    speak,
+    summary,
+    facts: JSON.stringify({ demands: seed }),
+  });
 
   try {
     const res = await provider.complete({ system: `${system}\n\n${speak}`, messages: [{ role: "user", content: user }], tools: [proposeTool], maxTokens: 3000 });

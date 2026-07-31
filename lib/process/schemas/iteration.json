@@ -1,0 +1,24 @@
+{
+  "sectionKey": "iteration",
+  "label": "Iteration Hook",
+  "required": [
+    { "type": "table", "minRows": 4, "weight": 16 },
+    { "type": "field", "pattern": "(?i)planned iterations per", "weight": 12 },
+    { "type": "heading", "pattern": "(?i)trigger", "weight": 10 },
+    { "type": "field", "pattern": "(?i)test runs planned", "weight": 10 },
+    { "type": "heading", "pattern": "(?i)lessons?.?learned", "weight": 10 },
+    { "type": "field", "pattern": "(?i)health class of the component", "weight": 8 },
+    { "type": "heading", "pattern": "(?i)diagnostics", "weight": 8 },
+    { "type": "field", "pattern": "(?i)next iteration review date", "weight": 8 },
+    { "type": "noPlaceholder", "weight": 8 },
+    { "type": "field", "pattern": "(?i)capacity reserved", "weight": 6 },
+    { "type": "minWords", "count": 350, "weight": 4 }
+  ],
+  "excellence": [
+    { "type": "field", "pattern": "(?i)no trigger fires", "weight": 10 },
+    { "type": "heading", "pattern": "(?i)(who else should receive|other departments)", "weight": 8 },
+    { "type": "field", "pattern": "(?i)escalation threshold", "weight": 8 },
+    { "type": "minWords", "count": 600, "weight": 8 },
+    { "type": "field", "pattern": "(?i)last lesson that changed", "weight": 6 }
+  ]
+}

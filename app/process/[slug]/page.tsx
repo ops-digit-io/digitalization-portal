@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { apiGet, apiSend, SectionLabel } from "@/components/process/ui";
 import { SectionCard, type SectionMeta } from "@/components/process/section-card";
+import { DigestPanel, type Digest } from "@/components/process/digest-panel";
+import { AdvisoryPanel, type AdvisoryMeta } from "@/components/process/advisory-panel";
 import { useI18n } from "@/components/providers";
 import type { Locale } from "@/lib/i18n";
 import * as C from "@/lib/process/content";
@@ -85,11 +87,34 @@ interface StageGroup {
 interface Config {
   groups: StageGroup[];
   sections: SectionMeta[];
+  advisory: AdvisoryMeta[];
   liveCoaching: boolean;
+}
+interface ScoreDimension {
+  key: string; label: string; weight: number;
+  score: number | null; assessed: boolean; coverage: number;
+}
+interface ScoreKnockOut { key: string; label: string; state: "pass" | "fail" | "unknown"; note: string }
+interface ScoreResult {
+  dimensions: Record<string, ScoreDimension>;
+  knockOuts: ScoreKnockOut[];
+  overall: number | null;
+  coverage: number;
+  sectionsAssessed: number;
+  sectionsTotal: number;
+}
+interface LightResult {
+  light: "red" | "amber" | "green" | "grey";
+  reason: string;
+  /** What actually drove the colour — the reason, itemised. */
+  drivers: string[];
 }
 interface Engagement {
   meta: Meta;
-  profile: Profile;
+  profile: Profile;      // the D1–D8 catalogue
+  score: ScoreResult;    // the score model
+  light: LightResult;
+  digest: Digest | null;
   filledSections?: string[];
 }
 
@@ -136,6 +161,23 @@ const STATUS_CLS: Record<Status, string> = {
   grau: "bg-secondary text-secondary-foreground",
 };
 
+/** The score model's light. Hue is never the interface — the word always rides along. */
+const LIGHT_CLS: Record<LightResult["light"], string> = {
+  green: "bg-[hsl(var(--ok))] text-white",
+  amber: "bg-amber-500 text-white",
+  red: "bg-[hsl(var(--destructive))] text-white",
+  grey: "bg-secondary text-secondary-foreground",
+};
+
+function LightPill({ light, locale }: { light: LightResult["light"]; locale: Locale }) {
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${LIGHT_CLS[light]}`}>
+      <span className="size-2 rounded-full bg-current opacity-90" aria-hidden />
+      {C.lightLabel(locale, light)}
+    </span>
+  );
+}
+
 function StatusPill({ status, locale }: { status: Status; locale: Locale }) {
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_CLS[status]}`}>
@@ -152,7 +194,16 @@ function barColor(score: number): string {
   return "bg-[hsl(var(--ok))]";
 }
 
-const PROFIL = "__profil__";
+/** Same idea on the score model's 0–100 scale, at its own floors (40 / 70). */
+function scoreBarColor(score: number): string {
+  if (score < 40) return "bg-[hsl(var(--destructive))]";
+  if (score < 70) return "bg-amber-500";
+  return "bg-[hsl(var(--ok))]";
+}
+
+const OVERVIEW = "__overview__";
+const CATALOGUE = "__catalogue__";
+const ADVISORY = "__advisory__";
 const ANALYSE = "__analyse__";
 
 // ------------------------------------------------------------------ page
@@ -164,7 +215,7 @@ export default function EngagementCockpit() {
   const [eng, setEng] = useState<Engagement | null>(null);
   const [config, setConfig] = useState<Config | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<string>(PROFIL);
+  const [tab, setTab] = useState<string>(OVERVIEW);
 
   const reload = useCallback(async () => {
     const e = await apiGet<Engagement>(`/engagements/${slug}`);
@@ -199,7 +250,7 @@ export default function EngagementCockpit() {
     return <main className="mx-auto max-w-[1100px] px-4 py-6 text-sm text-muted-foreground">{C.pc(locale, "loading")}</main>;
   }
 
-  const { meta, profile } = eng;
+  const { meta, profile, score, light } = eng;
   const filled = meta.filledSections ?? eng.filledSections ?? [];
   const reportUrl = `/api/process/engagements/${slug}/report?format=md`;
 
@@ -209,11 +260,13 @@ export default function EngagementCockpit() {
   // Engagements written under the earlier phase model carry a stale id ("P0"),
   // which is no longer a stage — fall back to the first stage rather than "—".
   const currentStage = config.groups.find((g) => g.id === meta.phase) ?? stagesInOrder[0]!;
+  const koCleared = score.knockOuts.filter((k) => k.state === "pass").length;
+  const sectionLabels = Object.fromEntries(config.sections.map((x) => [x.key, x.label]));
 
   // One model for the strip, so the keyboard handler and the markup agree.
   // Analysis sits LAST: it reads the finished anamnesis, so it is the closing step.
   const tabs: { id: string; label: string; current?: boolean; count?: string; gate?: "pass" | "fail" | null }[] = [
-    { id: PROFIL, label: C.pc(locale, "tab.profile") },
+    { id: OVERVIEW, label: C.pc(locale, "tab.overview") },
     ...stagesInOrder.map((g) => {
       const secs = config.sections.filter((x) => x.group === g.id).sort((a, b) => a.order - b.order);
       const done = secs.filter((x) => filled.includes(x.key)).length;
@@ -226,6 +279,8 @@ export default function EngagementCockpit() {
         gate: verdicts.length === 0 ? null : verdicts.some((v) => v && !v.passed) ? ("fail" as const) : ("pass" as const),
       };
     }),
+    { id: ADVISORY, label: C.pc(locale, "tab.advisory") },
+    { id: CATALOGUE, label: C.pc(locale, "tab.catalogue") },
     { id: ANALYSE, label: C.pc(locale, "tab.analyse") },
   ];
 
@@ -258,7 +313,7 @@ export default function EngagementCockpit() {
 
       {/* Header — identity, the light with its reason, and the numbers behind it */}
       <Card className="overflow-hidden p-0">
-        <span className={`block h-1 w-full ${STATUS_CLS[profile.status]}`} aria-hidden />
+        <span className={`block h-1 w-full ${LIGHT_CLS[light.light]}`} aria-hidden />
         <div className="p-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0">
@@ -271,8 +326,8 @@ export default function EngagementCockpit() {
               <p className="mt-0.5 text-xs text-muted-foreground">{C.pc(locale, "field.anflug")}: {C.anflugLabel(locale, meta.anflug)}</p>
             </div>
             <div className="max-w-md text-right">
-              <StatusPill status={profile.status} locale={locale} />
-              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{C.explainStatus(locale, profile)}</p>
+              <LightPill light={light.light} locale={locale} />
+              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{light.reason}</p>
               <a href={`${reportUrl}&lang=${locale}`} className="mt-1.5 inline-block text-xs font-medium text-primary hover:underline" download>
                 {C.pc(locale, "report.link")}
               </a>
@@ -284,17 +339,21 @@ export default function EngagementCockpit() {
             <div>
               <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{C.pc(locale, "stat.coverage")}</dt>
               <dd className="mt-1 flex items-baseline gap-1.5">
-                <span className="text-2xl font-semibold tabular-nums leading-none">{Math.round(profile.coverage * 100)}</span>
-                <span className="text-xs text-muted-foreground">% · {profile.ratedCount}/{profile.totalCount}</span>
+                <span className="text-2xl font-semibold tabular-nums leading-none">{Math.round(score.coverage * 100)}</span>
+                <span className="text-xs text-muted-foreground">% · {score.sectionsAssessed}/{score.sectionsTotal}</span>
               </dd>
               <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-                <div className="h-full bg-foreground/70" style={{ width: `${Math.round(profile.coverage * 100)}%` }} />
+                <div className="h-full bg-foreground/70" style={{ width: `${Math.round(score.coverage * 100)}%` }} />
               </div>
             </div>
             <div>
-              <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{C.pc(locale, "stat.portfolio")}</dt>
-              <dd className="mt-1 text-2xl font-semibold tabular-nums leading-none">{profile.portfolioValue}</dd>
-              <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">{C.pc(locale, "stat.portfolioNote")}</p>
+              <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{C.pc(locale, "score.overall")}</dt>
+              <dd className="mt-1 text-2xl font-semibold tabular-nums leading-none">
+                {score.overall ?? "—"}
+              </dd>
+              <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
+                {koCleared}/{score.knockOuts.length} {C.pc(locale, "score.knockOuts").toLowerCase()} {C.pc(locale, "ko.cleared")}
+              </p>
             </div>
             <div>
               <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{C.pc(locale, "stat.phase")}</dt>
@@ -309,25 +368,33 @@ export default function EngagementCockpit() {
         </div>
       </Card>
 
-      {/* Tab strip — a real tablist: one tab stop, arrow keys move between tabs */}
-      <div
-        role="tablist"
-        aria-label={C.pc(locale, "tabs.label")}
-        className="mt-4 flex flex-nowrap gap-1 overflow-x-auto border-b"
-        onKeyDown={onTabKeyDown}
-      >
-        {tabs.map((t) => (
-          <TabButton
-            key={t.id}
-            id={t.id}
-            label={t.label}
-            active={tab === t.id}
-            current={t.current}
-            count={t.count}
-            gate={t.gate}
-            onClick={() => setTab(t.id)}
-          />
-        ))}
+      {/* Tab strip — a real tablist: one tab stop, arrow keys move between tabs.
+          Nine tabs do not fit on a laptop, so the strip scrolls and a fade on the
+          right edge says there is more — a strip that just ends looks complete. */}
+      <div className="relative mt-4">
+        <div
+          role="tablist"
+          aria-label={C.pc(locale, "tabs.label")}
+          className="flex flex-nowrap gap-1 overflow-x-auto border-b"
+          onKeyDown={onTabKeyDown}
+        >
+          {tabs.map((t) => (
+            <TabButton
+              key={t.id}
+              id={t.id}
+              label={t.label}
+              active={tab === t.id}
+              current={t.current}
+              count={t.count}
+              gate={t.gate}
+              onClick={() => setTab(t.id)}
+            />
+          ))}
+        </div>
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent"
+        />
       </div>
 
       {/* Tab content */}
@@ -338,7 +405,28 @@ export default function EngagementCockpit() {
         tabIndex={0}
         className="mt-4 outline-none"
       >
-        {tab === PROFIL && <ProfilTab slug={slug} profile={profile} locale={locale} />}
+        {tab === OVERVIEW && (
+          <OverviewTab
+            slug={slug}
+            score={score}
+            light={light}
+            digest={eng.digest}
+            live={config.liveCoaching}
+            locale={locale}
+            onChanged={reload}
+          />
+        )}
+        {tab === CATALOGUE && <CatalogueTab slug={slug} profile={profile} locale={locale} />}
+        {tab === ADVISORY && (
+          <AdvisoryTab
+            slug={slug}
+            items={config.advisory}
+            filled={filled}
+            sectionLabels={sectionLabels}
+            live={config.liveCoaching}
+            locale={locale}
+          />
+        )}
         {activeStage && (
           <StageTab
             key={activeStage.id}
@@ -360,7 +448,7 @@ export default function EngagementCockpit() {
             onChanged={reload}
             locale={locale}
             profile={profile}
-            onGoProfile={() => setTab(PROFIL)}
+            onGoProfile={() => setTab(CATALOGUE)}
           />
         )}
       </div>
@@ -416,10 +504,162 @@ function TabButton({
   );
 }
 
-// ------------------------------------------------------------------ Profil tab
-function ProfilTab({ slug, profile, locale }: { slug: string; profile: Profile; locale: Locale }) {
+// ------------------------------------------------------------------ Overview tab
+/**
+ * What the light rests on, then the derived one-screen digest.
+ *
+ * The five dimensions of the score model come first because they are the light's
+ * actual basis; the digest is marked as derived inside its own panel and never
+ * mixed into the numbers above it.
+ */
+function OverviewTab({
+  slug,
+  score,
+  light,
+  digest,
+  live,
+  locale,
+  onChanged,
+}: {
+  slug: string;
+  score: ScoreResult;
+  light: LightResult;
+  digest: Digest | null;
+  live: boolean;
+  locale: Locale;
+  onChanged: () => Promise<void>;
+}) {
+  const dims = Object.values(score.dimensions).sort((a, b) => b.weight - a.weight);
   return (
     <div className="space-y-4">
+      <section>
+        <SectionLabel>{C.pc(locale, "score.heading")}</SectionLabel>
+        <Card className="divide-y">
+          {dims.map((d) => (
+            <div key={d.key} className="flex items-center gap-3 px-3 py-2">
+              <div className="w-56 shrink-0">
+                <div className="text-sm font-medium leading-snug">{d.label}</div>
+                <div className="mt-0.5 text-xs text-muted-foreground">{C.pc(locale, "dim.weight")} {d.weight}%</div>
+              </div>
+              <div className="flex-1">
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-secondary">
+                  {/* Partial evidence is drawn faint: a bar at full opacity is a claim. */}
+                  <div
+                    className={`h-full ${d.score === null ? "bg-secondary" : scoreBarColor(d.score)} ${d.assessed ? "" : "opacity-50"}`}
+                    style={{ width: `${d.score ?? 0}%` }}
+                  />
+                </div>
+              </div>
+              <div className="w-36 shrink-0 text-right text-xs">
+                <div className="font-medium tabular-nums text-foreground">{d.score ?? "—"}</div>
+                {/* A score standing on half the evidence says so next to itself. */}
+                <div className="text-muted-foreground">
+                  {d.score === null
+                    ? C.pc(locale, "score.notAssessed")
+                    : `${Math.round(d.coverage * 100)}%${d.assessed ? "" : ` · ${C.pc(locale, "score.partial")}`}`}
+                </div>
+              </div>
+            </div>
+          ))}
+        </Card>
+      </section>
+
+      {/* Knock-outs: never averaged into anything, so never drawn as a bar. */}
+      <section>
+        <SectionLabel>{C.pc(locale, "score.knockOuts")}</SectionLabel>
+        <div className="flex flex-wrap gap-2">
+          {score.knockOuts.map((k) => {
+            const tone =
+              k.state === "pass"
+                ? "border-[hsl(var(--ok))]/40 bg-[hsl(var(--ok))]/10"
+                : k.state === "fail"
+                  ? "border-destructive/40 bg-destructive/10"
+                  : "border-border bg-secondary/40";
+            const mark = k.state === "pass" ? "✓" : k.state === "fail" ? "✕" : "○";
+            const markCls =
+              k.state === "pass" ? "text-[hsl(var(--ok))]" : k.state === "fail" ? "text-destructive" : "text-muted-foreground";
+            return (
+              <div key={k.key} className={`max-w-sm rounded-md border px-3 py-2 text-sm ${tone}`}>
+                <div className="flex items-center gap-2">
+                  <span className={`font-semibold ${markCls}`} aria-hidden>{mark}</span>
+                  <span className="font-medium">{k.label}</span>
+                </div>
+                <div className="mt-0.5 text-xs leading-snug text-muted-foreground">{k.note}</div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {light.drivers.length > 0 && (
+        <section>
+          <SectionLabel>{C.pc(locale, "directions.heading")}</SectionLabel>
+          <Card className="p-3">
+            <ul className="space-y-1 text-sm">
+              {light.drivers.map((line) => (
+                <li key={line} className="flex gap-2">
+                  <span className="text-muted-foreground" aria-hidden>→</span>
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </section>
+      )}
+
+      <section>
+        <SectionLabel>{C.pc(locale, "digest.heading")}</SectionLabel>
+        <DigestPanel slug={slug} digest={digest} live={live} locale={locale} onChanged={onChanged} />
+      </section>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ Advisory tab
+function AdvisoryTab({
+  slug,
+  items,
+  filled,
+  sectionLabels,
+  live,
+  locale,
+}: {
+  slug: string;
+  items: AdvisoryMeta[];
+  filled: string[];
+  sectionLabels: Record<string, string | undefined>;
+  live: boolean;
+  locale: Locale;
+}) {
+  const ordered = [...items].sort((a, b) => a.order - b.order);
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">{C.pc(locale, "advisory.intro")}</p>
+      <div className="space-y-2">
+        {ordered.map((a) => (
+          <AdvisoryPanel key={a.key} slug={slug} item={a} live={live} locale={locale} sectionLabels={sectionLabels} />
+        ))}
+      </div>
+      {filled.length === 0 && (
+        <p className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground">
+          {C.pc(locale, "advisory.standsOn")}: {ordered.flatMap((a) => a.needs).filter((k, i, all) => all.indexOf(k) === i)
+            .map((k) => sectionLabels[k] ?? k).join(", ")}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ Catalogue tab (D1–D8)
+function CatalogueTab({ slug, profile, locale }: { slug: string; profile: Profile; locale: Locale }) {
+  return (
+    <div className="space-y-4">
+      {/* The catalogue keeps its own verdict — it is a second reading, not the light. */}
+      <Card className="flex flex-wrap items-start gap-3 p-3">
+        <StatusPill status={profile.status} locale={locale} />
+        <p className="min-w-0 flex-1 text-xs leading-relaxed text-muted-foreground">{C.explainStatus(locale, profile)}</p>
+      </Card>
+
       {/* Knock-outs */}
       <section>
         <SectionLabel>{C.pc(locale, "ko.heading")}</SectionLabel>
@@ -788,27 +1028,5 @@ function StageTab({
         </div>
       </section>
     </div>
-  );
-}
-
-// ------------------------------------------------------------------ catalog scoring (P1)
-function CatalogScoring({ slug, dimensions, locale }: { slug: string; dimensions: DimensionResult[]; locale: Locale }) {
-  return (
-    <section>
-      <SectionLabel as="h3">{C.pc(locale, "catalog.heading")}</SectionLabel>
-      <Card className="divide-y">
-        {dimensions.map((d) => (
-          <div key={d.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-            <span className="min-w-0 truncate font-medium">{d.id} · {C.dimText(locale, d.id).label}</span>
-            <div className="flex shrink-0 items-center gap-3">
-              <span className="text-muted-foreground">{d.score.toFixed(1)}</span>
-              <Link href={`/process/${slug}/assess/${d.id}`} className="text-xs font-medium text-primary hover:underline">
-                {C.pc(locale, "btn.assess")}
-              </Link>
-            </div>
-          </div>
-        ))}
-      </Card>
-    </section>
   );
 }

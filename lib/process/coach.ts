@@ -14,7 +14,8 @@
 import { dimById, criteriaOf } from "./criteria";
 import { sectionByKey, SECTIONS, groupById } from "./sections";
 import * as store from "./store";
-import { shared, dimensionCoach } from "./prompts";
+import { shared, dimensionCoach, sectionCoach, agentPrompt } from "./prompts";
+import { render } from "./render";
 import * as C from "./content";
 import type { Locale } from "../i18n";
 
@@ -44,22 +45,15 @@ export async function build(slug: string, dimId: string, locale: Locale = "en"):
   const m = (await store.meta(slug))!;
   const [sharedText, stance, draft] = await Promise.all([shared(), dimensionCoach(), store.readDimension(slug, dimId)]);
 
-  const head = `Du erhebst die Dimension ${dim.id} — „${dt.label}" (Gewicht ${dim.weight} %) — einer
-Prozessdiagnose bei OESL Automotive.
-
-Engagement: ${m.title}
-Prozessverantwortlicher: ${m.owner || "(nicht erfasst)"}
-Champion: ${m.champion || "(nicht erfasst)"}
-Einheit / Kostenstelle: ${m.unit || "(nicht erfasst)"}
-Anflugrichtung: ${m.anflug === "technology" ? "Technologie-Push" : "Prozess-Pull"}
-${m.components.length ? `Kernkomponenten: ${m.components.map((c) => c.label).join(", ")}` : ""}
-Heutiges Datum: ${new Date().toISOString().slice(0, 10)}
-
-Kernfrage der Dimension: ${dt.question}`;
-
-  const tail = `\n\nFühre das Gespräch Kriterium für Kriterium. Frage nach Evidenz, nicht nach Gefühl.
-Liefere am Ende je Kriterium: vorgeschlagene Stufe (1–5) + einzeilige Evidenznotiz + Konfidenz.
-${speak(locale)}`;
+  const [headTpl, tailTpl] = await Promise.all([agentPrompt("dimension"), agentPrompt("dimension-tail")]);
+  const head = render(headTpl, {
+    dimId: dim.id, dimLabel: dt.label, weight: dim.weight, dimQuestion: dt.question,
+    title: m.title, owner: m.owner, champion: m.champion, unit: m.unit,
+    anflug: m.anflug === "technology" ? "Technologie-Push" : "Prozess-Pull",
+    components: m.components.map((c) => c.label).join(", "),
+    today: new Date().toISOString().slice(0, 10),
+  });
+  const tail = `\n\n${render(tailTpl, { speak: speak(locale) })}`;
 
   return [
     head,
@@ -83,7 +77,7 @@ export async function buildSection(slug: string, key: string, locale: Locale = "
   if (!sec) throw new Error(`unknown section ${key}`);
   const group = groupById[sec.group];
   const m = (await store.meta(slug))!;
-  const [sharedText, current] = await Promise.all([shared(), store.readSection(slug, key)]);
+  const [sharedText, stance, current] = await Promise.all([shared(), sectionCoach(key), store.readSection(slug, key)]);
 
   // Prior context: the sections earlier in the sequence that already have content.
   const priorParts: string[] = [];
@@ -92,32 +86,22 @@ export async function buildSection(slug: string, key: string, locale: Locale = "
     if (c) priorParts.push(`<abschnitt key="${p.key}" titel="${p.label}">\n${c.slice(0, 2000)}\n</abschnitt>`);
   }
 
-  const head = `Du erzeugst den Abschnitt „${sec.label}" (Stufe ${group?.order} — ${group?.label}, Schritt ${sec.order} von 14)
-einer Prozess-Anamnese bei OESL Automotive.
-
-Engagement: ${m.title}
-Prozessverantwortlicher: ${m.owner || "(nicht erfasst)"}
-Champion: ${m.champion || "(nicht erfasst)"}
-Einheit: ${m.unit || "(nicht erfasst)"}
-Anflug: ${m.anflug === "technology" ? "Technologie-Push" : "Prozess-Pull"}
-${m.components.length ? `Kernkomponenten: ${m.components.map((c) => c.label).join(", ")}` : ""}
-
-Zweck dieses Abschnitts: ${sec.description}
-${sec.gateQuestion ? `Tor-Frage (dieser Abschnitt ist ein Tor): ${sec.gateQuestion}` : ""}
-
-DISZIPLIN
-- Fülle die Vorlage aus. Erfinde keine Zahlen oder Namen; wo etwas nicht erhoben ist,
-  schreibe „nicht erhoben" und nenne, was es erheben würde. Keine eckigen Platzhalter.
-- Zahlen tragen ihre Konfidenzstufe (Selbstauskunft/Stichprobe/instrumentiert).
-- Behalte Überschriften und Tabellenspalten der Vorlage bei; sie werden gerendert.`;
-
-  const tail = `\n\nErhebe das Fehlende Schritt für Schritt. Wenn du genug hast, liefere den fertigen Abschnitt
-in einem einzigen fenced-Markdown-Block, damit er verbatim gespeichert werden kann.
-${speak(locale)}`;
+  const [headTpl, tailTpl] = await Promise.all([agentPrompt("section"), agentPrompt("section-tail")]);
+  const head = render(headTpl, {
+    sectionLabel: sec.label, sectionOrder: sec.order,
+    stageOrder: group?.order, stageLabel: group?.label,
+    description: sec.description, gateQuestion: sec.gateQuestion,
+    title: m.title, owner: m.owner, champion: m.champion, unit: m.unit,
+    anflug: m.anflug === "technology" ? "Technologie-Push" : "Prozess-Pull",
+    components: m.components.map((c) => c.label).join(", "),
+  });
+  const tail = `\n\n${render(tailTpl, { speak: speak(locale) })}`;
 
   return [
     head,
     sharedText,
+    // How to run THIS interview — the section's own coaching prompt.
+    stance ? `<coaching-prompt>\n${stance}\n</coaching-prompt>` : "",
     `<vorlage>\n${sec.template}\n</vorlage>`,
     priorParts.length ? `<vorherige-abschnitte>\n${priorParts.join("\n\n")}\n</vorherige-abschnitte>` : "",
     current.trim() ? `<aktueller-stand>\nBaue darauf auf; verwirf nichts Belegtes.\n\n${current}\n</aktueller-stand>` : "",

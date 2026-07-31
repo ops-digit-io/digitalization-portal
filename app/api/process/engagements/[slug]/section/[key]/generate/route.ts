@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { sectionByKey } from "@/lib/process/sections";
+import { grade } from "@/lib/process/grader";
+import { schemaOf } from "@/lib/process/schemas";
 import * as store from "@/lib/process/store";
 import * as coach from "@/lib/process/coach";
 import * as llm from "@/lib/process/llm";
@@ -24,8 +26,10 @@ export async function POST(req: Request, { params }: { params: { slug: string; k
     if (doc.trim().length <= 40) {
       return NextResponse.json({ error: "the model returned no document", code: "NO_ARTEFACT", reply: out.text.slice(0, 400) }, { status: 502 });
     }
-    await store.writeSection(slug, key, doc, now());
-    return NextResponse.json({ saved: true, content: doc, model: out.model });
+    const schema = schemaOf(key);
+    const result = schema ? grade(doc, schema) : null;
+    await store.writeSection(slug, key, doc, now(), result?.score);
+    return NextResponse.json({ saved: true, content: doc, model: out.model, grade: result });
   } catch (e) {
     const err = e as Error & { code?: string };
     return NextResponse.json({ error: err.message, code: err.code || "ERROR" }, { status: err.code === "NO_KEY" ? 503 : 502 });
