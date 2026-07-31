@@ -1,0 +1,26 @@
+{
+  "sectionKey": "diagnosis",
+  "label": "Diagnosis & Branch",
+  "required": [
+    { "type": "heading", "pattern": "(?i)branch test", "weight": 8 },
+    { "type": "table", "minRows": 4, "weight": 12 },
+    { "type": "heading", "pattern": "(?i)leading branch", "weight": 10 },
+    { "type": "field", "pattern": "(?i)^branch$", "weight": 9 },
+    { "type": "field", "pattern": "(?i)condition that decides", "weight": 8 },
+    { "type": "field", "pattern": "(?i)confidence of the numbers", "weight": 7 },
+    { "type": "field", "pattern": "(?i)latency split", "weight": 7 },
+    { "type": "heading", "pattern": "(?i)(ruled out|rejected)", "weight": 9 },
+    { "type": "heading", "pattern": "(?i)hypothesis", "weight": 10 },
+    { "type": "field", "pattern": "(?i)falsified if", "weight": 8 },
+    { "type": "minWords", "count": 350, "weight": 4 },
+    { "type": "noPlaceholder", "weight": 8 }
+  ],
+  "excellence": [
+    { "type": "heading", "pattern": "(?i)compounding", "weight": 8 },
+    { "type": "field", "pattern": "(?i)change-?risk class", "weight": 8 },
+    { "type": "heading", "pattern": "(?i)suspension test", "weight": 8 },
+    { "type": "field", "pattern": "(?i)second assessor", "weight": 6 },
+    { "type": "field", "pattern": "(?i)data pulled during", "weight": 4 },
+    { "type": "minWords", "count": 700, "weight": 6 }
+  ]
+}

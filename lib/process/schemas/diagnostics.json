@@ -1,0 +1,132 @@
+{
+  "sectionKey": "diagnostics",
+  "label": "Diagnostics & Data Points",
+  "required": [
+    {
+      "type": "heading",
+      "pattern": "(?i)value stream",
+      "weight": 6
+    },
+    {
+      "type": "table",
+      "minRows": 4,
+      "weight": 8
+    },
+    {
+      "type": "heading",
+      "pattern": "(?i)latency profile",
+      "weight": 8
+    },
+    {
+      "type": "field",
+      "pattern": "(?i)dominant latency",
+      "weight": 8
+    },
+    {
+      "type": "field",
+      "pattern": "(?i)confidence level",
+      "weight": 6
+    },
+    {
+      "type": "heading",
+      "pattern": "(?i)(exhaust|existing data trail)",
+      "weight": 6
+    },
+    {
+      "type": "heading",
+      "pattern": "(?i)collection ladder",
+      "weight": 6
+    },
+    {
+      "type": "field",
+      "pattern": "(?i)measurement lead time",
+      "weight": 6
+    },
+    {
+      "type": "heading",
+      "pattern": "(?i)measurement and people",
+      "weight": 4
+    },
+    {
+      "type": "field",
+      "pattern": "(?i)(works council|data protection) (status|clearance)",
+      "weight": 2
+    },
+    {
+      "type": "heading",
+      "pattern": "(?i)ratchet",
+      "weight": 6
+    },
+    {
+      "type": "heading",
+      "pattern": "(?i)gate decision",
+      "weight": 6
+    },
+    {
+      "type": "field",
+      "pattern": "(?i)gate decision",
+      "weight": 6
+    },
+    {
+      "type": "minWords",
+      "count": 450,
+      "weight": 3
+    },
+    {
+      "type": "noPlaceholder",
+      "weight": 5
+    },
+    {
+      "type": "heading",
+      "pattern": "(?i)output quality",
+      "weight": 6
+    },
+    {
+      "type": "field",
+      "pattern": "(?i)output quality assessable",
+      "weight": 4
+    },
+    {
+      "type": "field",
+      "pattern": "(?i)quality baseline",
+      "weight": 4
+    }
+  ],
+  "excellence": [
+    {
+      "type": "table",
+      "minRows": 6,
+      "weight": 8
+    },
+    {
+      "type": "heading",
+      "pattern": "(?i)cross-calibration",
+      "weight": 6
+    },
+    {
+      "type": "field",
+      "pattern": "(?i)value stream map producible",
+      "weight": 6
+    },
+    {
+      "type": "field",
+      "pattern": "(?i)sampling window",
+      "weight": 6
+    },
+    {
+      "type": "heading",
+      "pattern": "(?i)open questions",
+      "weight": 6
+    },
+    {
+      "type": "minWords",
+      "count": 800,
+      "weight": 2
+    },
+    {
+      "type": "field",
+      "pattern": "(?i)(rework rate|quality feedback delay)",
+      "weight": 6
+    }
+  ]
+}

@@ -285,6 +285,63 @@ export async function writeSection(slug: string, key: string, content: string, n
   return { changed: true, filledSections };
 }
 
+// ------------------------------------------------- advisory artefacts + verdicts
+/** One advisory pass's markdown output (a DERIVED proposal, kept apart from the sections). */
+export async function readAdvisory(slug: string, key: string): Promise<string> {
+  return (await getRaw(`${relDir(slug)}/advisory-${key}.md`)) ?? "";
+}
+export async function writeAdvisory(slug: string, key: string, content: string, now: string): Promise<{ changed: boolean }> {
+  const rel = `${relDir(slug)}/advisory-${key}.md`;
+  const prev = await getRaw(rel);
+  if (prev === content) return { changed: false };
+  await putRaw(rel, content, `Update advisory ${key} on ${slugify(slug)}`);
+  await writeMeta(slug, {}, now);
+  return { changed: true };
+}
+
+export interface DecisionRecord {
+  advisoryKey: string;
+  proposalId: string;
+  title: string;
+  verdict: "accepted" | "rejected" | "deferred";
+  reason: string;
+  at: string;
+  supersedes: string | null;
+}
+export async function readDecisions(slug: string): Promise<DecisionRecord[]> {
+  const raw = await getRaw(`${relDir(slug)}/decisions.json`);
+  if (raw === undefined) return [];
+  try {
+    const v = JSON.parse(raw) as unknown;
+    return Array.isArray(v) ? (v as DecisionRecord[]) : [];
+  } catch {
+    return [];
+  }
+}
+export async function writeDecisions(slug: string, all: DecisionRecord[], now: string): Promise<DecisionRecord[]> {
+  await putRaw(`${relDir(slug)}/decisions.json`, JSON.stringify(all, null, 2), `Record advisory verdict on ${slugify(slug)}`);
+  await writeMeta(slug, {}, now);
+  return all;
+}
+
+// -------------------------------------------------------------- digest (JSON)
+/** The derived one-screen digest, stored next to the sections so it diffs. */
+export async function readDigest(slug: string): Promise<Record<string, unknown> | null> {
+  const raw = await getRaw(`${relDir(slug)}/digest.json`);
+  if (raw === undefined) return null;
+  try {
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+export async function writeDigest<T extends Record<string, unknown>>(slug: string, data: T, now: string): Promise<T & { generatedAt: string }> {
+  const withStamp = { ...data, generatedAt: now };
+  await putRaw(`${relDir(slug)}/digest.json`, JSON.stringify(withStamp, null, 2), `Update digest on ${slugify(slug)}`);
+  await writeMeta(slug, {}, now);
+  return withStamp;
+}
+
 // ------------------------------------------------------- risk checks (Tor T3)
 export async function riskChecks(slug: string): Promise<Record<string, { answer: string; evidence: string }>> {
   const raw = await getRaw(`${relDir(slug)}/${RISK}`);

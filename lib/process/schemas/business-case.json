@@ -1,0 +1,26 @@
+{
+  "sectionKey": "business-case",
+  "label": "Business Case",
+  "required": [
+    { "type": "table", "minRows": 3, "weight": 12 },
+    { "type": "field", "pattern": "(?i)payback period", "weight": 10 },
+    { "type": "noPlaceholder", "weight": 10 },
+    { "type": "field", "pattern": "(?i)net annual benefit", "weight": 9 },
+    { "type": "field", "pattern": "(?i)annual gross benefit", "weight": 8 },
+    { "type": "field", "pattern": "(?i)one-?off cost", "weight": 8 },
+    { "type": "field", "pattern": "(?i)conservative case", "weight": 7 },
+    { "type": "field", "pattern": "(?i)people affected", "weight": 7 },
+    { "type": "field", "pattern": "(?i)running cost", "weight": 6 },
+    { "type": "field", "pattern": "(?i)cases per year", "weight": 6 },
+    { "type": "heading", "pattern": "(?i)cost of change", "weight": 6 },
+    { "type": "heading", "pattern": "(?i)(evidence and assumption|ledger)", "weight": 6 },
+    { "type": "minWords", "count": 450, "weight": 5 }
+  ],
+  "excellence": [
+    { "type": "heading", "pattern": "(?i)sensitivit", "weight": 10 },
+    { "type": "field", "pattern": "(?i)break-?even", "weight": 8 },
+    { "type": "table", "minRows": 8, "weight": 8 },
+    { "type": "minWords", "count": 900, "weight": 8 },
+    { "type": "field", "pattern": "(?i)cost rate source", "weight": 6 }
+  ]
+}

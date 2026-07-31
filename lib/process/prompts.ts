@@ -17,6 +17,20 @@ export function dimensionCoach(): Promise<string> {
   return body("process-dimension-coach");
 }
 
+/**
+ * The coaching prompt for ONE anamnesis section: how to run that interview —
+ * the interviewer's stance, what to establish, what not to chase, and why the
+ * section decides whether the engagement goes on. One per section key.
+ */
+export function sectionCoach(key: string): Promise<string> {
+  return body(`process-section-${key}`);
+}
+
+/** One of the four advisory prompts (clusters, improvements, target-tech, challenge). */
+export function advisoryPrompt(name: string): Promise<string> {
+  return body(`process-advisory-${name}`);
+}
+
 /** The organisation's tool playbook (for the Toolbox-Evolution branch). */
 export function playbook(): Promise<string> {
   return body("process-tool-playbook");

@@ -14,7 +14,7 @@
 import { dimById, criteriaOf } from "./criteria";
 import { sectionByKey, SECTIONS, groupById } from "./sections";
 import * as store from "./store";
-import { shared, dimensionCoach } from "./prompts";
+import { shared, dimensionCoach, sectionCoach } from "./prompts";
 import * as C from "./content";
 import type { Locale } from "../i18n";
 
@@ -83,7 +83,7 @@ export async function buildSection(slug: string, key: string, locale: Locale = "
   if (!sec) throw new Error(`unknown section ${key}`);
   const group = groupById[sec.group];
   const m = (await store.meta(slug))!;
-  const [sharedText, current] = await Promise.all([shared(), store.readSection(slug, key)]);
+  const [sharedText, stance, current] = await Promise.all([shared(), sectionCoach(key), store.readSection(slug, key)]);
 
   // Prior context: the sections earlier in the sequence that already have content.
   const priorParts: string[] = [];
@@ -118,6 +118,8 @@ ${speak(locale)}`;
   return [
     head,
     sharedText,
+    // How to run THIS interview — the section's own coaching prompt.
+    stance ? `<coaching-prompt>\n${stance}\n</coaching-prompt>` : "",
     `<vorlage>\n${sec.template}\n</vorlage>`,
     priorParts.length ? `<vorherige-abschnitte>\n${priorParts.join("\n\n")}\n</vorherige-abschnitte>` : "",
     current.trim() ? `<aktueller-stand>\nBaue darauf auf; verwirf nichts Belegtes.\n\n${current}\n</aktueller-stand>` : "",
