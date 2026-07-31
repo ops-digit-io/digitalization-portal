@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { apiGet, apiSend, Md } from "@/components/process/ui";
 import { useI18n } from "@/components/providers";
+import { PromptButton } from "@/components/process/prompt-button";
 import * as C from "@/lib/process/content";
 
 const INPUT = "mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring";
@@ -390,6 +391,16 @@ function CoachingPanel({
         {liveCoaching ? <Chat slug={slug} dim={dim} /> : (
           <p className="text-xs text-muted-foreground">{C.pc(locale, "coach.off")}</p>
         )}
+        {/* With no key the chat is dead, but the interview is not: the same prompt
+            runs anywhere. Offered live too — some prefer their own assistant. */}
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <PromptButton
+            path={`/engagements/${slug}/dimension/${dim}/prompt?lang=${locale}`}
+            locale={locale}
+            label={`${dim} · ${C.dimText(locale, dim).label}`}
+          />
+          {!liveCoaching && <span className="text-xs text-muted-foreground">{C.pc(locale, "prompt.offline")}</span>}
+        </div>
       </Card>
 
       <EvidenceNote slug={slug} dim={dim} initial={initialEvidence} />
