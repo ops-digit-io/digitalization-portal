@@ -94,7 +94,13 @@ interface ScoreDimension {
   key: string; label: string; weight: number;
   score: number | null; assessed: boolean; coverage: number;
 }
-interface ScoreKnockOut { key: string; label: string; state: "pass" | "fail" | "unknown"; note: string }
+/** The engine writes English prose plus a code for the same sentence, so the
+ *  display layer can say it in another language without parsing it back. */
+interface TextCode { code: string; params?: Record<string, string | number> }
+interface ScoreKnockOut {
+  key: string; label: string; state: "pass" | "fail" | "unknown";
+  note: string; noteCode?: TextCode;
+}
 interface ScoreResult {
   dimensions: Record<string, ScoreDimension>;
   knockOuts: ScoreKnockOut[];
@@ -108,6 +114,8 @@ interface LightResult {
   reason: string;
   /** What actually drove the colour — the reason, itemised. */
   drivers: string[];
+  reasonCode?: TextCode;
+  driverCodes?: TextCode[];
 }
 interface Engagement {
   meta: Meta;
@@ -261,7 +269,7 @@ export default function EngagementCockpit() {
   // which is no longer a stage — fall back to the first stage rather than "—".
   const currentStage = config.groups.find((g) => g.id === meta.phase) ?? stagesInOrder[0]!;
   const koCleared = score.knockOuts.filter((k) => k.state === "pass").length;
-  const sectionLabels = Object.fromEntries(config.sections.map((x) => [x.key, x.label]));
+  const sectionLabels = Object.fromEntries(config.sections.map((x) => [x.key, C.sectionText(locale, x).label]));
 
   // One model for the strip, so the keyboard handler and the markup agree.
   // Analysis sits LAST: it reads the finished anamnesis, so it is the closing step.
@@ -273,7 +281,7 @@ export default function EngagementCockpit() {
       const verdicts = secs.map((x) => meta.gates[x.key]).filter(Boolean);
       return {
         id: g.id,
-        label: `${g.order} · ${g.label}`,
+        label: `${g.order} · ${C.stageText(locale, g).label}`,
         current: g.id === currentStage.id,
         ...(secs.length ? { count: `${done}/${secs.length}` } : {}),
         gate: verdicts.length === 0 ? null : verdicts.some((v) => v && !v.passed) ? ("fail" as const) : ("pass" as const),
@@ -327,7 +335,7 @@ export default function EngagementCockpit() {
             </div>
             <div className="max-w-md text-right">
               <LightPill light={light.light} locale={locale} />
-              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{light.reason}</p>
+              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{C.explainLight(locale, light)}</p>
               <a href={`${reportUrl}&lang=${locale}`} className="mt-1.5 inline-block text-xs font-medium text-primary hover:underline" download>
                 {C.pc(locale, "report.link")}
               </a>
@@ -352,16 +360,16 @@ export default function EngagementCockpit() {
                 {score.overall ?? "—"}
               </dd>
               <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
-                {koCleared}/{score.knockOuts.length} {C.pc(locale, "score.knockOuts").toLowerCase()} {C.pc(locale, "ko.cleared")}
+                {koCleared}/{score.knockOuts.length} {C.pc(locale, "score.knockOuts")} {C.pc(locale, "ko.cleared")}
               </p>
             </div>
             <div>
               <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{C.pc(locale, "stat.phase")}</dt>
               <dd className="mt-1 text-sm font-medium leading-tight">
-                {`${currentStage.order} · ${currentStage.label}`}
+                {`${currentStage.order} · ${C.stageText(locale, currentStage).label}`}
               </dd>
               <p className="mt-1.5 text-[11px] text-muted-foreground">
-                {filled.length}/{config.sections.length} {C.pc(locale, "sections.heading").toLowerCase()}
+                {filled.length}/{config.sections.length} {C.pc(locale, "sections.heading")}
               </p>
             </div>
           </dl>
@@ -530,6 +538,7 @@ function OverviewTab({
   onChanged: () => Promise<void>;
 }) {
   const dims = Object.values(score.dimensions).sort((a, b) => b.weight - a.weight);
+  const drivers = C.lightDrivers(locale, light);
   return (
     <div className="space-y-4">
       <section>
@@ -538,7 +547,7 @@ function OverviewTab({
           {dims.map((d) => (
             <div key={d.key} className="flex items-center gap-3 px-3 py-2">
               <div className="w-56 shrink-0">
-                <div className="text-sm font-medium leading-snug">{d.label}</div>
+                <div className="text-sm font-medium leading-snug">{C.scoreDimLabel(locale, d.key, d.label)}</div>
                 <div className="mt-0.5 text-xs text-muted-foreground">{C.pc(locale, "dim.weight")} {d.weight}%</div>
               </div>
               <div className="flex-1">
@@ -582,21 +591,21 @@ function OverviewTab({
               <div key={k.key} className={`max-w-sm rounded-md border px-3 py-2 text-sm ${tone}`}>
                 <div className="flex items-center gap-2">
                   <span className={`font-semibold ${markCls}`} aria-hidden>{mark}</span>
-                  <span className="font-medium">{k.label}</span>
+                  <span className="font-medium">{C.koLabel(locale, k.key, k.label)}</span>
                 </div>
-                <div className="mt-0.5 text-xs leading-snug text-muted-foreground">{k.note}</div>
+                <div className="mt-0.5 text-xs leading-snug text-muted-foreground">{C.koNote(locale, k)}</div>
               </div>
             );
           })}
         </div>
       </section>
 
-      {light.drivers.length > 0 && (
+      {drivers.length > 0 && (
         <section>
           <SectionLabel>{C.pc(locale, "directions.heading")}</SectionLabel>
           <Card className="p-3">
             <ul className="space-y-1 text-sm">
-              {light.drivers.map((line) => (
+              {drivers.map((line) => (
                 <li key={line} className="flex gap-2">
                   <span className="text-muted-foreground" aria-hidden>→</span>
                   <span>{line}</span>
@@ -1001,7 +1010,7 @@ function StageTab({
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-sm text-muted-foreground">{stage.subtitle}</p>
+        <p className="text-sm text-muted-foreground">{C.stageText(locale, stage).subtitle}</p>
         <p className="mt-1 border-l-2 border-border pl-3 text-xs text-muted-foreground">{C.pc(locale, "anamnesis.intro")}</p>
       </div>
 

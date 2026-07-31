@@ -31,11 +31,14 @@ export interface StageProgress {
 export interface Summary {
   light: Light;
   reason: string;
+  drivers: string[];
+  reasonCode?: { code: string; params?: Record<string, string | number> };
+  driverCodes?: { code: string; params?: Record<string, string | number> }[];
   coverage: number;
   sectionsAssessed: number;
   sectionsTotal: number;
   overall: number | null;
-  koFailed: string[];
+  koFailed: { key: string; label: string }[];
   stages: StageProgress[];
 }
 export interface EngagementRow {
@@ -56,9 +59,10 @@ const LIGHT: Record<Light, string> = {
   grey: "bg-muted-foreground/40",
 };
 
-function fmtDate(s: string): string {
+/** The reader's locale decides the order of the fields, not the server's. */
+function fmtDate(s: string, locale: Locale): string {
   const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(locale === "de" ? "de-DE" : "en-GB");
 }
 
 export function EngagementTile({ row, locale }: { row: EngagementRow; locale: Locale }) {
@@ -92,7 +96,7 @@ export function EngagementTile({ row, locale }: { row: EngagementRow; locale: Lo
         {s && s.koFailed.length > 0 && (
           <div className="flex">
             <span className="truncate rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-[hsl(var(--destructive))]">
-              {s.koFailed.join(", ")} · {C.pc(locale, "tile.koFailed")}
+              {s.koFailed.map((k) => C.koLabel(locale, k.key, k.label)).join(", ")} · {C.pc(locale, "tile.koFailed")}
             </span>
           </div>
         )}
@@ -100,13 +104,13 @@ export function EngagementTile({ row, locale }: { row: EngagementRow; locale: Lo
         {/* One segment per stage: section fill, red where a gate in it was failed. */}
         {s && (
           <div>
-            <div className="flex gap-1" role="img" aria-label={`${C.pc(locale, "tile.phases")}: ${s.stages.map((p) => `${p.label} ${p.done}/${p.total}`).join(", ")}`}>
+            <div className="flex gap-1" role="img" aria-label={`${C.pc(locale, "tile.phases")}: ${s.stages.map((p) => `${C.stageLabel(locale, p.id, p.label)} ${p.done}/${p.total}`).join(", ")}`}>
               {s.stages.map((p) => {
                 const fill = p.gate === "fail" ? 100 : p.total ? (p.done / p.total) * 100 : 0;
                 return (
                   <span
                     key={p.id}
-                    title={`${p.n} · ${p.label} — ${p.done}/${p.total}${p.gate ? ` · ${C.pc(locale, p.gate === "pass" ? "gate.pass" : "gate.fail")}` : ""}`}
+                    title={`${p.n} · ${C.stageLabel(locale, p.id, p.label)} — ${p.done}/${p.total}${p.gate ? ` · ${C.pc(locale, p.gate === "pass" ? "gate.pass" : "gate.fail")}` : ""}`}
                     className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-secondary"
                   >
                     <i
@@ -127,13 +131,13 @@ export function EngagementTile({ row, locale }: { row: EngagementRow; locale: Lo
 
         <div className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground">
           <span className={`size-2 shrink-0 rounded-full ${LIGHT[light]}`} aria-hidden />
-          <span className="font-medium text-foreground" title={s?.reason}>
+          <span className="font-medium text-foreground" title={s ? C.explainLight(locale, s) : undefined}>
             {light === "grey" ? C.pc(locale, "tile.notAssessed") : C.lightLabel(locale, light)}
           </span>
           {s && s.sectionsAssessed > 0 && (
             <span className="truncate">· {pct}% {C.pc(locale, "tile.assessed")}{s.overall !== null ? ` · ${s.overall}` : ""}</span>
           )}
-          <span className="ml-auto shrink-0 tabular-nums">{fmtDate(row.updatedAt)}</span>
+          <span className="ml-auto shrink-0 tabular-nums">{fmtDate(row.updatedAt, locale)}</span>
         </div>
       </div>
     </Link>

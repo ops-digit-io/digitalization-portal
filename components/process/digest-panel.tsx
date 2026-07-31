@@ -59,7 +59,7 @@ function Lvl({ v, note }: { v?: string; note?: string }) {
 }
 
 /** The number leads, the bar gives it a shape, the basis keeps it honest. */
-function Dial({ label, s }: { label: string; s?: Score }) {
+function Dial({ label, s, locale }: { label: string; s?: Score; locale: Locale }) {
   const v = Math.max(0, Math.min(100, Number(s?.value ?? 0)));
   return (
     <div className="border-t pt-3">
@@ -70,12 +70,12 @@ function Dial({ label, s }: { label: string; s?: Score }) {
       <div className="my-2 h-1.5 overflow-hidden rounded-full bg-secondary">
         <div className="h-full bg-foreground/70" style={{ width: `${s ? v : 0}%` }} />
       </div>
-      <p className="text-xs leading-snug text-muted-foreground">{s?.basis || "not assessed"}</p>
+      <p className="text-xs leading-snug text-muted-foreground">{s?.basis || C.pc(locale, "score.notAssessed")}</p>
     </div>
   );
 }
 
-function FrictionCol({ title, items, tone }: { title: string; items?: FrictionItem[]; tone: string }) {
+function FrictionCol({ title, items, tone, locale }: { title: string; items?: FrictionItem[]; tone: string; locale: Locale }) {
   return (
     <div>
       <h4 className={`mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider ${tone}`}>
@@ -83,7 +83,7 @@ function FrictionCol({ title, items, tone }: { title: string; items?: FrictionIt
         {items?.length ? <span className="rounded-full bg-foreground px-1.5 text-[10px] text-background">{items.length}</span> : null}
       </h4>
       {!items?.length ? (
-        <p className="text-xs text-muted-foreground">none recorded</p>
+        <p className="text-xs text-muted-foreground">{C.pc(locale, "digest.noneRecorded")}</p>
       ) : (
         <ul className="space-y-0">
           {items.map((f, i) => (
@@ -91,7 +91,7 @@ function FrictionCol({ title, items, tone }: { title: string; items?: FrictionIt
               <b className="block">{f.where}</b>
               {f.what}
               {f.evidence && <em className="mt-0.5 block not-italic text-muted-foreground">{f.evidence}</em>}
-              {f.cost && <em className="mt-0.5 block not-italic text-muted-foreground">cost: {f.cost}</em>}
+              {f.cost && <em className="mt-0.5 block not-italic text-muted-foreground">{C.pc(locale, "digest.cost")}: {f.cost}</em>}
             </li>
           ))}
         </ul>
@@ -169,12 +169,12 @@ export function DigestPanel({
         <Card className="bg-muted/30 p-4">
           <h3 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{C.pc(locale, "digest.process")}</h3>
           <p className="mb-3 mt-2 text-sm leading-relaxed">{digest.processStatement}</p>
-          <Dial label={C.pc(locale, "digest.processScore")} s={digest.processScore} />
+          <Dial label={C.pc(locale, "digest.processScore")} s={digest.processScore} locale={locale} />
         </Card>
         <Card className="bg-muted/30 p-4">
           <h3 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{C.pc(locale, "digest.technology")}</h3>
           <p className="mb-3 mt-2 text-sm leading-relaxed">{digest.technologyStatement}</p>
-          <Dial label={C.pc(locale, "digest.technologyScore")} s={digest.technologyScore} />
+          <Dial label={C.pc(locale, "digest.technologyScore")} s={digest.technologyScore} locale={locale} />
         </Card>
       </div>
 
@@ -212,9 +212,9 @@ export function DigestPanel({
       <Card className="p-4">
         <h3 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{C.pc(locale, "digest.friction")}</h3>
         <div className="grid gap-5 md:grid-cols-3">
-          <FrictionCol title={C.pc(locale, "digest.actual")} items={f.actual} tone="text-[hsl(var(--destructive))]" />
-          <FrictionCol title={C.pc(locale, "digest.potential")} items={f.potential} tone="text-[hsl(var(--warn))]" />
-          <FrictionCol title={C.pc(locale, "digest.prunable")} items={f.prunable} tone="text-[hsl(var(--ok))]" />
+          <FrictionCol title={C.pc(locale, "digest.actual")} items={f.actual} tone="text-[hsl(var(--destructive))]" locale={locale} />
+          <FrictionCol title={C.pc(locale, "digest.potential")} items={f.potential} tone="text-[hsl(var(--warn))]" locale={locale} />
+          <FrictionCol title={C.pc(locale, "digest.prunable")} items={f.prunable} tone="text-[hsl(var(--ok))]" locale={locale} />
         </div>
       </Card>
 

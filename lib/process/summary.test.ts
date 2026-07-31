@@ -40,7 +40,7 @@ describe("engagement summary", () => {
     expect(s.light).toBe("red");
     // The spoke knock-out hangs off the `profile` gate, so a failed profile gate
     // reads as a failed knock-out — not as a plain gate failure.
-    expect(s.koFailed).toContain("Responsible spoke");
+    expect(s.koFailed).toContainEqual({ key: "spoke", label: "Responsible spoke" });
     expect(s.gateFailures).not.toContain("profile");
   });
 

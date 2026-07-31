@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { DIMENSIONS, criteriaOf } from "@/lib/process/criteria";
 import * as store from "@/lib/process/store";
 import { profileOf } from "@/lib/process/profile";
+import { groupById } from "@/lib/process/sections";
 import * as C from "@/lib/process/content";
 import { deny } from "@/lib/process/guard";
 import type { Locale } from "@/lib/i18n";
@@ -57,7 +58,14 @@ export async function GET(req: Request, { params }: { params: { slug: string } }
     parts.push("");
   }
   if (m.branch) parts.push(`## ${en ? "Diagnosis" : "Diagnose"}`, "", `${en ? "Chosen branch" : "Gewählter Zweig"}: **${m.branch}**${m.riskClass ? ` · ${en ? "risk class" : "Risikoklasse"} **${m.riskClass}**` : ""}`, "");
-  parts.push(`_${en ? "Current phase" : "Aktuelle Phase"}: ${C.phaseText(locale, m.phase).label ?? m.phase}._`);
+  // `phase` holds a STAGE id now ("discovery"), not one of the old P0–P5 phases,
+  // so it is resolved against the anamnesis stages — the old table would throw.
+  const stage = groupById[m.phase];
+  parts.push(
+    `_${en ? "Current stage" : "Aktuelle Stufe"}: ${
+      stage ? `${stage.order} · ${C.stageLabel(locale, stage.id, stage.label)}` : m.phase
+    }._`,
+  );
 
   const md = parts.join("\n");
   if (url.searchParams.get("format") === "md") {

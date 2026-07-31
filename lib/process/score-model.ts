@@ -82,6 +82,18 @@ export interface DimensionEntry {
   missing: string[];
 }
 
+/**
+ * The same statement as `note`/`reason`, in a form a translator can render.
+ *
+ * The engine's English text is the port and stays byte-identical; these codes
+ * exist so the display layer can say the same thing in another language without
+ * anyone parsing a sentence back into facts.
+ */
+export interface TextCode {
+  code: string;
+  params?: Record<string, string | number>;
+}
+
 export interface KnockOutEntry {
   key: KnockOutKey;
   label: string;
@@ -91,6 +103,7 @@ export interface KnockOutEntry {
   /** Which key the verdict was read from, or the backing section, or null. */
   source: string | null;
   note: string;
+  noteCode: TextCode;
 }
 
 export interface ScoreProfileResult {
@@ -114,6 +127,9 @@ export interface TrafficLightResult {
   detail: Record<string, string>;
   drivers: string[];
   knockOutDriven?: boolean;
+  /** `reason` and `drivers` again, translatable. See TextCode. */
+  reasonCode: TextCode;
+  driverCodes: TextCode[];
 }
 
 export interface Factors {
@@ -440,15 +456,27 @@ function resolveKnockOut(
   }
 
   if (verdict === true) {
-    return { ...base, state: "pass", source, note: `recorded verdict on "${source}"` };
+    return {
+      ...base, state: "pass", source,
+      note: `recorded verdict on "${source}"`,
+      noteCode: { code: "ko.verdict", params: { source: String(source) } },
+    };
   }
   if (verdict === false) {
-    return { ...base, state: "fail", source, note: `recorded verdict on "${source}"` };
+    return {
+      ...base, state: "fail", source,
+      note: `recorded verdict on "${source}"`,
+      noteCode: { code: "ko.verdict", params: { source: String(source) } },
+    };
   }
 
   const backing = coerceScore(scores[def.gateSection]);
   if (backing === null) {
-    return { ...base, state: "unknown", source: null, note: `${def.gateSection} not assessed` };
+    return {
+      ...base, state: "unknown", source: null,
+      note: `${def.gateSection} not assessed`,
+      noteCode: { code: "ko.notAssessed", params: { section: def.gateSection } },
+    };
   }
   if (backing < THRESHOLDS.koEvidenceFloor) {
     return {
@@ -456,6 +484,7 @@ function resolveKnockOut(
       state: "unknown",
       source: def.gateSection,
       note: `${def.gateSection} scored ${backing} — the artefact does not carry the evidence`,
+      noteCode: { code: "ko.weakEvidence", params: { section: def.gateSection, score: backing } },
     };
   }
   return {
@@ -463,6 +492,7 @@ function resolveKnockOut(
     state: "unknown",
     source: def.gateSection,
     note: `${def.gateSection} scored ${backing}, but no gate verdict has been recorded`,
+    noteCode: { code: "ko.noVerdict", params: { section: def.gateSection, score: backing } },
   };
 }
 
@@ -560,7 +590,10 @@ function isKnockOutEntry(v: unknown): v is KnockOutEntry {
  */
 export function trafficLight(profile: ScoreProfileResult | null | undefined): TrafficLightResult {
   if (!profile || typeof profile !== "object" || !profile.dimensions) {
-    return { light: "grey", reason: "No profile could be computed.", detail: {}, drivers: [] };
+    return {
+      light: "grey", reason: "No profile could be computed.", detail: {}, drivers: [],
+      reasonCode: { code: "light.noProfile" }, driverCodes: [],
+    };
   }
 
   const dims = Object.values(plainObject(profile.dimensions)).filter(isDimensionEntry);
@@ -587,11 +620,15 @@ export function trafficLight(profile: ScoreProfileResult | null | undefined): Tr
   }
 
   const drivers: string[] = [];
+  const driverCodes: TextCode[] = [];
 
   // 1. A failed knock-out dominates. It outranks coverage, it outranks every
   //    dimension score, and it does not average with anything.
   if (failed.length) {
-    for (const k of failed) drivers.push(`${k.label}: failed — ${k.consequence}`);
+    for (const k of failed) {
+      drivers.push(`${k.label}: failed — ${k.consequence}`);
+      driverCodes.push({ code: "driver.koFailed", params: { ko: k.key } });
+    }
     const first = failed[0];
     return {
       light: "red",
@@ -602,6 +639,11 @@ export function trafficLight(profile: ScoreProfileResult | null | undefined): Tr
       detail,
       drivers,
       knockOutDriven: true,
+      reasonCode:
+        failed.length === 1 && first
+          ? { code: "light.koFailedOne", params: { ko: first.key } }
+          : { code: "light.koFailedMany", params: { n: failed.length, kos: failed.map((k) => k.key).join(",") } },
+      driverCodes,
     };
   }
 
@@ -613,16 +655,28 @@ export function trafficLight(profile: ScoreProfileResult | null | undefined): Tr
   //    means no reading of any result, which is the same as no velocity.
   if (vis && vis.score !== null && vis.score < THRESHOLDS.redVisibilityFloor) {
     drivers.push(`Visibility ${vis.score} — below ${THRESHOLDS.redVisibilityFloor}; no increment could be read.`);
+    driverCodes.push({
+      code: "driver.visibilityFloor",
+      params: { score: vis.score, floor: THRESHOLDS.redVisibilityFloor },
+    });
     return {
       light: "red",
       reason: `Visibility is ${vis.score}. Nothing shipped on this process could be read, so nothing can be improved on evidence.`,
       detail,
       drivers,
       knockOutDriven: false,
+      reasonCode: { code: "light.visibilityFloor", params: { score: vis.score } },
+      driverCodes,
     };
   }
   if (below.length >= 2) {
-    for (const d of below) drivers.push(`${d.label} ${d.score} — below ${THRESHOLDS.redDimensionFloor}.`);
+    for (const d of below) {
+      drivers.push(`${d.label} ${d.score} — below ${THRESHOLDS.redDimensionFloor}.`);
+      driverCodes.push({
+        code: "driver.dimBelow",
+        params: { dim: d.key, score: d.score, floor: THRESHOLDS.redDimensionFloor },
+      });
+    }
     return {
       light: "red",
       reason: `${below.length} dimensions below ${THRESHOLDS.redDimensionFloor}: ${below
@@ -631,6 +685,11 @@ export function trafficLight(profile: ScoreProfileResult | null | undefined): Tr
       detail,
       drivers,
       knockOutDriven: false,
+      reasonCode: {
+        code: "light.dimsBelow",
+        params: { n: below.length, floor: THRESHOLDS.redDimensionFloor, dims: below.map((d) => d.key).join(",") },
+      },
+      driverCodes,
     };
   }
 
@@ -646,6 +705,11 @@ export function trafficLight(profile: ScoreProfileResult | null | undefined): Tr
       detail,
       drivers: [],
       knockOutDriven: false,
+      reasonCode:
+        coverage === 0
+          ? { code: "light.greyEmpty" }
+          : { code: "light.greyThin", params: { pct: Math.round(coverage * 100) } },
+      driverCodes: [],
     };
   }
 
@@ -654,26 +718,53 @@ export function trafficLight(profile: ScoreProfileResult | null | undefined): Tr
   const weakDims = scored.filter((d) => d.score < THRESHOLDS.greenDimensionFloor);
   const gateFailures = Array.isArray(profile.gateFailures) ? profile.gateFailures : [];
   const greenBlockers: string[] = [];
-  if (gateFailures.length) greenBlockers.push(`gate failed and not yet re-run: ${gateFailures.join(", ")}`);
-  if (unknown.length) greenBlockers.push(`${unknown.length} knock-out(s) without a recorded verdict`);
-  if (unassessedDims.length)
+  const blockerCodes: TextCode[] = [];
+  if (gateFailures.length) {
+    greenBlockers.push(`gate failed and not yet re-run: ${gateFailures.join(", ")}`);
+    blockerCodes.push({ code: "blocker.gateFailed", params: { sections: gateFailures.join(",") } });
+  }
+  if (unknown.length) {
+    greenBlockers.push(`${unknown.length} knock-out(s) without a recorded verdict`);
+    blockerCodes.push({ code: "blocker.koNoVerdict", params: { n: unknown.length } });
+  }
+  if (unassessedDims.length) {
     greenBlockers.push(`${unassessedDims.map((d) => d.label.toLowerCase()).join(", ")} not sufficiently assessed`);
-  if (weakDims.length)
+    blockerCodes.push({ code: "blocker.dimsUnassessed", params: { dims: unassessedDims.map((d) => d.key).join(",") } });
+  }
+  if (weakDims.length) {
     greenBlockers.push(
       `${weakDims.map((d) => `${d.label.toLowerCase()} ${d.score}`).join(", ")} below ${THRESHOLDS.greenDimensionFloor}`,
     );
-  if (coverage < THRESHOLDS.greenCoverage)
+    blockerCodes.push({
+      code: "blocker.dimsWeak",
+      params: {
+        floor: THRESHOLDS.greenDimensionFloor,
+        dims: weakDims.map((d) => `${d.key}:${d.score}`).join(","),
+      },
+    });
+  }
+  if (coverage < THRESHOLDS.greenCoverage) {
     greenBlockers.push(
       `coverage ${Math.round(coverage * 100)} % below ${Math.round(THRESHOLDS.greenCoverage * 100)} %`,
     );
+    blockerCodes.push({
+      code: "blocker.coverage",
+      params: { pct: Math.round(coverage * 100), floor: Math.round(THRESHOLDS.greenCoverage * 100) },
+    });
+  }
 
   if (!greenBlockers.length) {
+    const worst = scored.reduce<ScoredDimension | null>((a, d) => (a === null || d.score < a.score ? d : a), null);
     return {
       light: "green",
       reason: "All three knock-outs cleared, every dimension assessed and at or above the green floor.",
       detail,
       drivers: [`Weakest dimension: ${weakest(scored)}`],
       knockOutDriven: false,
+      reasonCode: { code: "light.green" },
+      driverCodes: worst
+        ? [{ code: "driver.weakest", params: { dim: worst.key, score: worst.score } }]
+        : [{ code: "driver.weakestNone" }],
     };
   }
 
@@ -683,6 +774,8 @@ export function trafficLight(profile: ScoreProfileResult | null | undefined): Tr
     detail,
     drivers: greenBlockers,
     knockOutDriven: false,
+    reasonCode: { code: "light.amber" },
+    driverCodes: blockerCodes,
   };
 }
 
