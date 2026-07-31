@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { apiGet, apiSend, Md } from "@/components/process/ui";
 import type { Locale } from "@/lib/i18n";
+import { PromptButton } from "@/components/process/prompt-button";
 import * as C from "@/lib/process/content";
 
 const INPUT = "mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring";
@@ -177,11 +178,13 @@ export function AdvisoryPanel({
 
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 {live && <Button size="sm" disabled={busy} onClick={run}>{busy ? "…" : C.pc(locale, "advisory.run")}</Button>}
+                <PromptButton path={`/engagements/${slug}/advisory/${item.key}/prompt`} locale={locale} label={text.label} />
                 <Button size="sm" variant="outline" onClick={() => setPreview((p) => !p)}>
                   {preview ? C.pc(locale, "btn.edit") : C.pc(locale, "btn.preview")}
                 </Button>
                 {!preview && <Button size="sm" variant="outline" disabled={busy} onClick={save}>{C.pc(locale, "btn.save")}</Button>}
               </div>
+              {!live && <p className="mb-2 text-xs text-muted-foreground">{C.pc(locale, "prompt.offline")}</p>}
               {hint && <p className="mb-2 text-xs text-amber-600 dark:text-amber-500">{hint}</p>}
               {err && <p className="mb-2 text-xs text-destructive">{err}</p>}
 

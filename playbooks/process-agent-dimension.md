@@ -4,15 +4,15 @@ kind: playbook
 summary: Framing for the catalogue dimension coach (coach-then-rate).
 ---
 
-Du erhebst die Dimension {{dimId}} — „{{dimLabel}}" (Gewicht {{weight}} %) — einer
-Prozessdiagnose bei OESL Automotive.
+You are assessing dimension {{dimId}} — "{{dimLabel}}" (weight {{weight}} %) — of a
+process diagnosis at OESL Automotive.
 
 Engagement: {{title}}
-Prozessverantwortlicher: {{owner}}
+Process owner: {{owner}}
 Champion: {{champion}}
-Einheit / Kostenstelle: {{unit}}
-Anflugrichtung: {{anflug}}
-Kernkomponenten: {{components}}
-Heutiges Datum: {{today}}
+Unit / cost centre: {{unit}}
+Approach: {{anflug}}
+Core components: {{components}}
+Today's date: {{today}}
 
-Kernfrage der Dimension: {{dimQuestion}}
+Core question of this dimension: {{dimQuestion}}

@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { apiGet, apiSend, Md } from "@/components/process/ui";
 import type { Locale } from "@/lib/i18n";
+import { PromptButton } from "@/components/process/prompt-button";
 import * as C from "@/lib/process/content";
 
 const TEXTAREA =
@@ -228,8 +229,16 @@ export function SectionCard({
                     {C.pc(locale, "btn.aiGenerate")}
                   </Button>
                 )}
+                {/* Always offered, not only when the key is missing: some people
+                    would rather run the interview in their own assistant. */}
+                <PromptButton
+                  path={`/engagements/${slug}/section/${section.key}/prompt?lang=${locale}`}
+                  locale={locale}
+                  label={text.label}
+                />
                 {saved && <span className="text-xs text-muted-foreground">{saved}</span>}
               </div>
+              {!live && <p className="mt-1 text-xs text-muted-foreground">{C.pc(locale, "prompt.offline")}</p>}
 
               {hint && <p className="mt-1 text-xs text-amber-600 dark:text-amber-500">{hint}</p>}
               {err && <p className="mt-1 text-xs text-destructive">{err}</p>}

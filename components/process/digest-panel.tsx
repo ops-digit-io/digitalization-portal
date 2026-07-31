@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { apiSend } from "@/components/process/ui";
 import type { Locale } from "@/lib/i18n";
+import { PromptButton } from "@/components/process/prompt-button";
 import * as C from "@/lib/process/content";
 
 export interface Score { value: number; basis?: string }
@@ -140,6 +141,7 @@ export function DigestPanel({
         <span className="text-xs text-muted-foreground">{C.pc(locale, "digest.derivedFrom")}</span>
         <span className="flex-1" />
         {live && <Button size="sm" disabled={busy} onClick={run}>{busy ? "…" : C.pc(locale, "digest.generate")}</Button>}
+        <PromptButton path={`/engagements/${slug}/digest/prompt`} locale={locale} label={C.pc(locale, "digest.heading")} />
         {hint && <span className="text-xs text-amber-600 dark:text-amber-500">{hint}</span>}
         {err && <span className="text-xs text-destructive">{err}</span>}
       </Card>
@@ -161,6 +163,7 @@ export function DigestPanel({
         </span>
         <span className="flex-1" />
         {live && <Button size="sm" variant="outline" disabled={busy} onClick={run}>{busy ? "…" : C.pc(locale, "digest.regenerate")}</Button>}
+        <PromptButton path={`/engagements/${slug}/digest/prompt`} locale={locale} label={C.pc(locale, "digest.heading")} />
       </div>
       {hint && <p className="text-xs text-amber-600 dark:text-amber-500">{hint}</p>}
       {err && <p className="text-xs text-destructive">{err}</p>}
