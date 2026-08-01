@@ -21,6 +21,15 @@ import type { Recommendation, WarnCode } from "./self-assessment";
 
 const en = (locale: Locale) => locale !== "de";
 
+/**
+ * The process-funnel DOMAIN catalogue is authored in EN and DE. Other interface
+ * locales (es, zh) resolve to English here, deliberately: this is the verbatim
+ * ported diagnostic content the grader matches against, not chrome. `en(locale)`
+ * already maps anything non-`de` to English, so these tables carry EN/DE only.
+ */
+type DomainLocale = "en" | "de";
+const domain = (locale: Locale): DomainLocale => (en(locale) ? "en" : "de");
+
 // --------------------------------------------------------------- catalogue text
 export interface DimText { label: string; question: string }
 export interface CritText { label: string; question: string; evidence: string; scale: [string, string, string, string, string] }
@@ -178,7 +187,7 @@ export function confidenceWord(locale: Locale, code: "S" | "P" | "I"): string {
 
 // ------------------------------------------------------------------ status text
 export type Status = "gruen" | "gelb" | "rot" | "grau";
-const STATUS: Record<Locale, Record<Status, { pill: string; full: string }>> = {
+const STATUS: Record<DomainLocale, Record<Status, { pill: string; full: string }>> = {
   en: {
     gruen: { pill: "Green", full: "Green — healthy" },
     gelb: { pill: "Amber", full: "Amber — needs action" },
@@ -199,8 +208,8 @@ export function lightLabel(locale: Locale, l: "red" | "amber" | "green" | "grey"
   return (en(locale) ? EN : DE)[l];
 }
 
-export function statusPill(locale: Locale, s: Status): string { return STATUS[en(locale) ? "en" : "de"][s].pill; }
-export function statusFull(locale: Locale, s: Status): string { return STATUS[en(locale) ? "en" : "de"][s].full; }
+export function statusPill(locale: Locale, s: Status): string { return STATUS[domain(locale)][s].pill; }
+export function statusFull(locale: Locale, s: Status): string { return STATUS[domain(locale)][s].full; }
 
 /** Localised one-line explanation of the health status, built from the profile. */
 export interface ProfileLike {
@@ -259,7 +268,7 @@ export function explainStatus(locale: Locale, p: ProfileLike): string {
 
 // ---------------------------------------------------- direction vector (§6.4)
 export type DirectionCode = "Z0" | "Z1" | "Z2" | "Z3" | "enablement" | "feedback";
-const DIRECTION: Record<Locale, Record<DirectionCode, string>> = {
+const DIRECTION: Record<DomainLocale, Record<DirectionCode, string>> = {
   en: {
     Z0: "Branch 0 — Kill: consumer-less steps with a negative balance (K3.4, K4.4).",
     Z1: "Branch 1 — Interfaces (1b before 1a): K5.1 or K2.2 at level 2 or below; latency between the steps (check K3.2).",
@@ -278,12 +287,12 @@ const DIRECTION: Record<Locale, Record<DirectionCode, string>> = {
   },
 };
 export function directionText(locale: Locale, code: string): string {
-  const dict = DIRECTION[en(locale) ? "en" : "de"];
+  const dict = DIRECTION[domain(locale)];
   return dict[code as DirectionCode] ?? code;
 }
 
 // -------------------------------------------------------------- triage (§7.3)
-const TRIAGE: Record<Locale, Record<Recommendation, { headline: string; reason: string }>> = {
+const TRIAGE: Record<DomainLocale, Record<Recommendation, { headline: string; reason: string }>> = {
   en: {
     aufnehmen: { headline: "Take it on", reason: "Spoke minimum plausible and no knock-out at level 1. The process goes into the full assessment." },
     enabler: { headline: "Take it on — as an enabler (branch 1b)", reason: "" },
@@ -297,7 +306,7 @@ const TRIAGE: Record<Locale, Record<Recommendation, { headline: string; reason: 
     selbsthilfe: { headline: "An den Spoke — Selbsthilfe mit Playbook", reason: "Spoke stark, messbar, dokumentiert, Ziel klar — das trägt der Spoke mit einem Playbook selbst. Hub-Zeit für schwierigere Prozesse aufsparen." },
   },
 };
-const WARN: Record<Locale, Record<WarnCode, string>> = {
+const WARN: Record<DomainLocale, Record<WarnCode, string>> = {
   en: {
     "no-goal": "Goal statement missing (K4.1 = 1) — a kill candidate at the recon gate if no goal can be stated.",
     "thin-value": "Quantity / business basis thin (K4.4) — sharpen the addressable value before prioritising.",
@@ -312,7 +321,7 @@ const WARN: Record<Locale, Record<WarnCode, string>> = {
   },
 };
 export function triageHeadline(locale: Locale, r: Recommendation): string {
-  return TRIAGE[en(locale) ? "en" : "de"][r].headline;
+  return TRIAGE[domain(locale)][r].headline;
 }
 export function triageReason(locale: Locale, r: Recommendation, enablerWhich: ("K5.1" | "K2.2")[]): string {
   const L = en(locale) ? "en" : "de";
@@ -327,7 +336,7 @@ export function triageReason(locale: Locale, r: Recommendation, enablerWhich: ("
   return TRIAGE[L][r].reason;
 }
 export function warnText(locale: Locale, code: WarnCode): string {
-  return WARN[en(locale) ? "en" : "de"][code];
+  return WARN[domain(locale)][code];
 }
 
 // ----------------------------------------------------------------- misc labels

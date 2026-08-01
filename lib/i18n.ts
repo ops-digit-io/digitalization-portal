@@ -1,25 +1,38 @@
 /**
- * Minimal i18n. English is the default; German is provided as the second locale
- * (interface language DE + EN, NFR-9). Adding a language later is one more entry
- * in `DICT` plus a row in `LOCALES` — no code change.
+ * Interface i18n (NFR-9). English is the DEFAULT and the master key set; German,
+ * Spanish and Chinese are full translations of it. Every locale carries the same
+ * keys — `i18n.test.ts` fails the build if any locale is missing one, so "100%
+ * coverage" is a checked fact rather than a claim.
  *
- * Keys resolve against the active locale, then fall back to English, then to the
- * key itself. English strings live mostly in the component/data as defaults, so
- * only translations that differ need a DICT entry.
+ * Adding a language is one more entry in `DICT` plus a row in `LOCALES` (and the
+ * translations the coverage test then demands). Adding a KEY means adding it to
+ * all four dictionaries — the test enforces it.
+ *
+ * Keys resolve against the active locale, then fall back to English, then to a
+ * caller-supplied fallback, then the key itself. This is the INTERFACE dictionary
+ * (chrome, tiles, buttons); the process-funnel domain catalogue has its own
+ * locale layer in `lib/process/content.ts`.
  */
 
-export type Locale = "en" | "de";
+export type Locale = "en" | "de" | "es" | "zh";
 
 export const LOCALES: { code: Locale; label: string }[] = [
   { code: "en", label: "English" },
   { code: "de", label: "Deutsch" },
+  { code: "es", label: "Español" },
+  { code: "zh", label: "中文" },
 ];
 
 export const DEFAULT_LOCALE: Locale = "en";
 
+export function isLocale(v: string | undefined | null): v is Locale {
+  return v === "en" || v === "de" || v === "es" || v === "zh";
+}
+
 type Strings = Record<string, string>;
 
 const EN: Strings = {
+  // Chrome
   "app.tagline": "Your front door to change demand — capture, analyse, decide, and build. Pick a tool.",
   "search.placeholder": "Search tools…",
   "search.empty": "No tools match.",
@@ -27,6 +40,72 @@ const EN: Strings = {
   "theme.toggle": "Toggle theme",
   "lang.label": "Language",
   "tile.soon": "soon",
+
+  // Categories
+  "cat.Diagnose (pre-funnel)": "Diagnose (pre-funnel)",
+  "cat.Demand & intake": "Demand & intake",
+  "cat.Analyse & value": "Analyse & value",
+  "cat.Portfolio & steering": "Portfolio & steering",
+  "cat.Build & deliver": "Build & deliver",
+  "cat.Govern & operate": "Govern & operate",
+
+  // Tiles — title / subtitle
+  "tile.process.title": "Process Funnel",
+  "tile.process.subtitle": "Diagnose & score a process before intake",
+  "tile.intake.title": "Intake",
+  "tile.intake.subtitle": "Capture a demand — chat, form or markdown",
+  "tile.demands.title": "Demands",
+  "tile.demands.subtitle": "Every demand taken in",
+  "tile.board.title": "Portfolio Board",
+  "tile.board.subtitle": "All demand by stage",
+  "tile.attention.title": "Needs Attention",
+  "tile.attention.subtitle": "Unreadable or stalled",
+  "tile.analyst.title": "Analyst",
+  "tile.analyst.subtitle": "Simulate, size, scaffold",
+  "tile.requirements.title": "Requirements",
+  "tile.requirements.subtitle": "Epics & stories from intake",
+  "tile.personas.title": "Persona Analyst",
+  "tile.personas.subtitle": "Requestor profiles & cohorts",
+  "tile.persona-library.title": "Persona Library",
+  "tile.persona-library.subtitle": "The vocabulary requirements cite",
+  "tile.analysis.title": "Implementation Analysis",
+  "tile.analysis.subtitle": "Workload vs. value",
+  "tile.value.title": "Value Cockpit",
+  "tile.value.subtitle": "Pipeline · committed · realized",
+  "tile.simulate.title": "Business Case Simulation",
+  "tile.simulate.subtitle": "P10 / P50 / P90 bands",
+  "tile.review.title": "Value Review",
+  "tile.review.subtitle": "Variance vs. business case",
+  "tile.funnel.title": "Use-case Funnel",
+  "tile.funnel.subtitle": "Stage flow, kill rate by gate",
+  "tile.triage.title": "Triage",
+  "tile.triage.subtitle": "Classify & assign lanes",
+  "tile.backlog.title": "Backlog",
+  "tile.backlog.subtitle": "Prioritize (S2)",
+  "tile.roadmap.title": "Roadmap",
+  "tile.roadmap.subtitle": "Milestones & gates",
+  "tile.champions.title": "Digital Champions",
+  "tile.champions.subtitle": "Network coverage & gaps",
+  "tile.poc.title": "Agentic PoC Builder",
+  "tile.poc.subtitle": "Repo · spec · artifact",
+  "tile.handovers.title": "Handovers",
+  "tile.handovers.subtitle": "Run-lane & G7 records",
+  "tile.docs.title": "Specification",
+  "tile.docs.subtitle": "Governance & data model",
+  "tile.catalog.title": "Skills & Playbooks",
+  "tile.catalog.subtitle": "Agent capabilities",
+  "tile.categories.title": "Categories",
+  "tile.categories.subtitle": "Manage plants & domains (admin)",
+  "tile.skill-library.title": "Skill Library",
+  "tile.skill-library.subtitle": "Import reference skills (agentskills.io)",
+  "tile.traces.title": "Agent Traces",
+  "tile.traces.subtitle": "Replayable AI runs",
+  "tile.digest.title": "Review Digest",
+  "tile.digest.subtitle": "Due dates & staleness",
+  "tile.usage.title": "Usage & Cost",
+  "tile.usage.subtitle": "AI spend and portal use by tool (admin)",
+  "tile.settings.title": "Configuration",
+  "tile.settings.subtitle": "Integrations & status",
 };
 
 const DE: Strings = {
@@ -38,7 +117,6 @@ const DE: Strings = {
   "lang.label": "Sprache",
   "tile.soon": "bald",
 
-  // Categories
   "cat.Diagnose (pre-funnel)": "Diagnose (vor dem Funnel)",
   "cat.Demand & intake": "Bedarf & Erfassung",
   "cat.Analyse & value": "Analyse & Wert",
@@ -46,7 +124,6 @@ const DE: Strings = {
   "cat.Build & deliver": "Bauen & Liefern",
   "cat.Govern & operate": "Steuern & Betreiben",
 
-  // Tiles — title / subtitle
   "tile.process.title": "Prozess-Funnel",
   "tile.process.subtitle": "Prozess vor der Erfassung diagnostizieren & bewerten",
   "tile.intake.title": "Erfassung",
@@ -61,6 +138,10 @@ const DE: Strings = {
   "tile.analyst.subtitle": "Simulieren, dimensionieren, bauen",
   "tile.requirements.title": "Anforderungen",
   "tile.requirements.subtitle": "Epics & Stories aus dem Bedarf",
+  "tile.personas.title": "Persona-Analyst",
+  "tile.personas.subtitle": "Anforderer-Profile & Kohorten",
+  "tile.persona-library.title": "Persona-Bibliothek",
+  "tile.persona-library.subtitle": "Das Vokabular, das Anforderungen zitieren",
   "tile.analysis.title": "Umsetzungsanalyse",
   "tile.analysis.subtitle": "Aufwand vs. Wert",
   "tile.value.title": "Wert-Cockpit",
@@ -79,8 +160,6 @@ const DE: Strings = {
   "tile.roadmap.subtitle": "Meilensteine & Gates",
   "tile.champions.title": "Digital Champions",
   "tile.champions.subtitle": "Netzabdeckung & Lücken",
-  "tile.persona-library.title": "Persona-Bibliothek",
-  "tile.persona-library.subtitle": "Das Vokabular, das Anforderungen zitieren",
   "tile.poc.title": "Agentischer PoC-Builder",
   "tile.poc.subtitle": "Repo · Spec · Artefakt",
   "tile.handovers.title": "Übergaben",
@@ -89,19 +168,175 @@ const DE: Strings = {
   "tile.docs.subtitle": "Governance & Datenmodell",
   "tile.catalog.title": "Skills & Playbooks",
   "tile.catalog.subtitle": "Agenten-Fähigkeiten",
+  "tile.categories.title": "Kategorien",
+  "tile.categories.subtitle": "Werke & Domänen verwalten (Admin)",
+  "tile.skill-library.title": "Skill-Bibliothek",
+  "tile.skill-library.subtitle": "Referenz-Skills importieren (agentskills.io)",
   "tile.traces.title": "Agenten-Traces",
   "tile.traces.subtitle": "Wiederholbare KI-Läufe",
   "tile.digest.title": "Review-Digest",
   "tile.digest.subtitle": "Fällige Termine & Stillstand",
   "tile.usage.title": "Nutzung & Kosten",
   "tile.usage.subtitle": "KI-Kosten und Portal-Nutzung je Tool (Admin)",
-  "tile.settings.title": "Administration",
-  "tile.settings.subtitle": "Rollen, Skills, Playbooks",
+  "tile.settings.title": "Konfiguration",
+  "tile.settings.subtitle": "Integrationen & Status",
 };
 
-const DICT: Record<Locale, Strings> = { en: EN, de: DE };
+const ES: Strings = {
+  "app.tagline": "Tu puerta de entrada a la demanda de cambio: captura, analiza, decide y construye. Elige una herramienta.",
+  "search.placeholder": "Buscar herramientas…",
+  "search.empty": "No hay herramientas que coincidan.",
+  "search.open": "Buscar herramientas",
+  "theme.toggle": "Cambiar tema",
+  "lang.label": "Idioma",
+  "tile.soon": "pronto",
+
+  "cat.Diagnose (pre-funnel)": "Diagnóstico (pre-embudo)",
+  "cat.Demand & intake": "Demanda y captación",
+  "cat.Analyse & value": "Análisis y valor",
+  "cat.Portfolio & steering": "Portafolio y dirección",
+  "cat.Build & deliver": "Construir y entregar",
+  "cat.Govern & operate": "Gobernar y operar",
+
+  "tile.process.title": "Embudo de procesos",
+  "tile.process.subtitle": "Diagnostica y evalúa un proceso antes de la captación",
+  "tile.intake.title": "Captación",
+  "tile.intake.subtitle": "Registra una demanda — chat, formulario o markdown",
+  "tile.demands.title": "Demandas",
+  "tile.demands.subtitle": "Todas las demandas registradas",
+  "tile.board.title": "Tablero de portafolio",
+  "tile.board.subtitle": "Todas las demandas por fase",
+  "tile.attention.title": "Requiere atención",
+  "tile.attention.subtitle": "Ilegible o estancado",
+  "tile.analyst.title": "Analista",
+  "tile.analyst.subtitle": "Simular, dimensionar, generar",
+  "tile.requirements.title": "Requisitos",
+  "tile.requirements.subtitle": "Épicas e historias a partir de la captación",
+  "tile.personas.title": "Analista de personas",
+  "tile.personas.subtitle": "Perfiles y cohortes de solicitantes",
+  "tile.persona-library.title": "Biblioteca de personas",
+  "tile.persona-library.subtitle": "El vocabulario que citan los requisitos",
+  "tile.analysis.title": "Análisis de implementación",
+  "tile.analysis.subtitle": "Carga de trabajo vs. valor",
+  "tile.value.title": "Cabina de valor",
+  "tile.value.subtitle": "Pipeline · comprometido · realizado",
+  "tile.simulate.title": "Simulación del caso de negocio",
+  "tile.simulate.subtitle": "Bandas P10 / P50 / P90",
+  "tile.review.title": "Revisión de valor",
+  "tile.review.subtitle": "Desviación frente al caso de negocio",
+  "tile.funnel.title": "Embudo de casos de uso",
+  "tile.funnel.subtitle": "Flujo por fases, tasa de descarte por gate",
+  "tile.triage.title": "Triaje",
+  "tile.triage.subtitle": "Clasificar y asignar carriles",
+  "tile.backlog.title": "Backlog",
+  "tile.backlog.subtitle": "Priorizar (S2)",
+  "tile.roadmap.title": "Hoja de ruta",
+  "tile.roadmap.subtitle": "Hitos y gates",
+  "tile.champions.title": "Campeones digitales",
+  "tile.champions.subtitle": "Cobertura de red y brechas",
+  "tile.poc.title": "Constructor ágil de PoC",
+  "tile.poc.subtitle": "Repo · especificación · artefacto",
+  "tile.handovers.title": "Traspasos",
+  "tile.handovers.subtitle": "Registros de run-lane y G7",
+  "tile.docs.title": "Especificación",
+  "tile.docs.subtitle": "Gobernanza y modelo de datos",
+  "tile.catalog.title": "Skills y playbooks",
+  "tile.catalog.subtitle": "Capacidades del agente",
+  "tile.categories.title": "Categorías",
+  "tile.categories.subtitle": "Gestionar plantas y dominios (admin)",
+  "tile.skill-library.title": "Biblioteca de skills",
+  "tile.skill-library.subtitle": "Importar skills de referencia (agentskills.io)",
+  "tile.traces.title": "Trazas del agente",
+  "tile.traces.subtitle": "Ejecuciones de IA reproducibles",
+  "tile.digest.title": "Resumen de revisión",
+  "tile.digest.subtitle": "Fechas de vencimiento y obsolescencia",
+  "tile.usage.title": "Uso y costes",
+  "tile.usage.subtitle": "Gasto de IA y uso del portal por herramienta (admin)",
+  "tile.settings.title": "Configuración",
+  "tile.settings.subtitle": "Integraciones y estado",
+};
+
+const ZH: Strings = {
+  "app.tagline": "您通向变革需求的入口——捕获、分析、决策与构建。请选择一个工具。",
+  "search.placeholder": "搜索工具…",
+  "search.empty": "没有匹配的工具。",
+  "search.open": "搜索工具",
+  "theme.toggle": "切换主题",
+  "lang.label": "语言",
+  "tile.soon": "即将推出",
+
+  "cat.Diagnose (pre-funnel)": "诊断（漏斗前）",
+  "cat.Demand & intake": "需求与录入",
+  "cat.Analyse & value": "分析与价值",
+  "cat.Portfolio & steering": "组合与管控",
+  "cat.Build & deliver": "构建与交付",
+  "cat.Govern & operate": "治理与运营",
+
+  "tile.process.title": "流程漏斗",
+  "tile.process.subtitle": "在录入前诊断并评分流程",
+  "tile.intake.title": "录入",
+  "tile.intake.subtitle": "捕获需求——聊天、表单或 Markdown",
+  "tile.demands.title": "需求",
+  "tile.demands.subtitle": "所有已录入的需求",
+  "tile.board.title": "组合看板",
+  "tile.board.subtitle": "按阶段查看所有需求",
+  "tile.attention.title": "需要关注",
+  "tile.attention.subtitle": "无法解析或停滞",
+  "tile.analyst.title": "分析助手",
+  "tile.analyst.subtitle": "模拟、估算、脚手架",
+  "tile.requirements.title": "需求规格",
+  "tile.requirements.subtitle": "由录入生成史诗与用户故事",
+  "tile.personas.title": "画像分析",
+  "tile.personas.subtitle": "申请人画像与群组",
+  "tile.persona-library.title": "画像库",
+  "tile.persona-library.subtitle": "需求引用的词汇表",
+  "tile.analysis.title": "实施分析",
+  "tile.analysis.subtitle": "工作量对比价值",
+  "tile.value.title": "价值驾驶舱",
+  "tile.value.subtitle": "管道 · 已承诺 · 已实现",
+  "tile.simulate.title": "商业论证模拟",
+  "tile.simulate.subtitle": "P10 / P50 / P90 区间",
+  "tile.review.title": "价值复核",
+  "tile.review.subtitle": "与商业论证的偏差",
+  "tile.funnel.title": "用例漏斗",
+  "tile.funnel.subtitle": "阶段流转、各关卡淘汰率",
+  "tile.triage.title": "分诊",
+  "tile.triage.subtitle": "分类并分配泳道",
+  "tile.backlog.title": "待办列表",
+  "tile.backlog.subtitle": "优先级排序（S2）",
+  "tile.roadmap.title": "路线图",
+  "tile.roadmap.subtitle": "里程碑与关卡",
+  "tile.champions.title": "数字化推动者",
+  "tile.champions.subtitle": "网络覆盖与缺口",
+  "tile.poc.title": "智能体 PoC 构建器",
+  "tile.poc.subtitle": "仓库 · 规格 · 制品",
+  "tile.handovers.title": "交接",
+  "tile.handovers.subtitle": "运行泳道与 G7 记录",
+  "tile.docs.title": "规格说明",
+  "tile.docs.subtitle": "治理与数据模型",
+  "tile.catalog.title": "技能与剧本",
+  "tile.catalog.subtitle": "智能体能力",
+  "tile.categories.title": "类别",
+  "tile.categories.subtitle": "管理工厂与领域（管理员）",
+  "tile.skill-library.title": "技能库",
+  "tile.skill-library.subtitle": "导入参考技能（agentskills.io）",
+  "tile.traces.title": "智能体轨迹",
+  "tile.traces.subtitle": "可回放的 AI 运行",
+  "tile.digest.title": "复核摘要",
+  "tile.digest.subtitle": "到期日期与陈旧度",
+  "tile.usage.title": "使用与成本",
+  "tile.usage.subtitle": "AI 花费与各工具的门户使用（管理员）",
+  "tile.settings.title": "配置",
+  "tile.settings.subtitle": "集成与状态",
+};
+
+const DICT: Record<Locale, Strings> = { en: EN, de: DE, es: ES, zh: ZH };
 
 /** Translate a key for a locale; falls back to English, then to `fallback`, then the key. */
 export function translate(locale: Locale, key: string, fallback?: string): string {
   return DICT[locale]?.[key] ?? DICT.en[key] ?? fallback ?? key;
 }
+
+/** The dictionaries, for the coverage test and any tooling. Not for rendering —
+ *  render through `translate`. */
+export const DICTIONARIES: Record<Locale, Strings> = DICT;
