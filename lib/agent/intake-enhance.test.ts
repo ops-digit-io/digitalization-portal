@@ -18,7 +18,7 @@ function fakeProvider(reply: string): ModelProvider {
     name: "anthropic",
     live: true,
     async complete(_req: CompletionRequest): Promise<ModelResponse> {
-      return { text: reply, toolCalls: [], stopReason: "end_turn", usage: { input: 0, output: 0 } };
+      return { text: reply, toolCalls: [], content: [{ type: "text", text: reply }], stopReason: "end_turn", truncated: false, usage: { input: 0, output: 0 } };
     },
   };
 }

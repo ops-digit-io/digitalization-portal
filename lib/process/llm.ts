@@ -28,6 +28,12 @@ export interface ChatResult {
   usage: { input: number; output: number } | null;
   model: string | null;
   provider: string;
+  /**
+   * The model hit the output ceiling — what came back is the beginning of an
+   * artefact, not one. Saved anyway (throwing away 6 000 tokens of usable draft
+   * helps nobody) but never presented as finished.
+   */
+  truncated: boolean;
 }
 
 export class NoKeyError extends Error {
@@ -60,6 +66,7 @@ export async function chat(
     usage: res.usage ?? null,
     model: status.model ?? null,
     provider: status.provider,
+    truncated: res.truncated,
   };
 }
 

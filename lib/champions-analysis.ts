@@ -287,7 +287,15 @@ export async function analyseNetwork(input: AnalysisInput, now: string): Promise
   ].join("\n");
 
   try {
-    const res = await provider.complete({ system, messages: [{ role: "user", content: user }], tools: [proposeTool], maxTokens: 3000 });
+    // This call has exactly one acceptable shape of answer, so the tool is
+    // forced: a prose reply here would cost a full call and yield no actions.
+    const res = await provider.complete({
+      system,
+      messages: [{ role: "user", content: user }],
+      tools: [proposeTool],
+      toolChoice: { type: "tool", name: proposeTool.name },
+      maxTokens: 3000,
+    });
     const raw = (res.toolCalls[0]?.input as { actions?: NetworkAction[] } | undefined)?.actions;
     const actions = Array.isArray(raw) ? raw.filter((a) => a && String(a.finding ?? "").trim() !== "") : [];
     // An empty or unusable tool call must not blank the page: the floor stands.

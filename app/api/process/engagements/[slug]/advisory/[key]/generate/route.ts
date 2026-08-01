@@ -22,7 +22,7 @@ export async function POST(_req: Request, { params }: { params: { slug: string; 
       return NextResponse.json({ error: "the model returned no artefact", code: "NO_ARTEFACT", reply: out.text.slice(0, 400) }, { status: 502 });
     }
     await store.writeAdvisory(slug, key, doc, now());
-    return NextResponse.json({ saved: true, content: doc, model: out.model });
+    return NextResponse.json({ saved: true, content: doc, model: out.model, truncated: out.truncated });
   } catch (e) {
     const err = e as Error & { code?: string };
     return NextResponse.json({ error: err.message, code: err.code || "ERROR" }, { status: err.code === "NO_KEY" ? 503 : 502 });

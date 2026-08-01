@@ -112,6 +112,63 @@ graph LR
 
 ---
 
+## 2b. How a call reaches the model
+
+One class, `AnthropicProvider`, is the only thing in the portal that knows the
+Messages API exists. Everything else asks `complete()` and gets back the same
+shape whichever provider answered — which is what lets the whole product run
+with no key at all.
+
+```mermaid
+graph TB
+  CALL["module<br/><i>complete(req)</i>"] --> SHAPE["build the body"]
+  SHAPE --> T["tools<br/><i>position 0</i>"]
+  SHAPE --> S["system<br/><i>cache breakpoint when large</i>"]
+  SHAPE --> M["messages<br/><i>the only per-request part</i>"]
+  T --> DEC{"maxTokens ><br/>4 096?"}
+  S --> DEC
+  M --> DEC
+  DEC -->|yes| ST["stream · SSE<br/><i>inactivity deadline</i>"]
+  DEC -->|no| PL["single response<br/><i>whole-request deadline</i>"]
+  ST --> RES["ModelResponse"]
+  PL --> RES
+  RES --> STOP{"stop_reason"}
+  STOP -->|refusal| ERR["ModelError · refusal"]
+  STOP -->|max_tokens| TR["truncated: true<br/><i>saved, never called finished</i>"]
+  STOP -->|end_turn · tool_use| OK["text · toolCalls · content"]
+```
+
+Five decisions, each of which is load-bearing:
+
+1. **`claude-opus-5` is the default**, and the model name is what selects the
+   server-tool versions — the older web-search tool is a 400 on a current model
+   and the current one is a 400 on an older one.
+2. **The system prompt is the cache breakpoint.** Render order is tools → system
+   → messages, so a marker on the system block caches both. The composed
+   governance prompts run to tens of thousands of characters and are
+   byte-identical across engagements, so everything after the first call reads
+   the prefix from cache. *Anything appended per-request to `system` destroys
+   this* — a locale sentence in the wrong place cost every German run the cache
+   the English runs had just paid to write. Per-request content belongs in the
+   user turn.
+3. **Large generations stream.** Not for the typing effect — a 9 000-token
+   digest cannot be asked to finish inside one request timeout. Streaming turns
+   "did it finish in time" into "is data still arriving", which is the question
+   that has a correct answer.
+4. **The assistant turn is replayed verbatim.** Thinking is on by default on
+   Opus 5, and a turn rebuilt from its text and tool calls has silently lost the
+   signed thinking block the next request must carry. Blocks the portal does not
+   understand are carried through untouched.
+5. **A stop reason is not an answer.** `max_tokens` marks the artefact truncated
+   and the UI says so; `refusal` raises rather than saving the empty document it
+   arrives with.
+
+Failures are typed (`ModelError.kind`) so a caller can tell "your key is wrong"
+— stop, tell somebody — from "the model is busy", where the right answer is the
+deterministic floor and no drama.
+
+---
+
 ## 3. The journeys
 
 ### 3.1 Pre-funnel → demand (the Process Funnel)
@@ -241,5 +298,14 @@ one it is in rather than pretending.
 | GitHub App | everything — local file store under the OS temp dir | `/api/status` reports `git.live: false` |
 | A skill file | the agent runs | the prompt says which governance is missing; the UI marks the run partial |
 | A playbook | the agent refuses that step | stated in the prompt, surfaced by `governedBy().healthy` |
-| The registry | bundled governance is used | no visible change; edits need a deploy until it returns |
 | Both keys | the whole portal, rule-based | a demo that is honest about being one |
+
+And when the model answers, but badly:
+
+| What happened | What the portal does | What you see |
+|---|---|---|
+| The output ceiling was hit | saves the draft — 6 000 tokens of usable text is not rubbish | "saved, but cut off", not the completion tick |
+| The model declined | raises before anything is written | the pass failed, with the reason |
+| Rate-limited or overloaded | bounded retry, then the deterministic floor | fewer and duller actions, and the header says rule-based |
+| The key is wrong | fails immediately — retrying a 401 makes one clear error into three slow ones | `/api/status?probe=1` → `health.ok: false` |
+| A stream goes silent | the attempt is aborted on inactivity, not on elapsed time | a long generation is allowed to be long |

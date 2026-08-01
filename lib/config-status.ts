@@ -68,7 +68,11 @@ export function describeConfig(env: Record<string, string | undefined> = process
           key: "anthropic",
           label: "Anthropic (Claude)",
           configured: hasAnthropic,
-          detail: hasAnthropic ? env.ANTHROPIC_MODEL?.trim() || "claude-sonnet-5" : undefined,
+          // Ask the provider rather than repeating its default. A second copy of
+          // the model name here reports whatever it was last edited to, not what
+          // the portal is actually calling — and Settings is the one page whose
+          // entire job is to be right about that.
+          detail: hasAnthropic ? describeProvider({ ...env, MODEL_PROVIDER: "anthropic" }).model : undefined,
           envVars: ["ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL"],
           level: "recommended",
           note: "Set ANTHROPIC_API_KEY to enable Claude. Optional: ANTHROPIC_BASE_URL (EU endpoint), ANTHROPIC_MODEL.",
@@ -77,7 +81,7 @@ export function describeConfig(env: Record<string, string | undefined> = process
           key: "openai",
           label: "OpenAI (GPT)",
           configured: hasOpenAI,
-          detail: hasOpenAI ? env.OPENAI_MODEL?.trim() || "gpt-4o" : undefined,
+          detail: hasOpenAI ? describeProvider({ ...env, MODEL_PROVIDER: "openai" }).model : undefined,
           envVars: ["OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_MODEL"],
           level: "optional",
           note: "Set OPENAI_API_KEY to enable GPT. Used when Anthropic is absent, or when MODEL_PROVIDER=openai.",

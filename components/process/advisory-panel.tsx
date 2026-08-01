@@ -97,9 +97,12 @@ export function AdvisoryPanel({
     setErr(null);
     setHint(null);
     try {
-      const r = await apiSend<{ content: string }>("POST", `/engagements/${slug}/advisory/${item.key}/generate`);
+      const r = await apiSend<{ content: string; truncated?: boolean }>("POST", `/engagements/${slug}/advisory/${item.key}/generate`);
       setContent(r.content);
       setPreview(true);
+      // Saved, but cut off at the token ceiling — say so rather than let a
+      // half-finished pass read as a completed one.
+      if (r.truncated) setHint(C.pc(locale, "artefact.truncated"));
     } catch (e) {
       const ex = e as Error & { code?: string; status?: number };
       if (ex.code === "NO_KEY" || ex.status === 503) setHint(C.pc(locale, "artefact.noKey"));

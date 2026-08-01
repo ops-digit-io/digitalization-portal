@@ -34,7 +34,13 @@ export async function probeProvider(provider: ModelProvider = getProvider()): Pr
     await provider.complete({
       system: "Health check. Reply with the single word OK.",
       messages: [{ role: "user", content: "ping" }],
-      maxTokens: 1,
+      // Small, but not one token: on models where thinking is on by default a
+      // one-token ceiling is a request the API can legitimately reject, and a
+      // rejected probe would report a perfectly good key as broken. This asks
+      // the cheapest question that still only tests authentication.
+      maxTokens: 16,
+      effort: "low",
+      stream: false,
     });
     return { provider: provider.name, live: true, ok: true };
   } catch (e) {

@@ -110,9 +110,12 @@ export function SectionCard({
     setErr(null);
     setHint(null);
     try {
-      const r = await apiSend<{ content: string }>("POST", `/engagements/${slug}/section/${section.key}/generate?lang=${locale}`);
+      const r = await apiSend<{ content: string; truncated?: boolean }>("POST", `/engagements/${slug}/section/${section.key}/generate?lang=${locale}`);
       setContent(r.content);
-      setSaved(C.pc(locale, "artefact.savedTick"));
+      // A document that stopped at the token ceiling is saved but is NOT
+      // finished, and must not be reported with the same tick as one that is.
+      if (r.truncated) setHint(C.pc(locale, "artefact.truncated"));
+      else setSaved(C.pc(locale, "artefact.savedTick"));
       await onChanged();
     } catch (e) {
       const ex = e as Error & { code?: string; status?: number };

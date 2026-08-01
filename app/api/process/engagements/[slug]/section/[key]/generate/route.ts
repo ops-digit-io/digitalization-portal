@@ -29,7 +29,7 @@ export async function POST(req: Request, { params }: { params: { slug: string; k
     const schema = schemaOf(key);
     const result = schema ? grade(doc, schema) : null;
     await store.writeSection(slug, key, doc, now(), result?.score);
-    return NextResponse.json({ saved: true, content: doc, model: out.model, grade: result });
+    return NextResponse.json({ saved: true, content: doc, model: out.model, grade: result, truncated: out.truncated });
   } catch (e) {
     const err = e as Error & { code?: string };
     return NextResponse.json({ error: err.message, code: err.code || "ERROR" }, { status: err.code === "NO_KEY" ? 503 : 502 });

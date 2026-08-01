@@ -29,8 +29,45 @@ interface Seen {
   tools: { name: string }[];
   hasKeyHeader: boolean;
   maxTokens: number;
+  /** Whether the system prompt arrived carrying a cache breakpoint. */
+  cached: boolean;
+  streamed: boolean;
 }
 const seen: Seen[] = [];
+
+/**
+ * The system prompt goes out as a plain string when it is short and as a block
+ * array carrying `cache_control` when it is big enough to cache. Both are the
+ * same prompt to a reader, so the mock flattens them — and records which shape
+ * it was, because "did the large prompt get its cache marker" is a fact worth
+ * asserting over the wire rather than in isolation.
+ */
+function flatten(system: unknown): { text: string; cached: boolean } {
+  if (typeof system === "string") return { text: system, cached: false };
+  if (!Array.isArray(system)) return { text: "", cached: false };
+  return {
+    text: system.map((b: any) => String(b?.text ?? "")).join(""),
+    cached: system.some((b: any) => b?.cache_control?.type === "ephemeral"),
+  };
+}
+
+/** Re-encode a Messages response as the SSE frames a streamed call expects. */
+function asSse(msg: Record<string, any>): string {
+  const frames: unknown[] = [{ type: "message_start", message: { usage: msg.usage } }];
+  (msg.content as Record<string, any>[]).forEach((block, index) => {
+    if (block.type === "tool_use") {
+      frames.push({ type: "content_block_start", index, content_block: { ...block, input: {} } });
+      frames.push({ type: "content_block_delta", index, delta: { type: "input_json_delta", partial_json: JSON.stringify(block.input) } });
+    } else {
+      frames.push({ type: "content_block_start", index, content_block: { ...block, text: "" } });
+      frames.push({ type: "content_block_delta", index, delta: { type: "text_delta", text: block.text } });
+    }
+    frames.push({ type: "content_block_stop", index });
+  });
+  frames.push({ type: "message_delta", delta: { stop_reason: msg.stop_reason }, usage: { output_tokens: msg.usage.output_tokens } });
+  frames.push({ type: "message_stop" });
+  return frames.map((f) => `event: ${(f as any).type}\ndata: ${JSON.stringify(f)}\n\n`).join("");
+}
 
 /** One Messages-API-shaped answer, chosen from what the request asks for. */
 function answer(req: { system: string; tools?: { name: string }[] }): Record<string, unknown> {
@@ -76,15 +113,24 @@ beforeAll(async () => {
     let body = "";
     req.on("data", (c: Buffer) => (body += c.toString()));
     req.on("end", () => {
-      const parsed = JSON.parse(body) as { system: string; tools?: { name: string }[]; max_tokens: number };
+      const parsed = JSON.parse(body) as { system: unknown; tools?: { name: string }[]; max_tokens: number; stream?: boolean };
+      const { text, cached } = flatten(parsed.system);
       seen.push({
-        system: String(parsed.system ?? ""),
+        system: text,
         tools: parsed.tools ?? [],
         hasKeyHeader: Boolean(req.headers["x-api-key"]),
         maxTokens: parsed.max_tokens,
+        cached,
+        streamed: parsed.stream === true,
       });
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify(answer(parsed)));
+      const msg = answer({ system: text, tools: parsed.tools });
+      if (parsed.stream) {
+        res.writeHead(200, { "content-type": "text/event-stream" });
+        res.end(asSse(msg));
+      } else {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify(msg));
+      }
     });
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
@@ -177,6 +223,23 @@ describe("every AI module, over the wire", () => {
     const stored = await store.readDigest("order-intake");
     expect(stored?.processStatement).toBe(d.processStatement);
     expect(seen[0]!.system).toContain("<anamnesis>");
+    // 9 000 output tokens is not something to gamble on finishing inside one
+    // request timeout — the digest streams, and the parser must cope with that.
+    expect(seen[0]!.streamed).toBe(true);
+  });
+
+  it("the big composed prompts travel with a cache breakpoint — the same prefix, every engagement", async () => {
+    const { store, llm, coach, advisory } = await mods();
+    await store.create({ title: "Order intake", owner: "", unit: "", anflug: "process" }, NOW);
+    await store.writeSection("order-intake", "profile", "# Process profile\n\ntext", NOW, 50);
+
+    await llm.chat(await coach.buildSection("order-intake", "profile", "en"), [{ role: "user", content: "go" }], { maxTokens: 6000 });
+    await llm.chat(await advisory.build("order-intake", "challenge"), [{ role: "user", content: "go" }]);
+
+    for (const call of seen) {
+      expect(call.system.length).toBeGreaterThan(4_000); // these really are the large ones
+      expect(call.cached, "a large governance prompt went out uncached").toBe(true);
+    }
   });
 
   it("advisory pass: anamnesis + prior verdicts in, artefact out, stored apart", async () => {

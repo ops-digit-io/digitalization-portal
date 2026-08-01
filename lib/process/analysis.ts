@@ -220,7 +220,17 @@ export async function analyse(
   });
 
   try {
-    const res = await provider.complete({ system: `${system}\n\n${speak}`, messages: [{ role: "user", content: user }], tools: [proposeTool], maxTokens: 3000 });
+    // `speak` is already in the user turn. Appending it to the system prompt as
+    // well made the composed governance prefix differ per locale, so every
+    // German run missed the cache the English runs had just written — for a
+    // sentence the model had already read.
+    const res = await provider.complete({
+      system,
+      messages: [{ role: "user", content: user }],
+      tools: [proposeTool],
+      toolChoice: { type: "tool", name: proposeTool.name },
+      maxTokens: 3000,
+    });
     const raw = (res.toolCalls[0]?.input as { demands?: DemandProposal[] } | undefined)?.demands;
     const demands = Array.isArray(raw) && raw.length ? raw : seed;
     return { demands: demands.map(normalise), live: provider.live, assessed, ...(g ? { governance: governedBy(g) } : {}) };

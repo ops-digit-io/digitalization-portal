@@ -95,14 +95,12 @@ export async function runAgent(params: RunAgentParams): Promise<RunAgentResult> 
       break;
     }
 
-    // Append the assistant turn (text + tool_use blocks) exactly as the API needs.
-    messages.push({
-      role: "assistant",
-      content: [
-        ...(res.text ? [{ type: "text" as const, text: res.text }] : []),
-        ...res.toolCalls.map((c) => ({ type: "tool_use" as const, id: c.id, name: c.name, input: c.input })),
-      ],
-    });
+    // Append the assistant turn EXACTLY as the provider returned it. Rebuilding
+    // it from `text` + `toolCalls` looks equivalent and is not: on models where
+    // thinking is on (the default on Claude Opus 5) the turn also carries signed
+    // thinking blocks, and the API rejects the next request if they are absent.
+    // Whatever we did not understand is carried through untouched.
+    messages.push({ role: "assistant", content: res.content });
 
     const results = [];
     for (const call of res.toolCalls) {
