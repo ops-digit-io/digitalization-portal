@@ -3,6 +3,7 @@ import { sectionByKey } from "@/lib/process/sections";
 import * as store from "@/lib/process/store";
 import * as coach from "@/lib/process/coach";
 import { deny } from "@/lib/process/guard";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,11 +17,12 @@ export const dynamic = "force-dynamic";
  * therefore has no key requirement of its own: assembling text needs no model.
  */
 export async function GET(req: Request, { params }: { params: { slug: string; key: string } }) {
+  const t = getT();
   const d = await deny();
   if (d) return d;
   const { slug, key } = params;
-  if (!sectionByKey[key]) return NextResponse.json({ error: "no such section" }, { status: 404 });
-  if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
+  if (!sectionByKey[key]) return NextResponse.json({ error: t("api.process.noSection", "no such section") }, { status: 404 });
+  if (!(await store.exists(slug))) return NextResponse.json({ error: t("api.noEngagement", "no such engagement") }, { status: 404 });
   const url = new URL(req.url);
   const locale = url.searchParams.get("lang") === "de" ? "de" : "en";
   const mode = url.searchParams.get("mode") === "live" ? "live" : "export";

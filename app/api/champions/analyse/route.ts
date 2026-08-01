@@ -7,6 +7,7 @@ import { getAllCategories } from "@/lib/category-store";
 import { listDemandRows } from "@/lib/demands-store";
 import type { EngagementRef } from "@/lib/champions";
 import * as processStore from "@/lib/process/store";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,8 +21,9 @@ export const dynamic = "force-dynamic";
  * and it always reports what governed the run.
  */
 export async function POST() {
+  const t = getT();
   const session = await getSession();
-  if (!can(session, "view_board")) return NextResponse.json({ error: "not authenticated" }, { status: 401 });
+  if (!can(session, "view_board")) return NextResponse.json({ error: t("api.notAuthenticated", "not authenticated") }, { status: 401 });
 
   const [champions, categories, engagements, demandRequesters] = await Promise.all([
     listChampions(),

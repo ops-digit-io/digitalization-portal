@@ -3,6 +3,7 @@ import { can } from "@/lib/rbac";
 import { getSession } from "@/lib/auth/current";
 import { readDemand, saveDemand } from "@/lib/demands-store";
 import { assignLane, rejectDemand, isLane } from "@/lib/demand-triage";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,6 +18,7 @@ export const dynamic = "force-dynamic";
  * write the funnel repo directly, the way the portal maintains the intake funnel.
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const t = getT();
   const session = await getSession();
   const id = params.id;
 
@@ -24,23 +26,23 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid JSON" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: t("api.invalidJson", "invalid JSON") }, { status: 400 });
   }
 
   const md = await readDemand(id);
   if (md === undefined) {
-    return NextResponse.json({ ok: false, error: `Demand ${id} not found in the funnel.` }, { status: 404 });
+    return NextResponse.json({ ok: false, error: `${t("api.demands.demandPrefix", "Demand")} ${id} ${t("api.demands.notFoundInFunnel", "not found in the funnel.")}` }, { status: 404 });
   }
 
   const date = new Date().toISOString().slice(0, 10);
 
   if (body.action === "assign_lane") {
     if (!can(session, "assign_lane")) {
-      return NextResponse.json({ ok: false, error: "You do not have authority to assign a lane." }, { status: 403 });
+      return NextResponse.json({ ok: false, error: t("api.demands.noAuthAssignLane", "You do not have authority to assign a lane.") }, { status: 403 });
     }
     const lane = String(body.lane ?? "");
     if (!isLane(lane)) {
-      return NextResponse.json({ ok: false, error: `Unknown lane "${lane}".` }, { status: 400 });
+      return NextResponse.json({ ok: false, error: `${t("api.demands.unknownLane", "Unknown lane")} "${lane}".` }, { status: 400 });
     }
     const result = assignLane(md, lane, { actor: session.user, date });
     if (!result.ok) return NextResponse.json({ ok: false, error: result.reason }, { status: 400 });
@@ -50,7 +52,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   if (body.action === "reject") {
     if (!can(session, "park")) {
-      return NextResponse.json({ ok: false, error: "You do not have authority to reject/park a demand." }, { status: 403 });
+      return NextResponse.json({ ok: false, error: t("api.demands.noAuthReject", "You do not have authority to reject/park a demand.") }, { status: 403 });
     }
     const result = rejectDemand(md, String(body.reason ?? ""), { actor: session.user, date });
     if (!result.ok) return NextResponse.json({ ok: false, error: result.reason }, { status: 400 });
@@ -58,5 +60,5 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ ok: true, action: "reject", host: saved.host, target: saved.target });
   }
 
-  return NextResponse.json({ ok: false, error: "action must be 'assign_lane' or 'reject'" }, { status: 400 });
+  return NextResponse.json({ ok: false, error: t("api.demands.actionAssignOrReject", "action must be 'assign_lane' or 'reject'") }, { status: 400 });
 }

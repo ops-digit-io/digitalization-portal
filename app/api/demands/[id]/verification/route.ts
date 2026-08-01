@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth/current";
 import { readDemand, saveDemand } from "@/lib/demands-store";
 import { canEditDemand } from "@/lib/demand-edit";
 import { toggleVerification } from "@/lib/verification";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,22 +15,23 @@ export const dynamic = "force-dynamic";
  * view_all) — the same people who may change a demand may record its verification.
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const t = getT();
   const session = await getSession();
   const id = params.id;
 
   const md = await readDemand(id);
   if (md === undefined) {
-    return NextResponse.json({ ok: false, error: `Demand ${id} not found.` }, { status: 404 });
+    return NextResponse.json({ ok: false, error: `${t("api.demands.demandPrefix", "Demand")} ${id} ${t("api.demands.notFound", "not found.")}` }, { status: 404 });
   }
   if (!canEditDemand(session, md)) {
-    return NextResponse.json({ ok: false, error: "You can only verify demands you own (or need view-all)." }, { status: 403 });
+    return NextResponse.json({ ok: false, error: t("api.demands.verifyForbidden", "You can only verify demands you own (or need view-all).") }, { status: 403 });
   }
 
   let body: { key?: string; checked?: boolean };
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid JSON" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: t("api.invalidJson", "invalid JSON") }, { status: 400 });
   }
 
   const key = String(body.key ?? "");

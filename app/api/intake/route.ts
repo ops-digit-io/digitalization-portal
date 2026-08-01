@@ -12,6 +12,7 @@ import {
 } from "@/lib/demand";
 import { enqueueDemand, pendingSaveResult } from "@/lib/pending/service";
 import { rateLimit } from "@/lib/ratelimit";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,16 +36,17 @@ function coerce(a: unknown): DemandAnswers {
  * always agree.
  */
 export async function POST(req: Request) {
+  const t = getT();
   const session = await getSession(); // real deployment resolves this from the OIDC session
   if (!can(session, "draft")) {
-    return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
+    return NextResponse.json({ error: t("api.intake.draftCapabilityRequired", "missing capability: draft") }, { status: 403 });
   }
 
   let body: { action?: string; answers?: unknown; markdown?: string; id?: string };
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: t("api.invalidJson", "invalid JSON") }, { status: 400 });
   }
 
   // Three tools, one output: the Chat and Form tools send `answers`; the Markdown
@@ -62,13 +64,13 @@ export async function POST(req: Request) {
 
   if (body.action === "save") {
     if (missing.length > 0) {
-      return NextResponse.json({ error: `missing required: ${missing.join(", ")}`, missing }, { status: 400 });
+      return NextResponse.json({ error: `${t("api.intake.missingRequired", "missing required")}: ${missing.join(", ")}`, missing }, { status: 400 });
     }
     // Per-user submit throttle so one person can't flood the funnel (14k scale).
     const rl = await rateLimit(`intake:${session.user}`, { limit: 10, windowSec: 300 });
     if (!rl.allowed) {
       return NextResponse.json(
-        { error: `You've submitted a lot in a short time — please wait ${rl.resetSec}s and try again.` },
+        { error: `${t("api.intake.rateLimitedPrefix", "You've submitted a lot in a short time — please wait")} ${rl.resetSec}s ${t("api.intake.rateLimitedSuffix", "and try again.")}` },
         { status: 429 },
       );
     }
@@ -92,5 +94,5 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json({ error: "action must be 'preview' or 'save'" }, { status: 400 });
+  return NextResponse.json({ error: t("api.intake.actionPreviewOrSave", "action must be 'preview' or 'save'") }, { status: 400 });
 }

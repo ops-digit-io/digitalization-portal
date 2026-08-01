@@ -3,6 +3,7 @@ import * as store from "@/lib/process/store";
 import { profileOf } from "@/lib/process/profile";
 import { scoreProfile, trafficLight } from "@/lib/process/score-model";
 import { deny, now } from "@/lib/process/guard";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,11 +11,12 @@ export const dynamic = "force-dynamic";
 /** Full engagement state: meta (Spoke, Anflug, phase, branch, risk, gates), the
  *  health profile, and the raw ratings for the assessment UI. */
 export async function GET(_req: Request, { params }: { params: { slug: string } }) {
+  const t = getT();
   const d = await deny();
   if (d) return d;
   const { slug } = params;
   const m = await store.meta(slug);
-  if (!m || m.deleted) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
+  if (!m || m.deleted) return NextResponse.json({ error: t("api.noEngagement", "no such engagement") }, { status: 404 });
   // The filled index is tracked on meta (updated on write) — no per-section fan-out.
   const [profile, ratings, digest] = await Promise.all([profileOf(slug), store.ratings(slug), store.readDigest(slug)]);
   // The score model's view: grader scores → five dimensions → the light.
@@ -33,13 +35,14 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
 }
 
 export async function DELETE(req: Request, { params }: { params: { slug: string } }) {
+  const t = getT();
   const d = await deny();
   if (d) return d;
   const { slug } = params;
-  if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
+  if (!(await store.exists(slug))) return NextResponse.json({ error: t("api.noEngagement", "no such engagement") }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as { confirm?: string };
   if (String(body.confirm || "") !== store.slugify(slug)) {
-    return NextResponse.json({ error: `to remove this, send {"confirm":"${store.slugify(slug)}"}` }, { status: 400 });
+    return NextResponse.json({ error: `${t("api.process.confirmRemoval", "to remove this, send")} {"confirm":"${store.slugify(slug)}"}` }, { status: 400 });
   }
   return NextResponse.json(await store.remove(slug, now()));
 }

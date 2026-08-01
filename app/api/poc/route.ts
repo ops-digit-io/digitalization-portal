@@ -19,6 +19,7 @@ import { slugify, type UseCaseSeed } from "@/lib/poc/scaffold";
 import type { ArtifactKind } from "@/lib/poc/spec";
 import { DEMO_NOW, SEED_ROWS } from "@/lib/seed";
 import { getSession } from "@/lib/auth/current";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 
@@ -40,6 +41,7 @@ function seedFor(useCaseId: string): UseCaseSeed | undefined {
 }
 
 export async function POST(req: Request) {
+  const t = getT();
   const session = await getSession();
   let body: {
     step?: "scaffold" | "artifact";
@@ -51,7 +53,7 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: t("api.invalidJson", "invalid JSON") }, { status: 400 });
   }
 
   const kind: ArtifactKind = body.kind ?? "dashboard";
@@ -59,10 +61,10 @@ export async function POST(req: Request) {
 
   if (body.step === "scaffold") {
     if (!can(session, "create_uc")) {
-      return NextResponse.json({ error: "missing capability: create_uc" }, { status: 403 });
+      return NextResponse.json({ error: t("api.poc.missingCreateUcCapability", "missing capability: create_uc") }, { status: 403 });
     }
     const seed = body.useCaseId ? seedFor(body.useCaseId) : undefined;
-    if (!seed) return NextResponse.json({ error: "unknown use case" }, { status: 404 });
+    if (!seed) return NextResponse.json({ error: t("api.poc.unknownUseCase", "unknown use case") }, { status: 404 });
     try {
       const plan = planPoc(seed, kind);
       const result = await scaffoldRepo(host, seed, plan);
@@ -80,10 +82,10 @@ export async function POST(req: Request) {
 
   if (body.step === "artifact") {
     if (!can(session, "draft")) {
-      return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
+      return NextResponse.json({ error: t("api.poc.missingDraftCapability", "missing capability: draft") }, { status: 403 });
     }
     const seed = body.useCaseId ? seedFor(body.useCaseId) : undefined;
-    if (!seed || !body.repo) return NextResponse.json({ error: "missing repo or use case" }, { status: 400 });
+    if (!seed || !body.repo) return NextResponse.json({ error: t("api.poc.missingRepoOrUseCase", "missing repo or use case") }, { status: 400 });
     try {
       const result = await buildArtifact(host, body.repo, seed, kind, body.approved === true);
       return NextResponse.json({
@@ -97,5 +99,5 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json({ error: "unknown step" }, { status: 400 });
+  return NextResponse.json({ error: t("api.poc.unknownStep", "unknown step") }, { status: 400 });
 }

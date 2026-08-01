@@ -3,6 +3,7 @@ import * as store from "@/lib/process/store";
 import { byId, type Level } from "@/lib/process/criteria";
 import { summarize } from "@/lib/process/summary";
 import { deny, now } from "@/lib/process/guard";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const t = getT();
   const d = await deny();
   if (d) return d;
   const body = (await req.json().catch(() => ({}))) as {
@@ -30,7 +32,7 @@ export async function POST(req: Request) {
     /** Seed ratings from the Kurzform self-assessment, by criterion id. */
     seedRatings?: Record<string, number>;
   };
-  if (!String(body.title || "").trim()) return NextResponse.json({ error: "title required" }, { status: 400 });
+  if (!String(body.title || "").trim()) return NextResponse.json({ error: t("api.process.titleRequired", "title required") }, { status: 400 });
   try {
     const ts = now();
     const m = await store.create(body as { title: string }, ts);

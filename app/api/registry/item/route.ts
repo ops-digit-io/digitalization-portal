@@ -1,17 +1,19 @@
 import { NextResponse } from "next/server";
 import { newFileTemplate, readEntryFile, ENTRY_FILE, type EntryType } from "@/lib/registry-store";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** Read a single file within an entry (default: the entry file). */
 export async function GET(req: Request) {
+  const t = getT();
   const url = new URL(req.url);
   const type = url.searchParams.get("type") as EntryType | null;
   const name = url.searchParams.get("name");
   const path = url.searchParams.get("path") ?? (type === "skill" ? ENTRY_FILE : `${name}.md`);
   if ((type !== "skill" && type !== "playbook" && type !== "contract") || !name) {
-    return NextResponse.json({ error: "type (skill|playbook|contract) and name required" }, { status: 400 });
+    return NextResponse.json({ error: t("api.registry.typeAndNameRequired", "type (skill|playbook|contract) and name required") }, { status: 400 });
   }
   const content = await readEntryFile(type, name, path);
   if (content === undefined) {

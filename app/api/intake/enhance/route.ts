@@ -3,6 +3,7 @@ import { can } from "@/lib/rbac";
 import { getSession } from "@/lib/auth/current";
 import { EMPTY_ANSWERS, type DemandAnswers } from "@/lib/demand";
 import { enhanceDemand } from "@/lib/agent/intake-enhance";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,21 +24,22 @@ function coerce(a: unknown): DemandAnswers {
  * here (constraint: AI drafts, humans decide).
  */
 export async function POST(req: Request) {
+  const t = getT();
   const session = await getSession(); // real deployment resolves this from the OIDC session
   if (!can(session, "draft")) {
-    return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
+    return NextResponse.json({ error: t("api.intake.draftCapabilityRequired", "missing capability: draft") }, { status: 403 });
   }
 
   let body: { answers?: unknown };
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: t("api.invalidJson", "invalid JSON") }, { status: 400 });
   }
 
   const answers = coerce(body.answers);
   if (ENHANCEABLE_EMPTY(answers)) {
-    return NextResponse.json({ error: "Nothing to enhance yet — describe the problem first." }, { status: 400 });
+    return NextResponse.json({ error: t("api.intake.nothingToEnhance", "Nothing to enhance yet — describe the problem first.") }, { status: 400 });
   }
 
   const result = await enhanceDemand(answers);

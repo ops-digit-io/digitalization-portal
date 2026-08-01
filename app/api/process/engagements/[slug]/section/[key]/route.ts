@@ -5,16 +5,18 @@ import { schemaOf } from "@/lib/process/schemas";
 import * as store from "@/lib/process/store";
 import { sectionTemplate } from "@/lib/process/templates";
 import { deny, now } from "@/lib/process/guard";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(_req: Request, { params }: { params: { slug: string; key: string } }) {
+  const t = getT();
   const d = await deny();
   if (d) return d;
   const { slug, key } = params;
-  if (!sectionByKey[key]) return NextResponse.json({ error: "no such section" }, { status: 404 });
-  if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
+  if (!sectionByKey[key]) return NextResponse.json({ error: t("api.process.noSection", "no such section") }, { status: 404 });
+  if (!(await store.exists(slug))) return NextResponse.json({ error: t("api.noEngagement", "no such engagement") }, { status: 404 });
   // The template ships with the section, not with /config: it is large and only
   // the section actually being worked needs it. It comes from `du-templates`, so
   // `templateAvailable` tells the UI whether "Load template" can do anything.
@@ -23,11 +25,12 @@ export async function GET(_req: Request, { params }: { params: { slug: string; k
 }
 
 export async function PUT(req: Request, { params }: { params: { slug: string; key: string } }) {
+  const t = getT();
   const d = await deny();
   if (d) return d;
   const { slug, key } = params;
-  if (!sectionByKey[key]) return NextResponse.json({ error: "no such section" }, { status: 404 });
-  if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
+  if (!sectionByKey[key]) return NextResponse.json({ error: t("api.process.noSection", "no such section") }, { status: 404 });
+  if (!(await store.exists(slug))) return NextResponse.json({ error: t("api.noEngagement", "no such engagement") }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as { content?: string };
   const content = String(body.content ?? "");
   // Grade against the section's schema on the way in, so the score is always in

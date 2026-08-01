@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyGithubSignature } from "@/lib/projection/webhook";
 import { reconcileFunnel } from "@/lib/projection/reconcile";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,14 +15,15 @@ export const dynamic = "force-dynamic";
  * shared `GITHUB_WEBHOOK_SECRET`), not a session — it is called by GitHub, not a user.
  */
 export async function POST(req: Request) {
+  const t = getT();
   const secret = process.env.GITHUB_WEBHOOK_SECRET ?? "";
   if (!secret) {
-    return NextResponse.json({ ok: false, error: "webhook not configured" }, { status: 503 });
+    return NextResponse.json({ ok: false, error: t("api.webhooks.notConfigured", "webhook not configured") }, { status: 503 });
   }
 
   const body = await req.text();
   if (!verifyGithubSignature(body, req.headers.get("x-hub-signature-256"), secret)) {
-    return NextResponse.json({ ok: false, error: "invalid signature" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: t("api.webhooks.invalidSignature", "invalid signature") }, { status: 401 });
   }
 
   const event = req.headers.get("x-github-event");

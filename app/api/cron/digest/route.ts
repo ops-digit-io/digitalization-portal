@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildDigest } from "@/lib/digest/service";
 import { getNotifier } from "@/lib/notify";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,10 +14,11 @@ export const dynamic = "force-dynamic";
  * idempotent (safe to run more than once).
  */
 async function run(req: Request): Promise<NextResponse> {
+  const t = getT();
   const secret = process.env.CRON_SECRET ?? "";
   const auth = req.headers.get("authorization") ?? "";
   if (!secret || auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: t("api.unauthorized", "unauthorized") }, { status: 401 });
   }
   try {
     const digest = await buildDigest(new Date().toISOString());

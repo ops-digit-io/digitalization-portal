@@ -14,6 +14,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/current";
 import { can } from "@/lib/rbac";
 import { modelOptions, saveModelOverride, resetModelOverride } from "@/lib/model-settings";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,16 +24,17 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const t = getT();
   const session = await getSession();
   if (!can(session, "all")) {
-    return NextResponse.json({ ok: false, error: "Only an administrator can change the default model." }, { status: 403 });
+    return NextResponse.json({ ok: false, error: t("api.modelSettings.adminOnly", "Only an administrator can change the default model.") }, { status: 403 });
   }
 
   let body: { action?: string; provider?: unknown; model?: unknown };
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid JSON" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: t("api.invalidJson", "invalid JSON") }, { status: 400 });
   }
 
   const result =

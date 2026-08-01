@@ -4,18 +4,20 @@ import * as store from "@/lib/process/store";
 import * as coach from "@/lib/process/coach";
 import * as llm from "@/lib/process/llm";
 import { deny } from "@/lib/process/guard";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** Live coaching turn for a dimension. 503 when no key — the UI offers export. */
 export async function POST(req: Request, { params }: { params: { slug: string; dim: string } }) {
+  const t = getT();
   const d = await deny();
   if (d) return d;
   const { slug, dim } = params;
-  if (!dimById[dim]) return NextResponse.json({ error: "no such dimension" }, { status: 404 });
-  if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
-  if (!(await llm.available())) return NextResponse.json({ error: "live coaching disabled", code: "NO_KEY" }, { status: 503 });
+  if (!dimById[dim]) return NextResponse.json({ error: t("api.process.noDimension", "no such dimension") }, { status: 404 });
+  if (!(await store.exists(slug))) return NextResponse.json({ error: t("api.noEngagement", "no such engagement") }, { status: 404 });
+  if (!(await llm.available())) return NextResponse.json({ error: t("api.liveCoachDisabled", "live coaching disabled"), code: "NO_KEY" }, { status: 503 });
   const locale = new URL(req.url).searchParams.get("lang") === "de" ? "de" : "en";
   const body = (await req.json().catch(() => ({}))) as { messages?: { role: "user" | "assistant"; content: string }[] };
   const history = Array.isArray(body.messages) ? body.messages : [];
