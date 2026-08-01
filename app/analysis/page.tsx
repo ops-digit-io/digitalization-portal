@@ -8,7 +8,13 @@ export const dynamic = "force-dynamic";
 const EUR = (n: number) =>
   new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
 
-const TEAM_SIZE = 3; // demo assumption: three parallel workstreams
+const TEAM_MIN = 1;
+const TEAM_MAX = 8;
+const DEFAULT_TEAM = 3;
+const TEAM_CHOICES = [2, 3, 4, 5, 6];
+
+const laneLabel = (k: string) =>
+  k === "—" ? "Unassigned" : k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
 function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -20,22 +26,23 @@ function Tile({ label, value, sub }: { label: string; value: string; sub?: strin
   );
 }
 
-export default async function AnalysisPage({ searchParams }: { searchParams: { horizon?: string } }) {
+export default async function AnalysisPage({ searchParams }: { searchParams: { horizon?: string; team?: string } }) {
   const horizon: Horizon = searchParams.horizon === "year" ? "year" : "quarter";
   const horizonWeeks = HORIZON_WEEKS[horizon];
-  const capacity = TEAM_SIZE * horizonWeeks;
+  const team = Math.min(TEAM_MAX, Math.max(TEAM_MIN, Math.round(Number(searchParams.team)) || DEFAULT_TEAM));
+  const capacity = team * horizonWeeks;
+  const qs = (o: { horizon?: Horizon; team?: number }) =>
+    `/analysis?horizon=${o.horizon ?? horizon}&team=${o.team ?? team}`;
 
   // Real funnel — active demands only. No seed; a thin funnel analyses thin.
   const { rows } = await loadPortfolioRows();
   const active = rows.filter((r) => r.status !== "killed" && r.status !== "parked");
-  const a = analyzePortfolio(active, {
-    horizon,
-    parallelism: TEAM_SIZE,
-    capacityPersonWeeks: capacity,
-  });
+  const a = analyzePortfolio(active, { horizon, parallelism: team, capacityPersonWeeks: capacity });
 
   const maxWorkload = Math.max(...a.timeline.map((t) => t.workloadPersonWeeks), 1);
   const maxValue = Math.max(...a.timeline.map((t) => t.valueRunRate), 1);
+  const plan = a.plan;
+  const deferredSet = new Set(plan?.deferred ?? []);
 
   return (
     <main className="mx-auto max-w-[1100px] px-4 py-6">
@@ -46,16 +53,31 @@ export default async function AnalysisPage({ searchParams }: { searchParams: { h
             Workload vs. business value across {a.totals.count} active use cases, next {horizon}.
           </p>
         </div>
-        <div className="ml-auto inline-flex rounded-md border p-0.5 text-sm">
-          {(["quarter", "year"] as const).map((h) => (
-            <Link
-              key={h}
-              href={`/analysis?horizon=${h}`}
-              className={`rounded px-3 py-1 ${h === horizon ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              {h === "quarter" ? "Quarter" : "Year"}
-            </Link>
-          ))}
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {/* Team size — the planning lever that drives schedule and capacity. */}
+          <div className="inline-flex items-center gap-1 rounded-md border p-0.5 text-sm">
+            <span className="px-2 text-xs text-muted-foreground">Team</span>
+            {TEAM_CHOICES.map((n) => (
+              <Link
+                key={n}
+                href={qs({ team: n })}
+                className={`rounded px-2 py-1 tabular-nums ${n === team ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {n}
+              </Link>
+            ))}
+          </div>
+          <div className="inline-flex rounded-md border p-0.5 text-sm">
+            {(["quarter", "year"] as const).map((h) => (
+              <Link
+                key={h}
+                href={qs({ horizon: h })}
+                className={`rounded px-3 py-1 ${h === horizon ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {h === "quarter" ? "Quarter" : "Year"}
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -66,14 +88,51 @@ export default async function AnalysisPage({ searchParams }: { searchParams: { h
         <Tile
           label="Capacity"
           value={a.capacity?.feasible ? "Fits" : "Over"}
-          sub={`${Math.round((a.capacity?.utilization ?? 0) * 100)}% of ${capacity} pw (${TEAM_SIZE} ppl)`}
+          sub={`${Math.round((a.capacity?.utilization ?? 0) * 100)}% of ${capacity} pw (${team} ppl)`}
         />
       </div>
 
-      {a.capacity && !a.capacity.feasible && (
-        <div className="mt-3 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-sm">
-          <span className="text-warn" aria-hidden>⚠</span> Over capacity by{" "}
-          {a.capacity.overCommitmentWeeks} person-weeks — sequence or drop the lowest value-per-effort items.
+      {/* Concrete plan: what to keep and what to defer to fit capacity. */}
+      {plan && !plan.feasible && (
+        <Card className="mt-3 border-warn/40 bg-warn/5 p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold">
+              <span className="text-warn" aria-hidden>⚠</span> Over capacity by {a.capacity?.overCommitmentWeeks} pw — recommended plan
+            </h2>
+            <span className="text-xs text-muted-foreground">
+              greedy by value per effort · {team} people over the {horizon}
+            </span>
+          </div>
+          <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Keep</div>
+              <div className="mt-0.5 text-lg font-semibold tabular-nums">{plan.inPlan.length} use cases</div>
+              <div className="text-xs text-ok">{EUR(plan.valueCaptured)} captured · {plan.effortUsed} pw</div>
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Defer</div>
+              <div className="mt-0.5 text-lg font-semibold tabular-nums">{plan.deferred.length} use cases</div>
+              <div className="text-xs text-muted-foreground">{EUR(plan.valueDeferred)} not landing this {horizon}</div>
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">Or</div>
+              <div className="mt-0.5 text-sm">
+                Grow the team: {" "}
+                <Link href={qs({ team: Math.min(TEAM_MAX, team + 1) })} className="font-medium underline">try {Math.min(TEAM_MAX, team + 1)} people</Link>
+                {" "}to see if it fits.
+              </div>
+            </div>
+          </div>
+          {plan.deferred.length > 0 && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Deferred: {plan.deferred.join(", ")}. These are the lowest value-per-effort items; deferring them costs the least landed value.
+            </p>
+          )}
+        </Card>
+      )}
+      {plan && plan.feasible && a.totals.count > 0 && (
+        <div className="mt-3 rounded-lg border border-ok/40 bg-ok/5 px-3 py-2 text-sm">
+          <span className="text-ok" aria-hidden>✓</span> The whole active portfolio fits {team} people over the {horizon} ({a.totals.totalEffortWeeks} of {capacity} pw).
         </div>
       )}
 
@@ -86,10 +145,7 @@ export default async function AnalysisPage({ searchParams }: { searchParams: { h
               <div key={t.label} className="flex items-center gap-3">
                 <span className="w-16 shrink-0 text-xs text-muted-foreground">{t.label}</span>
                 <div className="h-4 flex-1 rounded bg-secondary">
-                  <div
-                    className="h-4 rounded bg-info"
-                    style={{ width: `${(t.workloadPersonWeeks / maxWorkload) * 100}%` }}
-                  />
+                  <div className="h-4 rounded bg-info" style={{ width: `${(t.workloadPersonWeeks / maxWorkload) * 100}%` }} />
                 </div>
                 <span className="w-14 shrink-0 text-right text-xs tabular-nums">{t.workloadPersonWeeks} pw</span>
               </div>
@@ -104,10 +160,7 @@ export default async function AnalysisPage({ searchParams }: { searchParams: { h
               <div key={t.label} className="flex items-center gap-3">
                 <span className="w-16 shrink-0 text-xs text-muted-foreground">{t.label}</span>
                 <div className="h-4 flex-1 rounded bg-secondary">
-                  <div
-                    className="h-4 rounded bg-ok"
-                    style={{ width: `${(t.valueRunRate / maxValue) * 100}%` }}
-                  />
+                  <div className="h-4 rounded bg-ok" style={{ width: `${(t.valueRunRate / maxValue) * 100}%` }} />
                 </div>
                 <span className="w-20 shrink-0 text-right text-xs tabular-nums">{EUR(t.valueRunRate)}</span>
               </div>
@@ -116,13 +169,22 @@ export default async function AnalysisPage({ searchParams }: { searchParams: { h
         </Card>
       </div>
 
-      {/* Ranked by value per effort */}
+      {/* Where the workload and value sit */}
+      {a.totals.count > 0 && (
+        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Breakdown title="By lane" rows={a.byLane.map((g) => ({ ...g, label: laneLabel(g.key) }))} />
+          <Breakdown title="By stage" rows={a.byStage.map((g) => ({ ...g, label: g.key }))} />
+        </div>
+      )}
+
+      {/* Ranked by value per effort, with the keep/defer decision */}
       <Card className="mt-6 overflow-hidden">
         <div className="border-b px-4 py-3 text-sm font-semibold">Ranked by value per effort</div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr className="border-b">
+                {plan && <th className="px-4 py-2 font-medium">Plan</th>}
                 <th className="px-4 py-2 font-medium">Use case</th>
                 <th className="px-4 py-2 font-medium">Stage</th>
                 <th className="px-4 py-2 text-right font-medium">Effort</th>
@@ -133,28 +195,40 @@ export default async function AnalysisPage({ searchParams }: { searchParams: { h
             </thead>
             <tbody>
               {a.ranked.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No active demands in the funnel yet. <Link href="/intake" className="underline">Capture one</Link> to see it analysed.</td></tr>
+                <tr><td colSpan={plan ? 7 : 6} className="px-4 py-8 text-center text-muted-foreground">No active demands in the funnel yet. <Link href="/intake" className="underline">Capture one</Link> to see it analysed.</td></tr>
               )}
-              {a.ranked.map((it) => (
-                <tr key={it.id} className="border-b last:border-0">
-                  <td className="px-4 py-2">
-                    <Link href={`/uc/${it.id}`} className="hover:underline">
-                      <span className="text-muted-foreground">{it.id}</span> {it.title}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-2 text-muted-foreground">{it.stage ?? "—"}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{it.effortWeeks} pw</td>
-                  <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">
-                    {it.goLiveWeeks === 0 ? "live" : `wk ${it.goLiveWeeks}`}
-                  </td>
-                  <td className="px-4 py-2 text-right tabular-nums">
-                    {it.horizonValue > 0 ? EUR(it.horizonValue) : <span className="text-muted-foreground">—</span>}
-                  </td>
-                  <td className="px-4 py-2 text-right tabular-nums font-medium">
-                    {it.valuePerEffort > 0 ? EUR(it.valuePerEffort) : "—"}
-                  </td>
-                </tr>
-              ))}
+              {a.ranked.map((it) => {
+                const deferred = deferredSet.has(it.id);
+                return (
+                  <tr key={it.id} className={`border-b last:border-0 ${deferred ? "opacity-55" : ""}`}>
+                    {plan && (
+                      <td className="px-4 py-2">
+                        {deferred ? (
+                          <span className="rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-[10px] font-medium text-warn">defer</span>
+                        ) : (
+                          <span className="rounded-full border border-ok/40 bg-ok/10 px-2 py-0.5 text-[10px] font-medium text-ok">keep</span>
+                        )}
+                      </td>
+                    )}
+                    <td className="px-4 py-2">
+                      <Link href={`/uc/${it.id}`} className="hover:underline">
+                        <span className="text-muted-foreground">{it.id}</span> {it.title}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-2 text-muted-foreground">{it.stage ?? "—"}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{it.effortWeeks} pw</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">
+                      {it.goLiveWeeks === 0 ? "live" : `wk ${it.goLiveWeeks}`}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums">
+                      {it.horizonValue > 0 ? EUR(it.horizonValue) : <span className="text-muted-foreground">—</span>}
+                    </td>
+                    <td className="px-4 py-2 text-right tabular-nums font-medium">
+                      {it.valuePerEffort > 0 ? EUR(it.valuePerEffort) : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -162,8 +236,34 @@ export default async function AnalysisPage({ searchParams }: { searchParams: { h
 
       <p className="mt-4 text-xs text-muted-foreground">
         Effort and value are risk-discounted estimates (basis: stage, level, heat, confidence — see{" "}
-        <code>lib/analysis/estimate.ts</code>). Figures are indicative planning inputs, not committed value.
+        <code>lib/analysis/estimate.ts</code>). The plan is a greedy value-per-effort selection within capacity —
+        a transparent heuristic, not a solver. Figures are indicative planning inputs, not committed value.
       </p>
     </main>
+  );
+}
+
+function Breakdown({ title, rows }: { title: string; rows: { key: string; label: string; count: number; effortWeeks: number; horizonValue: number }[] }) {
+  const maxEffort = Math.max(1, ...rows.map((r) => r.effortWeeks));
+  return (
+    <Card className="p-4">
+      <h2 className="mb-3 text-sm font-semibold">{title}</h2>
+      {rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Nothing to group yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {rows.map((r) => (
+            <div key={r.key} className="flex items-center gap-3">
+              <span className="w-32 shrink-0 truncate text-xs" title={r.label}>{r.label}</span>
+              <div className="h-4 flex-1 rounded bg-secondary">
+                <div className="h-4 rounded bg-violet-500/70" style={{ width: `${(r.effortWeeks / maxEffort) * 100}%` }} />
+              </div>
+              <span className="w-14 shrink-0 text-right text-xs tabular-nums">{r.effortWeeks} pw</span>
+              <span className="w-20 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{EUR(r.horizonValue)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }

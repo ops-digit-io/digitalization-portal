@@ -19,7 +19,7 @@ export function makeImplementationAnalysisTool(rows: readonly RegistryRow[]): Ag
   return {
     name: "implementation-analysis",
     description:
-      "Over a quarter or year, compute portfolio implementation workload (person-weeks) and business value that lands within the horizon, ranked by value-per-effort. Read-only.",
+      "Over a quarter or year, compute portfolio implementation workload (person-weeks) and business value that lands within the horizon, ranked by value-per-effort. Also returns workload/value broken down by lane and by stage, and — when a capacity is given — a concrete keep/defer plan that fits the person-week budget (value captured vs deferred). Read-only.",
     capability: "view_board",
     inputSchema: {
       type: "object",

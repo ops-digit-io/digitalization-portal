@@ -12,7 +12,7 @@
  */
 
 import type { RegistryRow } from "../registry.js";
-import type { Stage } from "../types.js";
+import type { Stage, Lane } from "../types.js";
 import { estimateEffort, horizonValue, riskedAnnualValue } from "./estimate.js";
 
 export type Horizon = "quarter" | "year";
@@ -22,6 +22,7 @@ export interface AnalysisItem {
   id: string;
   title: string;
   stage?: Stage;
+  lane?: Lane;
   effortWeeks: number;
   goLiveWeeks: number;
   /** Risk-discounted annual run-rate once live. */
@@ -32,6 +33,36 @@ export interface AnalysisItem {
   valuePerEffort: number;
   /** True if it goes live within the horizon. */
   landsInHorizon: boolean;
+  /** Set when a capacity is given: does the greedy plan keep this one? */
+  inPlan?: boolean;
+}
+
+/** A rollup of the portfolio by some dimension (lane, stage) — where the work
+ *  and the value actually sit, so "what to limit" has an answer beyond the list. */
+export interface GroupRollup {
+  key: string;
+  count: number;
+  effortWeeks: number;
+  horizonValue: number;
+}
+
+/**
+ * A concrete answer to "we're over capacity — now what". Greedy by value per
+ * effort: keep the best ratios until the person-week budget is spent, defer the
+ * rest. Transparent rather than optimal (a true knapsack would occasionally swap
+ * a large high-ratio item for two smaller ones); the ranking is the story, and a
+ * defensible heuristic a human can eyeball beats a black box they can't.
+ */
+export interface CapacityPlan {
+  capacityPersonWeeks: number;
+  /** Ids kept, in priority order. */
+  inPlan: string[];
+  /** Ids deferred for lack of capacity. */
+  deferred: string[];
+  effortUsed: number;
+  valueCaptured: number;
+  valueDeferred: number;
+  feasible: boolean;
 }
 
 export interface PeriodBucket {
@@ -55,11 +86,58 @@ export interface PortfolioAnalysis {
     landingCount: number;
   };
   timeline: PeriodBucket[];
+  byLane: GroupRollup[];
+  byStage: GroupRollup[];
   capacity?: {
     capacityPersonWeeks: number;
     utilization: number;
     feasible: boolean;
     overCommitmentWeeks: number;
+  };
+  /** Present when a capacity is given — the concrete keep/defer plan. */
+  plan?: CapacityPlan;
+}
+
+/** Group items by a key, summing effort and horizon value. Sorted by effort. */
+function rollup(items: AnalysisItem[], key: (i: AnalysisItem) => string | undefined): GroupRollup[] {
+  const by = new Map<string, GroupRollup>();
+  for (const i of items) {
+    const k = key(i) ?? "—";
+    const r = by.get(k) ?? { key: k, count: 0, effortWeeks: 0, horizonValue: 0 };
+    r.count += 1;
+    r.effortWeeks = Math.round((r.effortWeeks + i.effortWeeks) * 10) / 10;
+    r.horizonValue += i.horizonValue;
+    by.set(k, r);
+  }
+  return [...by.values()].sort((a, b) => b.effortWeeks - a.effortWeeks);
+}
+
+/** Greedy keep/defer plan within a person-week budget (see CapacityPlan). */
+export function planWithinCapacity(ranked: AnalysisItem[], capacityPersonWeeks: number): CapacityPlan {
+  const inPlan: string[] = [];
+  const deferred: string[] = [];
+  let effortUsed = 0;
+  let valueCaptured = 0;
+  let valueDeferred = 0;
+  for (const it of ranked) {
+    // A zero-effort item (already live) is always kept — it costs nothing.
+    if (it.effortWeeks === 0 || effortUsed + it.effortWeeks <= capacityPersonWeeks) {
+      inPlan.push(it.id);
+      effortUsed = Math.round((effortUsed + it.effortWeeks) * 10) / 10;
+      valueCaptured += it.horizonValue;
+    } else {
+      deferred.push(it.id);
+      valueDeferred += it.horizonValue;
+    }
+  }
+  return {
+    capacityPersonWeeks,
+    inPlan,
+    deferred,
+    effortUsed,
+    valueCaptured,
+    valueDeferred,
+    feasible: deferred.length === 0,
   };
 }
 
@@ -95,6 +173,7 @@ export function analyzePortfolio(rows: readonly RegistryRow[], opts: AnalyzeOpti
       id: row.id,
       title: row.title,
       ...(row.stage ? { stage: row.stage } : {}),
+      ...(row.lane ? { lane: row.lane } : {}),
       effortWeeks,
       goLiveWeeks,
       annualValue: riskedAnnualValue(row),
@@ -139,6 +218,8 @@ export function analyzePortfolio(rows: readonly RegistryRow[], opts: AnalyzeOpti
     ranked,
     totals,
     timeline,
+    byLane: rollup(items, (i) => i.lane),
+    byStage: rollup(items, (i) => i.stage),
   };
 
   if (opts.capacityPersonWeeks !== undefined) {
@@ -149,6 +230,11 @@ export function analyzePortfolio(rows: readonly RegistryRow[], opts: AnalyzeOpti
       feasible: totals.totalEffortWeeks <= cap,
       overCommitmentWeeks: Math.max(0, Math.round((totals.totalEffortWeeks - cap) * 10) / 10),
     };
+    const plan = planWithinCapacity(ranked, cap);
+    analysis.plan = plan;
+    // Fold the keep/defer decision back onto the items so the table can mark it.
+    const kept = new Set(plan.inPlan);
+    for (const it of items) it.inPlan = kept.has(it.id);
   }
 
   return analysis;

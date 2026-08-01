@@ -587,9 +587,13 @@ export class OfflineProvider implements ModelProvider {
         const t = r.totals as { count: number; totalEffortWeeks: number; totalHorizonValue: number; landingCount: number };
         const top = (r.ranked as { id: string; title: string; valuePerEffort: number }[]).slice(0, 3);
         const cap = r.capacity as { feasible: boolean; overCommitmentWeeks: number } | undefined;
+        const plan = r.plan as { inPlan: string[]; deferred: string[]; valueCaptured: number; valueDeferred: number } | undefined;
         return [
           `Over the ${String(r.horizon)}, ${t.count} active use cases carry ${t.totalEffortWeeks} person-weeks of work, and ${eur(t.totalHorizonValue)} of value lands within the horizon (${t.landingCount} go live in time).`,
-          cap ? (cap.feasible ? "This fits the team's capacity." : `This is over capacity by ${cap.overCommitmentWeeks} person-weeks — sequence or drop the weakest items.`) : "",
+          cap ? (cap.feasible ? "This fits the team's capacity." : `This is over capacity by ${cap.overCommitmentWeeks} person-weeks.`) : "",
+          plan && plan.deferred.length > 0
+            ? `To fit the budget, keep ${plan.inPlan.length} (${eur(plan.valueCaptured)} captured) and defer ${plan.deferred.length} (${eur(plan.valueDeferred)}): ${plan.deferred.join(", ")}.`
+            : "",
           `Best value per effort: ${top.map((x) => `${x.id} (${eur(x.valuePerEffort)}/pw)`).join(", ")}.`,
         ].filter(Boolean).join(" ") + note;
       }
