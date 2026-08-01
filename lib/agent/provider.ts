@@ -13,6 +13,8 @@
  * added, the app is live — no code change.
  */
 
+import { fetchRetry } from "../net/fetch-retry";
+
 export type Role = "user" | "assistant";
 
 export interface TextBlock {
@@ -69,6 +71,21 @@ const ANTHROPIC_VERSION = "2023-06-01";
 const DEFAULT_MODEL = "claude-sonnet-5";
 const DEFAULT_OPENAI_MODEL = "gpt-4o";
 
+/**
+ * Retry/timeout envelope for live model calls. Generation is slow, so the
+ * per-attempt timeout is generous (120 s, `MODEL_TIMEOUT_MS` to tune); the
+ * retry set is the transient one (429 rate limit, 529 overloaded, 5xx,
+ * network), never invalid-request 4xx. Every module that talks to a model
+ * goes through `complete()`, so this is the one place resilience lives.
+ */
+function modelRetryOpts(): { attempts: number; baseMs: number; timeoutMs: number } {
+  return {
+    attempts: Number(process.env.MODEL_RETRY_ATTEMPTS ?? 3),
+    baseMs: Number(process.env.MODEL_RETRY_BASE_MS ?? 1_000),
+    timeoutMs: Number(process.env.MODEL_TIMEOUT_MS ?? 120_000),
+  };
+}
+
 /** The real Anthropic Messages API, called with `fetch` (no SDK dependency). */
 export class AnthropicProvider implements ModelProvider {
   readonly name = "anthropic";
@@ -84,7 +101,7 @@ export class AnthropicProvider implements ModelProvider {
   }
 
   async complete(req: CompletionRequest): Promise<ModelResponse> {
-    const res = await fetch(`${this.baseUrl}/v1/messages`, {
+    const res = await fetchRetry(`${this.baseUrl}/v1/messages`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -106,7 +123,7 @@ export class AnthropicProvider implements ModelProvider {
           return tools.length > 0 ? { tools } : {};
         })(),
       }),
-    });
+    }, modelRetryOpts());
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
@@ -196,11 +213,11 @@ export class OpenAIProvider implements ModelProvider {
       body.tool_choice = "auto";
     }
 
-    const res = await fetch(`${this.baseUrl}/chat/completions`, {
+    const res = await fetchRetry(`${this.baseUrl}/chat/completions`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${this.apiKey}` },
       body: JSON.stringify(body),
-    });
+    }, modelRetryOpts());
     if (!res.ok) throw new Error(`OpenAI API ${res.status}: ${(await res.text()).slice(0, 300)}`);
 
     const data = (await res.json()) as {

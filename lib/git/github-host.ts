@@ -13,8 +13,26 @@
 
 import { createSign } from "node:crypto";
 import { FileExistsError, type DirEntry, type FileWrite, type GitHost, type PullRequestRef, type PutFileOptions, type RepoRef } from "./host.js";
+import { fetchRetry } from "../net/fetch-retry.js";
 
 const API = "https://api.github.com";
+
+/**
+ * A GitHub API failure with its status attached, so callers can tell
+ * "the file is not there" (404) from "GitHub is down / the credentials are
+ * wrong" (everything else). Swallowing the second kind as the first is how a
+ * store quietly loses data: a read that fails as "missing" invites the caller
+ * to write a fresh copy over the real one.
+ */
+export class GitHubApiError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message);
+    this.name = "GitHubApiError";
+  }
+}
+
+const isStatus = (err: unknown, ...codes: number[]): boolean =>
+  err instanceof GitHubApiError && codes.includes(err.status);
 
 function base64url(input: Buffer | string): string {
   return Buffer.from(input).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -44,7 +62,7 @@ export class GitHubHost implements GitHost {
 
   /** Look up this App's installation on the org via the App JWT — the source of truth. */
   private async discoverInstallationId(): Promise<string> {
-    const res = await fetch(`${API}/orgs/${this.cfg.org}/installation`, {
+    const res = await fetchRetry(`${API}/orgs/${this.cfg.org}/installation`, {
       headers: {
         authorization: `Bearer ${this.appJwt()}`,
         accept: "application/vnd.github+json",
@@ -63,7 +81,9 @@ export class GitHubHost implements GitHost {
   }
 
   private async requestToken(installationId: string): Promise<Response> {
-    return fetch(`${API}/app/installations/${installationId}/access_tokens`, {
+    // Token minting sits under every store write in the portal — a transient
+    // failure here would fail all of them at once, so it retries like the rest.
+    return fetchRetry(`${API}/app/installations/${installationId}/access_tokens`, {
       method: "POST",
       headers: {
         authorization: `Bearer ${this.appJwt()}`,
@@ -108,17 +128,31 @@ export class GitHubHost implements GitHost {
 
   private async api<T>(path: string, init: RequestInit & { method: string }): Promise<T> {
     const token = await this.installationToken();
-    const res = await fetch(`${API}${path}`, {
-      ...init,
-      headers: {
-        authorization: `token ${token}`,
-        accept: "application/vnd.github+json",
-        "x-github-api-version": "2022-11-28",
-        "content-type": "application/json",
-        ...(init.headers ?? {}),
+    // Bounded retry on transient failures (network, 429, 5xx), one timeout per
+    // attempt. Contents PUTs are safe to retry: the sha pins the base, so a
+    // repeat lands as the same change or surfaces a 409 the caller handles.
+    const res = await fetchRetry(
+      `${API}${path}`,
+      {
+        ...init,
+        headers: {
+          authorization: `token ${token}`,
+          accept: "application/vnd.github+json",
+          "x-github-api-version": "2022-11-28",
+          "content-type": "application/json",
+          ...(init.headers ?? {}),
+        },
       },
-    });
-    if (!res.ok) throw new Error(`GitHub ${init.method} ${path} → ${res.status}: ${await res.text()}`);
+      {
+        attempts: Number(process.env.GITHUB_RETRY_ATTEMPTS ?? 3),
+        baseMs: Number(process.env.GITHUB_RETRY_BASE_MS ?? 400),
+        timeoutMs: Number(process.env.GITHUB_TIMEOUT_MS ?? 15_000),
+      },
+    );
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new GitHubApiError(res.status, `GitHub ${init.method} ${path} → ${res.status}: ${body.slice(0, 300)}`);
+    }
     return (await res.json()) as T;
   }
 
@@ -135,23 +169,27 @@ export class GitHubHost implements GitHost {
     return { owner: this.cfg.org, name, url: data.html_url, local: false };
   }
 
+  /** The current blob sha of a path, or undefined when the path is new. */
+  private async shaOf(repo: RepoRef, path: string, branch: string): Promise<string | undefined> {
+    try {
+      const existing = await this.api<{ sha: string }>(
+        `/repos/${repo.owner}/${repo.name}/contents/${encodeURI(path)}?ref=${branch}`,
+        { method: "GET" },
+      );
+      return existing.sha;
+    } catch (err) {
+      if (isStatus(err, 404)) return undefined; // genuinely new file
+      throw err; // credentials / outage — do NOT write blind on top of that
+    }
+  }
+
   async putFile(repo: RepoRef, file: FileWrite, message: string, branch: string, opts?: PutFileOptions): Promise<void> {
     // createOnly: never look up a sha, so an existing path is NOT overwritten —
     // GitHub rejects the sha-less PUT (422) and we surface it as FileExistsError.
-    let sha: string | undefined;
-    if (!opts?.createOnly) {
-      try {
-        const existing = await this.api<{ sha: string }>(
-          `/repos/${repo.owner}/${repo.name}/contents/${encodeURI(file.path)}?ref=${branch}`,
-          { method: "GET" },
-        );
-        sha = existing.sha;
-      } catch {
-        /* new file */
-      }
-    }
-    try {
-      await this.api(`/repos/${repo.owner}/${repo.name}/contents/${encodeURI(file.path)}`, {
+    let sha = opts?.createOnly ? undefined : await this.shaOf(repo, file.path, branch);
+
+    const attempt = () =>
+      this.api(`/repos/${repo.owner}/${repo.name}/contents/${encodeURI(file.path)}`, {
         method: "PUT",
         body: JSON.stringify({
           message,
@@ -160,10 +198,19 @@ export class GitHubHost implements GitHost {
           ...(sha ? { sha } : {}),
         }),
       });
+
+    try {
+      await attempt();
     } catch (err) {
       // A sha-less PUT onto an existing path fails 422 (or 409 on a ref race).
-      if (opts?.createOnly && /→ (422|409):/.test(err instanceof Error ? err.message : "")) {
-        throw new FileExistsError(file.path);
+      if (opts?.createOnly && isStatus(err, 409, 422)) throw new FileExistsError(file.path);
+      // Stale sha: someone else committed between our read and our write. One
+      // re-read-and-retry turns the routine two-writers case into last-write-wins
+      // on THIS file instead of a failed save; a second conflict is surfaced.
+      if (!opts?.createOnly && isStatus(err, 409, 422)) {
+        sha = await this.shaOf(repo, file.path, branch);
+        await attempt();
+        return;
       }
       throw err;
     }
@@ -177,9 +224,13 @@ export class GitHubHost implements GitHost {
         { method: "GET" },
       );
       if (data.content && data.encoding === "base64") return Buffer.from(data.content, "base64").toString("utf8");
-      return undefined;
-    } catch {
-      return undefined; // 404 / not a file
+      return undefined; // a directory or a submodule — not file content
+    } catch (err) {
+      // Only a real 404 means "not there". An auth failure or an outage reading
+      // as "missing" is the classic silent-data-loss path: the caller would
+      // rebuild the file from nothing and write it over the survivor.
+      if (isStatus(err, 404)) return undefined;
+      throw err;
     }
   }
 
@@ -192,8 +243,9 @@ export class GitHubHost implements GitHost {
       );
       if (!Array.isArray(data)) return [];
       return data.map((e) => ({ name: e.name, type: e.type === "dir" ? "dir" : "file", path: e.path }));
-    } catch {
-      return []; // 404 / empty
+    } catch (err) {
+      if (isStatus(err, 404)) return []; // the directory does not exist yet
+      throw err;
     }
   }
 
