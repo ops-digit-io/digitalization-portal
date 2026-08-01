@@ -85,16 +85,16 @@ export function EditForm({
     <div className="space-y-6">
       {FIELD_GROUPS.map((group) => (
         <fieldset key={group} className="space-y-4 rounded-lg border p-4">
-          <legend className="px-1 text-sm font-semibold">{group}</legend>
+          <legend className="px-1 text-sm font-semibold">{t(`demandGroup.${group}`, group)}</legend>
           {INTAKE_FIELDS.filter((f) => f.group === group).map((f) => {
             const value = values[f.key as keyof EditFormValues] ?? "";
             return (
               <label key={f.key} className="block">
                 <span className="text-sm font-medium">
-                  {f.label}
+                  {t(`demandField.${f.key}.label`, f.label)}
                   {f.required && <span className="ml-1 text-destructive" aria-hidden>*</span>}
                 </span>
-                <span className="mt-0.5 block text-xs text-muted-foreground">{f.hint}</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">{t(`demandField.${f.key}.hint`, f.hint)}</span>
                 {f.input === "textarea" ? (
                   <textarea
                     value={value}

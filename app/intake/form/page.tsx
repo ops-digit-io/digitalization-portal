@@ -26,8 +26,8 @@ function Field({ f, value, onChange, options, t }: { f: DemandField; value: stri
   const opts = options ?? f.options ?? [];
   return (
     <div>
-      <label htmlFor={f.key} className="text-sm font-medium">{f.label}{f.required && <span className="text-warn"> *</span>}</label>
-      <p className="text-xs text-muted-foreground">{f.hint}</p>
+      <label htmlFor={f.key} className="text-sm font-medium">{t(`demandField.${f.key}.label`, f.label)}{f.required && <span className="text-warn"> *</span>}</label>
+      <p className="text-xs text-muted-foreground">{t(`demandField.${f.key}.hint`, f.hint)}</p>
       {f.input === "textarea" ? (
         <textarea id={f.key} rows={f.key === "problem" ? 3 : 2} value={value} onChange={(e) => onChange(e.target.value)} className={`${FIELD_CLASS} resize-none`} />
       ) : f.input === "select" ? (
@@ -80,7 +80,7 @@ export default function FormTool() {
         <div className="space-y-6">
           {FIELD_GROUPS.map((g) => (
             <fieldset key={g} className="space-y-3.5">
-              <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{g}</legend>
+              <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t(`demandGroup.${g}`, g)}</legend>
               {INTAKE_FIELDS.filter((f) => f.group === g).map((f) => (
                 <Field key={f.key} f={f} value={answers[f.key]} onChange={(v) => set(f.key, v)} options={categoryOptions[f.key]} t={t} />
               ))}
@@ -109,7 +109,7 @@ export default function FormTool() {
           </div>
           {!saved ? (
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs text-muted-foreground">{canSave ? t("intake.readyToSave", "Ready to save.") : `${t("intake.stillNeeded", "Still needed:")} ${missing.map((m) => m.label).join(", ")}`}</span>
+              <span className="text-xs text-muted-foreground">{canSave ? t("intake.readyToSave", "Ready to save.") : `${t("intake.stillNeeded", "Still needed:")} ${missing.map((m) => t(`demandField.${m.key}.label`, m.label)).join(", ")}`}</span>
               <div className="flex gap-2">
                 <button onClick={restart} className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">{t("intake.form.clear", "Clear")}</button>
                 <button onClick={() => save({ answers })} disabled={!canSave || saving} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-40">
