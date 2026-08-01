@@ -6,6 +6,7 @@ import { readDemand, readArtifact } from "@/lib/demands-store";
 import { parseUseCase } from "@/lib/parse";
 import { analyseBusinessCase } from "@/lib/businesscase";
 import { Card } from "@/components/ui/card";
+import { getT } from "@/lib/i18n-server";
 import { Md, DraftButton, ValueEditor, AssumptionEditor } from "./view";
 
 const money = (n: number) => `${n < 0 ? "−" : ""}€${Math.abs(Math.round(n)).toLocaleString("en-US")}`;
@@ -26,6 +27,7 @@ function changeLog(markdown: string): string[] {
  * gate, and no figure is stated the case can't support.
  */
 export default async function BusinessCasePage({ params }: { params: { id: string } }) {
+  const t = getT();
   const id = params.id;
   const demand = await readDemand(id);
   if (demand === undefined) notFound();
@@ -55,48 +57,48 @@ export default async function BusinessCasePage({ params }: { params: { id: strin
 
   // Readiness to reach a committed figure — an honest checklist, not a switch.
   const readiness = [
-    { ok: hasValue, label: "Value quantified", need: "Enter the annual gross above." },
-    { ok: facts?.baselineVerified ?? false, label: "Baseline verified", need: "Measure the baseline (not an estimate)." },
-    { ok: econ?.hasCostModel ?? false, label: "Cost estimated", need: "Add a build and run estimate." },
-    { ok: assumptionRows.length > 0 && testedCount === assumptionRows.length, label: "All assumptions tested", need: `Test the remaining ${assumptionRows.length - testedCount} assumption(s).` },
+    { ok: hasValue, label: t("bc.rdValueLabel", "Value quantified"), need: t("bc.rdValueNeed", "Enter the annual gross above.") },
+    { ok: facts?.baselineVerified ?? false, label: t("bc.rdBaselineLabel", "Baseline verified"), need: t("bc.rdBaselineNeed", "Measure the baseline (not an estimate).") },
+    { ok: econ?.hasCostModel ?? false, label: t("bc.rdCostLabel", "Cost estimated"), need: t("bc.rdCostNeed", "Add a build and run estimate.") },
+    { ok: assumptionRows.length > 0 && testedCount === assumptionRows.length, label: t("bc.rdAllLabel", "All assumptions tested"), need: `${t("bc.rdAllNeed1", "Test the remaining")} ${assumptionRows.length - testedCount} ${t("bc.rdAllNeed2", "assumption(s).")}` },
   ];
   const log = businessCase ? changeLog(businessCase) : [];
 
   return (
     <main className="mx-auto max-w-[1000px] px-6 py-6">
       <nav className="mb-2 text-sm text-muted-foreground">
-        <Link href="/" className="hover:text-foreground">Home</Link>
+        <Link href="/" className="hover:text-foreground">{t("nav.home", "Home")}</Link>
         <span className="mx-1.5" aria-hidden>›</span>
         <Link href={`/uc/${id}`} className="hover:text-foreground">{id}</Link>
         <span className="mx-1.5" aria-hidden>›</span>
-        <span className="text-foreground">Business case</span>
+        <span className="text-foreground">{t("uc.businessCase", "Business case")}</span>
       </nav>
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold">{title}</h1>
           <p className="text-sm text-muted-foreground">
-            <span className="font-mono">{id}</span> · business case (S3) · <Link href={`/uc/${id}`} className="underline">the demand</Link>
+            <span className="font-mono">{id}</span> · {t("bc.label", "business case (S3)")} · <Link href={`/uc/${id}`} className="underline">{t("bc.theDemand", "the demand")}</Link>
           </p>
         </div>
-        {mayDraft && <DraftButton id={id} label={businessCase ? "Re-draft" : "Draft business case"} />}
+        {mayDraft && <DraftButton id={id} label={businessCase ? t("bc.redraft", "Re-draft") : t("bc.draftBusinessCase", "Draft business case")} />}
       </div>
 
       {!businessCase ? (
         <Card className="mt-6 p-8 text-center text-sm text-muted-foreground">
-          No business case yet.{" "}
+          {t("bc.noBusinessCase", "No business case yet.")}{" "}
           {mayDraft
-            ? `Draft one from the demand${requirements ? " and its requirements" : ""} — the baseline, value hypothesis, assumptions to test, and cost. You then quantify the value and decide.`
-            : "Ask someone with drafting rights to draft one."}
+            ? `${t("bc.draftOneFrom", "Draft one from the demand")}${requirements ? t("bc.andRequirements", " and its requirements") : ""}${t("bc.draftOneRest", " — the baseline, value hypothesis, assumptions to test, and cost. You then quantify the value and decide.")}`
+            : t("bc.askDrafting", "Ask someone with drafting rights to draft one.")}
         </Card>
       ) : (
         <div className="mt-6 space-y-4">
           {/* At-a-glance facts. */}
           <div className="flex flex-wrap gap-2 text-xs">
-            <span className="rounded-full border px-2.5 py-1">Confidence: <span className="font-medium">{facts?.confidence ?? "—"}</span></span>
-            <span className="rounded-full border px-2.5 py-1">Baseline verified: <span className="font-medium">{facts?.baselineVerified ? "yes" : "no"}</span></span>
-            <span className="rounded-full border px-2.5 py-1">Annual gross: <span className="font-medium">{hasValue ? money(facts!.annualGross!) : "to be quantified"}</span></span>
-            <span className="rounded-full border px-2.5 py-1">Assumptions tested: <span className="font-medium">{testedCount}/{assumptionRows.length}</span></span>
+            <span className="rounded-full border px-2.5 py-1">{t("bc.confidence", "Confidence:")} <span className="font-medium">{facts?.confidence ?? "—"}</span></span>
+            <span className="rounded-full border px-2.5 py-1">{t("bc.baselineVerifiedChip", "Baseline verified:")} <span className="font-medium">{facts?.baselineVerified ? t("common.yes", "yes") : t("common.no", "no")}</span></span>
+            <span className="rounded-full border px-2.5 py-1">{t("bc.annualGross", "Annual gross:")} <span className="font-medium">{hasValue ? money(facts!.annualGross!) : t("bc.toBeQuantified", "to be quantified")}</span></span>
+            <span className="rounded-full border px-2.5 py-1">{t("bc.assumptionsTested", "Assumptions tested:")} <span className="font-medium">{testedCount}/{assumptionRows.length}</span></span>
           </div>
 
           {/* Quantify — the human enters value + cost; the economics light up below. */}
@@ -112,23 +114,23 @@ export default async function BusinessCasePage({ params }: { params: { id: strin
           {econ && (
             <Card className="p-6">
               <div className="flex items-baseline justify-between">
-                <h2 className="text-sm font-semibold">Economics <span className="ml-1 font-normal text-muted-foreground">· {sim?.confidence} · {econ.horizonYears}-yr @ {(econ.discountRate * 100).toFixed(0)}%</span></h2>
-                {econ.viable && <span className="rounded-full bg-ok/10 px-2 py-0.5 text-[11px] font-medium text-ok">value-positive</span>}
+                <h2 className="text-sm font-semibold">{t("bc.economics", "Economics")} <span className="ml-1 font-normal text-muted-foreground">· {sim?.confidence} · {econ.horizonYears}-yr @ {(econ.discountRate * 100).toFixed(0)}%</span></h2>
+                {econ.viable && <span className="rounded-full bg-ok/10 px-2 py-0.5 text-[11px] font-medium text-ok">{t("bc.valuePositive", "value-positive")}</span>}
               </div>
 
               {!hasValue ? (
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Enter an annual gross above to see net value, payback, ROI and NPV. Until then every figure is zero — the draft never invents a number.
+                  {t("bc.enterAnnualGross", "Enter an annual gross above to see net value, payback, ROI and NPV. Until then every figure is zero — the draft never invents a number.")}
                 </p>
               ) : (
                 <>
                   {/* Headline metrics. */}
                   <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                     {[
-                      { label: "Net annual value", value: money(econ.p50.netAnnual), sub: "expected (P50), after run cost" },
-                      { label: "Payback", value: econ.paybackYears !== undefined ? `${econ.paybackYears.toFixed(2)} yr` : "—", sub: econ.hasCostModel ? "to recover build" : "add a build cost" },
-                      { label: `ROI (${econ.horizonYears} yr)`, value: econ.roiPercent !== undefined ? `${econ.roiPercent}%` : "—", sub: econ.hasCostModel ? "on build cost" : "add a build cost" },
-                      { label: `NPV (${econ.horizonYears} yr)`, value: money(econ.npv), sub: `discounted @ ${(econ.discountRate * 100).toFixed(0)}%` },
+                      { label: t("bc.netAnnualValue", "Net annual value"), value: money(econ.p50.netAnnual), sub: t("bc.expectedAfterRun", "expected (P50), after run cost") },
+                      { label: t("bc.payback", "Payback"), value: econ.paybackYears !== undefined ? `${econ.paybackYears.toFixed(2)} yr` : "—", sub: econ.hasCostModel ? t("bc.toRecoverBuild", "to recover build") : t("bc.addBuildCost", "add a build cost") },
+                      { label: `ROI (${econ.horizonYears} yr)`, value: econ.roiPercent !== undefined ? `${econ.roiPercent}%` : "—", sub: econ.hasCostModel ? t("bc.onBuildCost", "on build cost") : t("bc.addBuildCost", "add a build cost") },
+                      { label: `NPV (${econ.horizonYears} yr)`, value: money(econ.npv), sub: `${t("bc.discountedAt", "discounted @")} ${(econ.discountRate * 100).toFixed(0)}%` },
                     ].map((m) => (
                       <div key={m.label} className="rounded-lg border p-3">
                         <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{m.label}</div>
@@ -140,8 +142,8 @@ export default async function BusinessCasePage({ params }: { params: { id: strin
 
                   {/* Net value band (downside → base). */}
                   <div className="mt-5 space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Net annual value band</p>
-                    {([["P90 (base)", econ.p90.netAnnual], ["P50 (expected)", econ.p50.netAnnual], ["P10 (downside)", econ.p10.netAnnual]] as const).map(([label, v]) => (
+                    <p className="text-xs font-medium text-muted-foreground">{t("bc.netValueBand", "Net annual value band")}</p>
+                    {([[t("bc.bandP90", "P90 (base)"), econ.p90.netAnnual], [t("bc.bandP50", "P50 (expected)"), econ.p50.netAnnual], [t("bc.bandP10", "P10 (downside)"), econ.p10.netAnnual]] as const).map(([label, v]) => (
                       <div key={label}>
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">{label}</span>
@@ -156,13 +158,13 @@ export default async function BusinessCasePage({ params }: { params: { id: strin
 
                   {/* Multi-year cumulative net (undiscounted), starting at −build. */}
                   <div className="mt-5">
-                    <p className="text-xs font-medium text-muted-foreground">Cumulative net by year (undiscounted)</p>
+                    <p className="text-xs font-medium text-muted-foreground">{t("bc.cumulativeNet", "Cumulative net by year (undiscounted)")}</p>
                     <div className="mt-2 flex items-end gap-1.5" style={{ height: 88 }}>
                       {econ.cumulativeByYear.map((v, i) => {
                         const peak = Math.max(1, ...econ.cumulativeByYear.map((x) => Math.abs(x)));
                         const h = Math.round((Math.abs(v) / peak) * 76) + 2;
                         return (
-                          <div key={i} className="flex flex-1 flex-col items-center justify-end gap-1" title={`Year ${i}: ${money(v)}`}>
+                          <div key={i} className="flex flex-1 flex-col items-center justify-end gap-1" title={`${t("bc.year", "Year")} ${i}: ${money(v)}`}>
                             <div className={`w-full rounded-sm ${v < 0 ? "bg-destructive/60" : "bg-ok/60"}`} style={{ height: h }} />
                             <span className="text-[10px] text-muted-foreground">Y{i}</span>
                           </div>
@@ -170,7 +172,7 @@ export default async function BusinessCasePage({ params }: { params: { id: strin
                       })}
                     </div>
                     <p className="mt-1 text-[11px] text-muted-foreground">
-                      Build {money(-econ.buildCost)} in Y0; break-even {econ.cumulativeByYear.findIndex((v) => v >= 0) > 0 ? `≈ year ${econ.cumulativeByYear.findIndex((v) => v >= 0)}` : "beyond horizon"}.
+                      {t("bc.build", "Build")} {money(-econ.buildCost)} {t("bc.inY0", "in Y0;")} {t("bc.breakEven", "break-even")} {econ.cumulativeByYear.findIndex((v) => v >= 0) > 0 ? `≈ ${t("bc.yearLower", "year")} ${econ.cumulativeByYear.findIndex((v) => v >= 0)}` : t("bc.beyondHorizon", "beyond horizon")}.
                     </p>
                   </div>
                 </>
@@ -181,9 +183,9 @@ export default async function BusinessCasePage({ params }: { params: { id: strin
           {/* Assumptions — editable; testing one de-risks the downside. */}
           {assumptionRows.length > 0 && (
             <Card className="p-6">
-              <h2 className="text-sm font-semibold">Assumptions <span className="ml-1 font-normal text-muted-foreground">· {testedCount}/{assumptionRows.length} tested</span></h2>
+              <h2 className="text-sm font-semibold">{t("bc.assumptions", "Assumptions")} <span className="ml-1 font-normal text-muted-foreground">· {testedCount}/{assumptionRows.length} {t("bc.tested", "tested")}</span></h2>
               <p className="mt-0.5 mb-3 text-xs text-muted-foreground">
-                Untested assumptions compound the downside (P10). Mark one tested once it's proven — the band tightens.
+                {t("bc.assumptionsHelp", "Untested assumptions compound the downside (P10). Mark one tested once it's proven — the band tightens.")}
               </p>
               {mayDraft ? (
                 <AssumptionEditor id={id} assumptions={assumptionRows} fmtEur="en-US" />
@@ -202,7 +204,7 @@ export default async function BusinessCasePage({ params }: { params: { id: strin
 
           {/* Readiness to commit — honest gate on the confidence figure. */}
           <Card className="p-6">
-            <h2 className="text-sm font-semibold">Readiness to commit</h2>
+            <h2 className="text-sm font-semibold">{t("bc.readinessTitle", "Readiness to commit")}</h2>
             <ul className="mt-3 space-y-1.5 text-sm">
               {readiness.map((r) => (
                 <li key={r.label} className="flex items-start gap-2">
@@ -214,14 +216,14 @@ export default async function BusinessCasePage({ params }: { params: { id: strin
               ))}
             </ul>
             <p className="mt-3 text-[11px] text-muted-foreground">
-              A <span className="font-medium">committed</span> figure also requires a proven pilot (S5) — it can't be set before then.
+              {t("bc.committedFootA", "A")} <span className="font-medium">{t("bc.committedWord", "committed")}</span> {t("bc.committedFootB", "figure also requires a proven pilot (S5) — it can't be set before then.")}
             </p>
           </Card>
 
           {log.length > 0 && (
             <details className="group">
               <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
-                <span className="transition-transform group-open:rotate-90 inline-block">▸</span> Change log ({log.length})
+                <span className="transition-transform group-open:rotate-90 inline-block">▸</span> {t("bc.changeLog", "Change log")} ({log.length})
               </summary>
               <Card className="mt-2 p-4">
                 <ul className="space-y-1 text-xs text-muted-foreground">
@@ -233,7 +235,7 @@ export default async function BusinessCasePage({ params }: { params: { id: strin
 
           <details className="group">
             <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
-              <span className="transition-transform group-open:rotate-90 inline-block">▸</span> Full business case document
+              <span className="transition-transform group-open:rotate-90 inline-block">▸</span> {t("bc.fullDocument", "Full business case document")}
             </summary>
             <Card className="mt-2 p-6">
               <Md body={businessCase} />

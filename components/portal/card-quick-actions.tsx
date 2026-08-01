@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/components/providers";
 
 export interface QuickActionCaps {
   advance: boolean;
@@ -27,6 +28,7 @@ export function CardQuickActions({
   caps: QuickActionCaps;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const ref = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -61,20 +63,20 @@ export function CardQuickActions({
         body: JSON.stringify(body),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-      if (!res.ok || data.ok === false) { setError(data.error ?? `Failed (${res.status}).`); setBusy(false); return; }
+      if (!res.ok || data.ok === false) { setError(data.error ?? `${t("cardActions.failed", "Failed")} (${res.status}).`); setBusy(false); return; }
       setBusy(false);
       setOpen(false);
       setMode(null);
       setReason("");
       startTransition(() => router.refresh());
     } catch {
-      setError("Network error.");
+      setError(t("errors.networkShort", "Network error."));
       setBusy(false);
     }
   }
 
   function confirmReason() {
-    if (reason.trim() === "") { setError("A reason is required."); return; }
+    if (reason.trim() === "") { setError(t("cardActions.reasonRequired", "A reason is required.")); return; }
     if (mode === "park") void run("triage", { action: "reject", reason });
     else if (mode === "kill") void run("state", { action: "kill", reason });
   }
@@ -85,7 +87,7 @@ export function CardQuickActions({
     <div ref={ref} className="relative" onClick={swallow}>
       <button
         type="button"
-        aria-label="Quick actions"
+        aria-label={t("cardActions.quickActions", "Quick actions")}
         onClick={(e) => { swallow(e); setOpen((o) => !o); }}
         className="rounded p-0.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
       >
@@ -101,27 +103,27 @@ export function CardQuickActions({
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") confirmReason(); }}
-                placeholder={`${mode} reason (required)`}
+                placeholder={`${mode} ${t("cardActions.reasonSuffix", "reason (required)")}`}
                 className="w-full rounded border bg-transparent px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-ring"
               />
               <div className="mt-1.5 flex gap-1.5">
                 <button type="button" onClick={confirmReason} disabled={busy || reason.trim() === ""} className={`flex-1 rounded px-2 py-1 text-xs font-medium text-white disabled:opacity-50 ${mode === "kill" ? "bg-destructive" : "bg-warn"}`}>
-                  {busy ? "…" : `Confirm ${mode}`}
+                  {busy ? "…" : `${t("common.confirm", "Confirm")} ${mode}`}
                 </button>
-                <button type="button" onClick={() => { setMode(null); setReason(""); setError(null); }} className="rounded border px-2 py-1 text-xs text-muted-foreground">Back</button>
+                <button type="button" onClick={() => { setMode(null); setReason(""); setError(null); }} className="rounded border px-2 py-1 text-xs text-muted-foreground">{t("common.back", "Back")}</button>
               </div>
             </div>
           ) : (
             <div className="py-1">
               {stopped ? (
                 caps.reactivate && (
-                  <button type="button" disabled={busy} onClick={() => void run("state", { action: "reactivate" })} className={item}>↻ Reactivate</button>
+                  <button type="button" disabled={busy} onClick={() => void run("state", { action: "reactivate" })} className={item}>↻ {t("demand.reactivate", "Reactivate")}</button>
                 )
               ) : (
                 <>
-                  {caps.advance && <button type="button" disabled={busy} onClick={() => void run("advance", {})} className={item}>▸ Advance stage</button>}
-                  {caps.park && <button type="button" disabled={busy} onClick={() => setMode("park")} className={item}>⏸ Park…</button>}
-                  {caps.kill && <button type="button" disabled={busy} onClick={() => setMode("kill")} className={`${item} text-destructive`}>✕ Kill…</button>}
+                  {caps.advance && <button type="button" disabled={busy} onClick={() => void run("advance", {})} className={item}>▸ {t("cardActions.advanceStage", "Advance stage")}</button>}
+                  {caps.park && <button type="button" disabled={busy} onClick={() => setMode("park")} className={item}>⏸ {t("cardActions.park", "Park…")}</button>}
+                  {caps.kill && <button type="button" disabled={busy} onClick={() => setMode("kill")} className={`${item} text-destructive`}>✕ {t("cardActions.kill", "Kill…")}</button>}
                 </>
               )}
             </div>

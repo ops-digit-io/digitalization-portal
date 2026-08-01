@@ -3,6 +3,7 @@ import { buildDigest } from "@/lib/digest/service";
 import { REASON_LABEL, type Severity } from "@/lib/digest/rules";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { getT } from "@/lib/i18n-server";
 
 export const dynamic = "force-dynamic";
 
@@ -18,42 +19,42 @@ function Tile({ label, value, tone }: { label: string; value: number; tone?: str
 }
 
 export default async function DigestPage() {
+  const t = getT();
   const digest = await buildDigest(new Date().toISOString());
   const s = digest.summary;
 
   return (
     <main className="mx-auto max-w-[1100px] px-6 py-6">
       <nav className="mb-2 text-sm text-muted-foreground">
-        <Link href="/" className="hover:text-foreground">Home</Link>
+        <Link href="/" className="hover:text-foreground">{t("nav.home", "Home")}</Link>
         <span className="mx-1.5" aria-hidden>›</span>
-        <span className="text-foreground">Review Digest</span>
+        <span className="text-foreground">{t("digest.title", "Review Digest")}</span>
       </nav>
-      <h1 className="text-lg font-semibold">Review Digest</h1>
+      <h1 className="text-lg font-semibold">{t("digest.title", "Review Digest")}</h1>
       <p className="max-w-2xl text-sm text-muted-foreground">
-        Demands that need a human to look — stalled, past their review date, missing an owner, or unreadable.
-        Surfaced for the forum to judge, never auto-enforced. A weekly email digest goes out Monday 07:00 when configured.
+        {t("digest.subtitle", "Demands that need a human to look — stalled, past their review date, missing an owner, or unreadable. Surfaced for the forum to judge, never auto-enforced. A weekly email digest goes out Monday 07:00 when configured.")}
       </p>
 
       <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Tile label="Flagged" value={s.flagged} />
-        <Tile label="High" value={s.bySeverity.high} tone="--destructive" />
-        <Tile label="Medium" value={s.bySeverity.medium} tone="--warn" />
-        <Tile label="Low" value={s.bySeverity.low} />
+        <Tile label={t("digest.tile.flagged", "Flagged")} value={s.flagged} />
+        <Tile label={t("digest.tile.high", "High")} value={s.bySeverity.high} tone="--destructive" />
+        <Tile label={t("digest.tile.medium", "Medium")} value={s.bySeverity.medium} tone="--warn" />
+        <Tile label={t("digest.tile.low", "Low")} value={s.bySeverity.low} />
       </div>
 
       {s.flagged === 0 ? (
         <Card className="mt-6 p-8 text-center text-sm text-muted-foreground">
-          Nothing needs attention — the funnel is healthy. 🎉
+          {t("digest.empty", "Nothing needs attention — the funnel is healthy.")} 🎉
         </Card>
       ) : (
         <Card className="mt-6 overflow-x-auto p-0">
           <table className="w-full text-sm">
             <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr className="border-b">
-                <th className="px-4 py-2.5 font-medium">Demand</th>
-                <th className="px-4 py-2.5 font-medium">Why</th>
-                <th className="px-4 py-2.5 font-medium">Age</th>
-                <th className="px-4 py-2.5 font-medium">Accountable</th>
+                <th className="px-4 py-2.5 font-medium">{t("digest.col.demand", "Demand")}</th>
+                <th className="px-4 py-2.5 font-medium">{t("digest.col.why", "Why")}</th>
+                <th className="px-4 py-2.5 font-medium">{t("digest.col.age", "Age")}</th>
+                <th className="px-4 py-2.5 font-medium">{t("digest.col.accountable", "Accountable")}</th>
               </tr>
             </thead>
             <tbody>
@@ -81,7 +82,7 @@ export default async function DigestPage() {
                   <td className="px-4 py-2.5 text-muted-foreground">
                     {item.accountable.length > 0
                       ? item.accountable.map((a) => `${a.person} (${a.role.replace(/_/g, " ")})`).join(", ")
-                      : <span className="text-warn">no one named</span>}
+                      : <span className="text-warn">{t("digest.noOneNamed", "no one named")}</span>}
                   </td>
                 </tr>
               ))}
@@ -91,8 +92,8 @@ export default async function DigestPage() {
       )}
 
       <p className="mt-4 text-xs text-muted-foreground">
-        {digest.byPerson.length} accountable {digest.byPerson.length === 1 ? "person" : "people"} across the flagged demands.
-        Configure <span className="font-mono">EMAIL_API_KEY</span> + <span className="font-mono">DIGEST_TEAM_EMAIL</span> to send the weekly email.
+        {digest.byPerson.length} {t("digest.accountable", "accountable")} {digest.byPerson.length === 1 ? t("digest.person", "person") : t("digest.people", "people")} {t("digest.acrossFlagged", "across the flagged demands.")}
+        {" "}{t("digest.configure", "Configure")} <span className="font-mono">EMAIL_API_KEY</span> + <span className="font-mono">DIGEST_TEAM_EMAIL</span> {t("digest.toSendWeekly", "to send the weekly email.")}
       </p>
     </main>
   );

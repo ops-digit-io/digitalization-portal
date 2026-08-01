@@ -5,6 +5,7 @@ import { LANES, STAGES } from "@/lib/types";
 import { getCategories } from "@/lib/category-store";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { getT } from "@/lib/i18n-server";
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +13,6 @@ const LANE_LABEL: Record<string, string> = {
   run: "run", regulatory: "regulatory", continuous_improvement: "continuous improvement",
   transform: "transform", innovation: "innovation", data_ai: "data / AI", local: "local", unassigned: "unassigned",
 };
-
-const SCOPES: { id: FunnelScope; label: string }[] = [
-  { id: "mine", label: "My demands" },
-  { id: "all", label: "All demands" },
-];
 
 type Params = { scope?: string; q?: string; lane?: string; plant?: string; stage?: string; page?: string };
 
@@ -30,6 +26,11 @@ function href(current: Params, over: Partial<Params>): string {
 }
 
 export default async function Demands({ searchParams }: { searchParams: Params }) {
+  const t = getT();
+  const SCOPES: { id: FunnelScope; label: string }[] = [
+    { id: "mine", label: t("demands.scope.mine", "My demands") },
+    { id: "all", label: t("demands.scope.all", "All demands") },
+  ];
   const { session } = await getCurrentUser();
   const plants = await getCategories("plant");
   const scope: FunnelScope = searchParams.scope === "all" ? "all" : "mine";
@@ -53,19 +54,19 @@ export default async function Demands({ searchParams }: { searchParams: Params }
   return (
     <main className="mx-auto max-w-[1200px] px-6 py-6">
       <nav className="mb-2 text-sm text-muted-foreground">
-        <Link href="/" className="hover:text-foreground">Home</Link>
+        <Link href="/" className="hover:text-foreground">{t("nav.home", "Home")}</Link>
         <span className="mx-1.5" aria-hidden>›</span>
-        <span className="text-foreground">Demands</span>
+        <span className="text-foreground">{t("demands.title", "Demands")}</span>
       </nav>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold">Demands</h1>
+          <h1 className="text-lg font-semibold">{t("demands.title", "Demands")}</h1>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            The inbound funnel. Reads the projection + your just-captured demands; scoped and paginated so it stays fast at any size.
+            {t("demands.subtitle", "The inbound funnel. Reads the projection + your just-captured demands; scoped and paginated so it stays fast at any size.")}
           </p>
         </div>
         <Link href="/intake" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
-          Capture a demand →
+          {t("demands.capture", "Capture a demand")} →
         </Link>
       </div>
 
@@ -88,38 +89,38 @@ export default async function Demands({ searchParams }: { searchParams: Params }
         <input
           name="q"
           defaultValue={q}
-          placeholder="Search id or title…"
+          placeholder={t("demands.searchPlaceholder", "Search id or title…")}
           className="h-9 w-56 rounded-md border bg-transparent px-3 outline-none focus:ring-1 focus:ring-ring"
         />
         <select name="lane" defaultValue={searchParams.lane ?? ""} className="h-9 rounded-md border bg-transparent px-2 text-muted-foreground">
-          <option value="">All lanes</option>
+          <option value="">{t("demands.allLanes", "All lanes")}</option>
           {LANES.map((l) => <option key={l} value={l}>{LANE_LABEL[l] ?? l}</option>)}
         </select>
         <select name="plant" defaultValue={searchParams.plant ?? ""} className="h-9 rounded-md border bg-transparent px-2 text-muted-foreground">
-          <option value="">All plants</option>
+          <option value="">{t("demands.allPlants", "All plants")}</option>
           {plants.map((p) => <option key={p} value={p}>{p}</option>)}
         </select>
         <select name="stage" defaultValue={searchParams.stage ?? ""} className="h-9 rounded-md border bg-transparent px-2 text-muted-foreground">
-          <option value="">All stages</option>
+          <option value="">{t("demands.allStages", "All stages")}</option>
           {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-        <button className="h-9 rounded-md border px-3 hover:border-foreground/40">Filter</button>
+        <button className="h-9 rounded-md border px-3 hover:border-foreground/40">{t("common.filter", "Filter")}</button>
         {(q || searchParams.lane || searchParams.plant || searchParams.stage) && (
-          <Link href={href({ scope }, {})} className="h-9 rounded-md px-2 leading-9 text-xs text-muted-foreground hover:text-foreground">Clear</Link>
+          <Link href={href({ scope }, {})} className="h-9 rounded-md px-2 leading-9 text-xs text-muted-foreground hover:text-foreground">{t("demands.clear", "Clear")}</Link>
         )}
-        <span className="ml-auto text-xs text-muted-foreground">{result.total} match{result.total === 1 ? "" : "es"}</span>
+        <span className="ml-auto text-xs text-muted-foreground">{result.total} {result.total === 1 ? t("demands.match", "match") : t("demands.matches", "matches")}</span>
       </form>
 
       <Card className="mt-3 overflow-x-auto p-0">
         <table className="w-full text-sm">
           <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr className="border-b">
-              <th className="px-4 py-2.5 font-medium">Demand</th>
-              <th className="px-4 py-2.5 font-medium">Stage</th>
-              <th className="px-4 py-2.5 font-medium">Lane</th>
-              <th className="px-4 py-2.5 font-medium">Plant</th>
-              <th className="px-4 py-2.5 font-medium">Domain</th>
-              <th className="px-4 py-2.5 font-medium">Since</th>
+              <th className="px-4 py-2.5 font-medium">{t("demands.col.demand", "Demand")}</th>
+              <th className="px-4 py-2.5 font-medium">{t("demands.col.stage", "Stage")}</th>
+              <th className="px-4 py-2.5 font-medium">{t("demands.col.lane", "Lane")}</th>
+              <th className="px-4 py-2.5 font-medium">{t("demands.col.plant", "Plant")}</th>
+              <th className="px-4 py-2.5 font-medium">{t("demands.col.domain", "Domain")}</th>
+              <th className="px-4 py-2.5 font-medium">{t("demands.col.since", "Since")}</th>
             </tr>
           </thead>
           <tbody>
@@ -129,8 +130,8 @@ export default async function Demands({ searchParams }: { searchParams: Params }
                   <Link href={`/uc/${d.id}`} className="font-medium hover:underline">{d.title}</Link>
                   <div className="flex items-center gap-1.5">
                     <span className="font-mono text-xs text-muted-foreground">{d.id}</span>
-                    {d.pending && <Badge variant="outline" className="border-info/50 font-normal text-info">syncing</Badge>}
-                    {d.needsAttention && <Badge variant="outline" className="border-warn/50 font-normal text-warn">needs attention</Badge>}
+                    {d.pending && <Badge variant="outline" className="border-info/50 font-normal text-info">{t("demands.syncing", "syncing")}</Badge>}
+                    {d.needsAttention && <Badge variant="outline" className="border-warn/50 font-normal text-warn">{t("demands.needsAttention", "needs attention")}</Badge>}
                   </div>
                 </td>
                 <td className="px-4 py-2.5 tabular-nums text-muted-foreground">{d.stage ?? "—"}</td>
@@ -144,8 +145,8 @@ export default async function Demands({ searchParams }: { searchParams: Params }
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">
                   {scope === "mine"
-                    ? <>No demands raised by you yet. <Link href={href(keep, { scope: "all", page: undefined })} className="underline">See all demands</Link> or <Link href="/intake" className="underline">capture one</Link>.</>
-                    : <>No demands match. <Link href="/intake" className="underline">Capture the first one.</Link></>}
+                    ? <>{t("demands.emptyMine", "No demands raised by you yet.")} <Link href={href(keep, { scope: "all", page: undefined })} className="underline">{t("demands.seeAll", "See all demands")}</Link> {t("demands.or", "or")} <Link href="/intake" className="underline">{t("demands.captureOne", "capture one")}</Link>.</>
+                    : <>{t("demands.emptyAll", "No demands match.")} <Link href="/intake" className="underline">{t("demands.captureFirst", "Capture the first one.")}</Link></>}
                 </td>
               </tr>
             )}
@@ -156,13 +157,13 @@ export default async function Demands({ searchParams }: { searchParams: Params }
       {/* Pagination */}
       {result.pageCount > 1 && (
         <div className="mt-3 flex items-center justify-between text-sm">
-          <span className="text-xs text-muted-foreground">Page {result.page} of {result.pageCount}</span>
+          <span className="text-xs text-muted-foreground">{t("demands.page", "Page")} {result.page} {t("demands.of", "of")} {result.pageCount}</span>
           <div className="flex gap-2">
             {result.page > 1 && (
-              <Link href={href(keep, { page: String(result.page - 1) })} className="rounded-md border px-3 py-1.5 text-xs hover:border-foreground/40">← Prev</Link>
+              <Link href={href(keep, { page: String(result.page - 1) })} className="rounded-md border px-3 py-1.5 text-xs hover:border-foreground/40">← {t("demands.prev", "Prev")}</Link>
             )}
             {result.page < result.pageCount && (
-              <Link href={href(keep, { page: String(result.page + 1) })} className="rounded-md border px-3 py-1.5 text-xs hover:border-foreground/40">Next →</Link>
+              <Link href={href(keep, { page: String(result.page + 1) })} className="rounded-md border px-3 py-1.5 text-xs hover:border-foreground/40">{t("common.next", "Next")} →</Link>
             )}
           </div>
         </div>

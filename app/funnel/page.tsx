@@ -6,6 +6,7 @@ import { LaneBadge } from "@/components/portal/badges";
 import { FilterBar } from "@/components/portal/filter-bar";
 import type { Lane } from "@/lib/types";
 import type { RegistryRow } from "@/lib/registry";
+import { getT } from "@/lib/i18n-server";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,7 @@ function Tile({ label, value, sub, tone }: { label: string; value: string; sub?:
 }
 
 export default async function Funnel({ searchParams }: { searchParams: { lane?: string; plant?: string } }) {
+  const t = getT();
   // Live from the du-demands funnel when the GitHub App is configured, else demo seed.
   const { rows: allRows, now, live, source } = await loadPortfolioRows();
   const lanes = [...new Set(allRows.map((r) => r.lane).filter(Boolean))] as string[];
@@ -38,29 +40,29 @@ export default async function Funnel({ searchParams }: { searchParams: { lane?: 
   return (
     <main className="mx-auto max-w-[1600px] px-6 py-6">
       <nav className="mb-2 text-sm text-muted-foreground">
-        <Link href="/" className="hover:text-foreground">Home</Link>
+        <Link href="/" className="hover:text-foreground">{t("nav.home", "Home")}</Link>
         <span className="mx-1.5" aria-hidden>›</span>
-        <span className="text-foreground">Use-case funnel</span>
+        <span className="text-foreground">{t("funnel.title", "Use-case funnel")}</span>
       </nav>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-lg font-semibold">Use-case funnel</h1>
+            <h1 className="text-lg font-semibold">{t("funnel.title", "Use-case funnel")}</h1>
             <span
               className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${live ? "bg-ok/10 text-ok" : "bg-secondary text-muted-foreground"}`}
-              title={live ? `Read live from ${source}` : `Read from the ${source} — configure the GitHub App to read the live du-demands funnel`}
+              title={live ? `${t("source.readLiveFrom", "Read live from")} ${source}` : `${t("source.readFrom", "Read from the")} ${source} ${t("source.configureHint", "— configure the GitHub App to read the live du-demands funnel")}`}
             >
-              {live ? `● live · ${source}` : `○ ${source}`}
+              {live ? `● ${t("source.live", "live")} · ${source}` : `○ ${source}`}
             </span>
           </div>
-          <p className="text-sm text-muted-foreground">Demand narrowing S1→S8 — conversion, drop-off, dwell, and kill rate by gate. A count of demands is not a portfolio; stage progression is.</p>
+          <p className="text-sm text-muted-foreground">{t("funnel.subtitle", "Demand narrowing S1→S8 — conversion, drop-off, dwell, and kill rate by gate. A count of demands is not a portfolio; stage progression is.")}</p>
         </div>
         <FilterBar
           path="/funnel"
           current={searchParams as Record<string, string | undefined>}
           selects={[
-            { param: "lane", label: "Lane", options: lanes, labels: LANE_LABEL },
-            { param: "plant", label: "Plant", options: plants },
+            { param: "lane", label: t("filter.lane", "Lane"), options: lanes, labels: LANE_LABEL },
+            { param: "plant", label: t("filter.plant", "Plant"), options: plants },
           ]}
         />
       </div>
@@ -72,16 +74,16 @@ export default async function Funnel({ searchParams }: { searchParams: { lane?: 
       ))}
 
       <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Tile label="Entered" value={String(f.totalEntered)} />
-        <Tile label="Overall conversion" value={`${Math.round(f.overallConversion * 100)}%`} sub="S1 → S8" tone="--ok" />
-        <Tile label="Avg step conversion" value={`${Math.round(f.avgStepConversion * 100)}%`} />
-        <Tile label="Biggest drop-off" value={f.biggestDrop ? `−${Math.round(f.biggestDrop.pct * 100)}%` : "—"} sub={f.biggestDrop ? `${f.biggestDrop.from} → ${f.biggestDrop.to} · ${f.biggestDrop.lost} lost` : undefined} tone="--warn" />
+        <Tile label={t("funnel.tile.entered", "Entered")} value={String(f.totalEntered)} />
+        <Tile label={t("funnel.tile.overallConversion", "Overall conversion")} value={`${Math.round(f.overallConversion * 100)}%`} sub="S1 → S8" tone="--ok" />
+        <Tile label={t("funnel.tile.avgStepConversion", "Avg step conversion")} value={`${Math.round(f.avgStepConversion * 100)}%`} />
+        <Tile label={t("funnel.tile.biggestDrop", "Biggest drop-off")} value={f.biggestDrop ? `−${Math.round(f.biggestDrop.pct * 100)}%` : "—"} sub={f.biggestDrop ? `${f.biggestDrop.from} → ${f.biggestDrop.to} · ${f.biggestDrop.lost} ${t("funnel.lost", "lost")}` : undefined} tone="--warn" />
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-[1.7fr_1fr]">
         {/* Left: the conversion funnel */}
         <Card className="p-5">
-          <h2 className="mb-4 text-sm font-semibold">Conversion funnel</h2>
+          <h2 className="mb-4 text-sm font-semibold">{t("funnel.conversionFunnel", "Conversion funnel")}</h2>
           <div>
             {f.stages.map((s, i) => (
               <div key={s.stage}>
@@ -103,13 +105,13 @@ export default async function Funnel({ searchParams }: { searchParams: { lane?: 
             <table className="w-full text-sm">
               <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr className="border-b">
-                  <th className="py-2 pr-4 font-medium">Stage</th>
-                  <th className="py-2 pr-4 text-right font-medium">Reached</th>
-                  <th className="py-2 pr-4 text-right font-medium">% of entry</th>
-                  <th className="py-2 pr-4 text-right font-medium">Step conv.</th>
-                  <th className="py-2 pr-4 text-right font-medium">Drop-off</th>
-                  <th className="py-2 pr-4 text-right font-medium">Avg dwell</th>
-                  <th className="py-2 text-right font-medium">Stopped here</th>
+                  <th className="py-2 pr-4 font-medium">{t("funnel.col.stage", "Stage")}</th>
+                  <th className="py-2 pr-4 text-right font-medium">{t("funnel.col.reached", "Reached")}</th>
+                  <th className="py-2 pr-4 text-right font-medium">{t("funnel.col.pctOfEntry", "% of entry")}</th>
+                  <th className="py-2 pr-4 text-right font-medium">{t("funnel.col.stepConv", "Step conv.")}</th>
+                  <th className="py-2 pr-4 text-right font-medium">{t("funnel.col.dropOff", "Drop-off")}</th>
+                  <th className="py-2 pr-4 text-right font-medium">{t("funnel.col.avgDwell", "Avg dwell")}</th>
+                  <th className="py-2 text-right font-medium">{t("funnel.col.stoppedHere", "Stopped here")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -122,8 +124,8 @@ export default async function Funnel({ searchParams }: { searchParams: { lane?: 
                     <td className="py-1.5 pr-4 text-right tabular-nums text-muted-foreground">{s.dropFromPrev ? `−${s.dropFromPrev}` : "—"}</td>
                     <td className="py-1.5 pr-4 text-right tabular-nums text-muted-foreground">{s.dwellDays !== undefined ? `${s.dwellDays}d` : "—"}</td>
                     <td className="py-1.5 text-right text-xs text-muted-foreground">
-                      {s.killed > 0 && <span className="text-destructive">{s.killed} killed </span>}
-                      {s.parked > 0 && <span>{s.parked} parked </span>}
+                      {s.killed > 0 && <span className="text-destructive">{s.killed} {t("funnel.killed", "killed")} </span>}
+                      {s.parked > 0 && <span>{s.parked} {t("funnel.parked", "parked")} </span>}
                       {s.killed === 0 && s.parked === 0 && "—"}
                     </td>
                   </tr>
@@ -136,7 +138,7 @@ export default async function Funnel({ searchParams }: { searchParams: { lane?: 
         {/* Right: gate kills + lane balance */}
         <div className="space-y-4">
           <Card className="p-5">
-            <h2 className="mb-3 text-sm font-semibold">Kill rate by gate</h2>
+            <h2 className="mb-3 text-sm font-semibold">{t("funnel.killRateByGate", "Kill rate by gate")}</h2>
             <div className="grid grid-cols-4 gap-2">
               {f.gateKills.map((g) => {
                 const isG4 = g.gate === "G4";
@@ -150,11 +152,11 @@ export default async function Funnel({ searchParams }: { searchParams: { lane?: 
                 );
               })}
             </div>
-            <p className="mt-3 text-xs text-muted-foreground">G4 (POC proven/stop) is the health gate — a healthy funnel kills a non-zero share here.</p>
+            <p className="mt-3 text-xs text-muted-foreground">{t("funnel.g4Hint", "G4 (POC proven/stop) is the health gate — a healthy funnel kills a non-zero share here.")}</p>
           </Card>
 
           <Card className="p-5">
-            <h2 className="mb-3 text-sm font-semibold">Lane balance</h2>
+            <h2 className="mb-3 text-sm font-semibold">{t("funnel.laneBalance", "Lane balance")}</h2>
             <div className="space-y-1.5">
               {f.laneBalance.map((l) => (
                 <div key={l.lane} className="flex items-center gap-3">
@@ -163,15 +165,15 @@ export default async function Funnel({ searchParams }: { searchParams: { lane?: 
                   <span className="w-6 text-right text-xs tabular-nums">{l.count}</span>
                 </div>
               ))}
-              {f.laneBalance.length === 0 && <p className="text-sm text-muted-foreground">No use cases match the filter.</p>}
+              {f.laneBalance.length === 0 && <p className="text-sm text-muted-foreground">{t("board.emptyFilter", "No use cases match the filter.")}</p>}
             </div>
           </Card>
 
           <Card className="p-5">
             <div className="grid grid-cols-3 gap-3 text-center">
-              <div><div className="text-xs uppercase text-muted-foreground">Active</div><div className="text-xl font-semibold text-info">{f.activeTotal}</div></div>
-              <div><div className="text-xs uppercase text-muted-foreground">Killed</div><div className="text-xl font-semibold text-destructive">{f.killedTotal}</div></div>
-              <div><div className="text-xs uppercase text-muted-foreground">Parked</div><div className="text-xl font-semibold text-muted-foreground">{f.parkedTotal}</div></div>
+              <div><div className="text-xs uppercase text-muted-foreground">{t("funnel.stat.active", "Active")}</div><div className="text-xl font-semibold text-info">{f.activeTotal}</div></div>
+              <div><div className="text-xs uppercase text-muted-foreground">{t("funnel.stat.killed", "Killed")}</div><div className="text-xl font-semibold text-destructive">{f.killedTotal}</div></div>
+              <div><div className="text-xs uppercase text-muted-foreground">{t("funnel.stat.parked", "Parked")}</div><div className="text-xl font-semibold text-muted-foreground">{f.parkedTotal}</div></div>
             </div>
           </Card>
         </div>

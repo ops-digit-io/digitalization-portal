@@ -7,6 +7,7 @@ import { can } from "@/lib/rbac";
 import { Card } from "@/components/ui/card";
 import { BoardColumn } from "@/components/portal/board-column";
 import { FilterBar } from "@/components/portal/filter-bar";
+import { getT } from "@/lib/i18n-server";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,7 @@ function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: 
 }
 
 export default async function BoardPage({ searchParams }: { searchParams: Params }) {
+  const t = getT();
   const group: Group = searchParams.group === "lane" ? "lane" : searchParams.group === "plant" ? "plant" : "stage";
   const filter: BoardFilter = {
     ...(searchParams.lane ? { lane: searchParams.lane } : {}),
@@ -89,22 +91,22 @@ export default async function BoardPage({ searchParams }: { searchParams: Params
     columns = [...groups.entries()].sort((a, b) => b[1].length - a[1].length).map(([k, cards]) => ({ title: LANE_LABEL[k] ?? k, cards }));
   }
 
-  const groupTabs: { id: Group; label: string }[] = [{ id: "stage", label: "Stage" }, { id: "lane", label: "Lane" }, { id: "plant", label: "Plant" }];
+  const groupTabs: { id: Group; label: string }[] = [{ id: "stage", label: t("board.group.stage", "Stage") }, { id: "lane", label: t("board.group.lane", "Lane") }, { id: "plant", label: t("board.group.plant", "Plant") }];
 
   return (
     <main className="mx-auto max-w-[1600px] px-6 py-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-lg font-semibold">Portfolio board</h1>
+            <h1 className="text-lg font-semibold">{t("board.title", "Portfolio board")}</h1>
             <span
               className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${live ? "bg-ok/10 text-ok" : "bg-secondary text-muted-foreground"}`}
-              title={live ? `Read live from ${source}` : `Read from the ${source} — configure the GitHub App to read the live du-demands funnel`}
+              title={live ? `${t("source.readLiveFrom", "Read live from")} ${source}` : `${t("source.readFrom", "Read from the")} ${source} ${t("source.configureHint", "— configure the GitHub App to read the live du-demands funnel")}`}
             >
-              {live ? `● live · ${source}` : `○ ${source}`}
+              {live ? `● ${t("source.live", "live")} · ${source}` : `○ ${source}`}
             </span>
           </div>
-          <p className="text-sm text-muted-foreground">Every demand the Digital Unit owns, by stage — flow, stalls, and health at a glance. Value is a portfolio aggregate; figures stay indicative until pilot.</p>
+          <p className="text-sm text-muted-foreground">{t("board.subtitle", "Every demand the Digital Unit owns, by stage — flow, stalls, and health at a glance. Value is a portfolio aggregate; figures stay indicative until pilot.")}</p>
         </div>
         <div className="flex overflow-hidden rounded-md border text-sm">
           {groupTabs.map((t) => (
@@ -115,12 +117,12 @@ export default async function BoardPage({ searchParams }: { searchParams: Params
 
       {/* KPI strip */}
       <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        <Kpi label="Active" value={String(board.summary.active)} />
-        <Kpi label="Stalled" value={String(board.summary.stalled)} sub={`> ${30} days in stage`} tone={board.summary.stalled > 0 ? "--warn" : undefined} />
-        <Kpi label="Needs attention" value={String(board.summary.needsAttention)} tone={board.summary.needsAttention > 0 ? "--destructive" : undefined} />
-        <Kpi label="Parked / killed" value={`${board.summary.parked} / ${board.summary.killed}`} />
-        <Kpi label="Pipeline value" value={canValue ? eur(pipeline) : "—"} sub="indicative" tone="--info" />
-        <Kpi label="Realized value" value={canValue ? eur(realized) : "—"} sub="to date" tone="--ok" />
+        <Kpi label={t("board.kpi.active", "Active")} value={String(board.summary.active)} />
+        <Kpi label={t("board.kpi.stalled", "Stalled")} value={String(board.summary.stalled)} sub={`> ${30} ${t("board.daysInStage", "days in stage")}`} tone={board.summary.stalled > 0 ? "--warn" : undefined} />
+        <Kpi label={t("board.kpi.needsAttention", "Needs attention")} value={String(board.summary.needsAttention)} tone={board.summary.needsAttention > 0 ? "--destructive" : undefined} />
+        <Kpi label={t("board.kpi.parkedKilled", "Parked / killed")} value={`${board.summary.parked} / ${board.summary.killed}`} />
+        <Kpi label={t("board.kpi.pipelineValue", "Pipeline value")} value={canValue ? eur(pipeline) : "—"} sub={t("board.indicative", "indicative")} tone="--info" />
+        <Kpi label={t("board.kpi.realizedValue", "Realized value")} value={canValue ? eur(realized) : "—"} sub={t("board.toDate", "to date")} tone="--ok" />
       </div>
 
       {/* Filters — search + dropdowns */}
@@ -128,13 +130,13 @@ export default async function BoardPage({ searchParams }: { searchParams: Params
         <FilterBar
           path="/board"
           current={searchParams as Record<string, string | undefined>}
-          search={{ param: "q", placeholder: "Search id or title…" }}
+          search={{ param: "q", placeholder: t("board.searchPlaceholder", "Search id or title…") }}
           selects={[
-            { param: "lane", label: "Lane", options: lanes, labels: LANE_LABEL },
-            { param: "plant", label: "Plant", options: plants },
-            { param: "domain", label: "Domain", options: domains },
-            { param: "status", label: "Status", options: ["active", "parked", "killed"] },
-            { param: "heat", label: "Heat", options: ["high", "medium", "low"] },
+            { param: "lane", label: t("filter.lane", "Lane"), options: lanes, labels: LANE_LABEL },
+            { param: "plant", label: t("filter.plant", "Plant"), options: plants },
+            { param: "domain", label: t("filter.domain", "Domain"), options: domains },
+            { param: "status", label: t("filter.status", "Status"), options: ["active", "parked", "killed"] },
+            { param: "heat", label: t("filter.heat", "Heat"), options: ["high", "medium", "low"] },
           ]}
         />
       </div>
@@ -142,12 +144,12 @@ export default async function BoardPage({ searchParams }: { searchParams: Params
       {board.needsAttention.length > 0 && (
         <div className="mt-4 flex items-center gap-2 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-sm">
           <span className="text-warn" aria-hidden>⚠</span>
-          <span>{board.needsAttention.length} use case{board.needsAttention.length > 1 ? "s" : ""} {board.needsAttention.length > 1 ? "need" : "needs"} attention — state could not be read.</span>
+          <span>{board.needsAttention.length} {t("board.attentionSuffix", "use cases need attention — state could not be read.")}</span>
         </div>
       )}
 
       {board.cards.length === 0 ? (
-        <Card className="mt-6 p-10 text-center text-sm text-muted-foreground">No use cases match the filter.</Card>
+        <Card className="mt-6 p-10 text-center text-sm text-muted-foreground">{t("board.emptyFilter", "No use cases match the filter.")}</Card>
       ) : (
         <div className="mt-5 flex gap-4 overflow-x-auto pb-4">
           {columns.map((col) => (

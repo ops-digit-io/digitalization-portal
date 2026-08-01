@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { useI18n } from "@/components/providers";
 
 const LOADED_SKILLS = ["intake-conversation", "business-case-simulation", "implementation-analysis", "poc-builder"];
 
@@ -14,17 +15,18 @@ interface AgentReply {
   link?: string;
 }
 
-const SUGGESTIONS = [
-  { label: "Analyse this quarter's workload & value", body: { task: "analysis", horizon: "quarter" } },
-  { label: "Analyse the year", body: { task: "analysis", horizon: "year" } },
-  { label: "Simulate UC-2026-0041's business case", body: { task: "simulate", useCaseId: "UC-2026-0041" } },
-  { label: "Build a PoC for UC-2026-0041", body: { task: "poc", useCaseId: "UC-2026-0041" } },
-];
-
 export default function Assistant() {
+  const { t } = useI18n();
   const [input, setInput] = useState("");
   const [reply, setReply] = useState<AgentReply | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const SUGGESTIONS = [
+    { label: t("assistant.suggest.quarter", "Analyse this quarter's workload & value"), body: { task: "analysis", horizon: "quarter" } },
+    { label: t("assistant.suggest.year", "Analyse the year"), body: { task: "analysis", horizon: "year" } },
+    { label: `${t("assistant.suggest.simulate", "Simulate")} UC-2026-0041${t("assistant.suggest.simulateTail", "'s business case")}`, body: { task: "simulate", useCaseId: "UC-2026-0041" } },
+    { label: `${t("assistant.suggest.buildPoc", "Build a PoC for")} UC-2026-0041`, body: { task: "poc", useCaseId: "UC-2026-0041" } },
+  ];
 
   async function run(body: Record<string, unknown>) {
     setBusy(true);
@@ -37,7 +39,7 @@ export default function Assistant() {
       });
       setReply(await res.json());
     } catch {
-      setReply({ text: "Request failed.", provider: { name: "offline", live: false }, trace: { toolsOffered: [], steps: [] } });
+      setReply({ text: t("assistant.requestFailed", "Request failed."), provider: { name: "offline", live: false }, trace: { toolsOffered: [], steps: [] } });
     } finally {
       setBusy(false);
     }
@@ -45,10 +47,9 @@ export default function Assistant() {
 
   return (
     <main className="mx-auto flex max-w-2xl flex-col items-center px-4 py-14 text-center">
-      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">How can the analyst help?</h1>
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{t("assistant.title", "How can the analyst help?")}</h1>
       <p className="mt-3 text-sm text-muted-foreground">
-        Describe a problem, or ask it to simulate a business case, size the portfolio,
-        or scaffold a PoC. The assistant drafts and analyses — you decide what happens next.
+        {t("assistant.intro", "Describe a problem, or ask it to simulate a business case, size the portfolio, or scaffold a PoC. The assistant drafts and analyses — you decide what happens next.")}
       </p>
 
       <div className="mt-8 w-full">
@@ -57,7 +58,7 @@ export default function Assistant() {
             rows={3}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Describe it in your own words…"
+            placeholder={t("assistant.inputPlaceholder", "Describe it in your own words…")}
             className="w-full resize-none rounded-lg bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
           />
           <div className="flex items-center justify-between gap-2 px-1 pt-1">
@@ -71,7 +72,7 @@ export default function Assistant() {
               disabled={busy}
               className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
             >
-              {busy ? "Thinking…" : "Send"}
+              {busy ? t("assistant.thinking", "Thinking…") : t("assistant.send", "Send")}
             </button>
           </div>
         </div>
@@ -95,19 +96,19 @@ export default function Assistant() {
           <div className="rounded-xl border bg-card p-4">
             <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
               <Badge variant={reply.provider.live ? "default" : "secondary"} className="font-normal">
-                {reply.provider.live ? "live model" : "offline analyst"}
+                {reply.provider.live ? t("assistant.liveModel", "live model") : t("assistant.offlineAnalyst", "offline analyst")}
               </Badge>
-              {reply.trace.toolsOffered.length > 0 && <span>tools: {reply.trace.toolsOffered.join(", ")}</span>}
+              {reply.trace.toolsOffered.length > 0 && <span>{t("assistant.toolsLabel", "tools:")} {reply.trace.toolsOffered.join(", ")}</span>}
             </div>
             <p className="whitespace-pre-wrap text-sm">{reply.text}</p>
             {reply.link && (
               <Link href={reply.link} className="mt-3 inline-block rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground">
-                Open →
+                {t("common.open", "Open")} →
               </Link>
             )}
             {reply.trace.steps.length > 0 && (
               <details className="mt-3">
-                <summary className="cursor-pointer text-xs font-medium text-muted-foreground">Trace · {reply.trace.steps.length} steps</summary>
+                <summary className="cursor-pointer text-xs font-medium text-muted-foreground">{t("assistant.trace", "Trace")} · {reply.trace.steps.length} {t("assistant.steps", "steps")}</summary>
                 <ol className="mt-2 space-y-1 text-xs text-muted-foreground">
                   {reply.trace.steps.map((s) => (
                     <li key={s.index}><span className="font-mono">{s.kind}</span> — {s.label}</li>
@@ -119,7 +120,7 @@ export default function Assistant() {
         </div>
       )}
 
-      <p className="mt-8 text-xs text-muted-foreground">Analyst · drafts and analyses only, never approves. To capture a new demand, use <Link href="/intake" className="underline">Intake</Link>.</p>
+      <p className="mt-8 text-xs text-muted-foreground">{t("assistant.footerPrefix", "Analyst · drafts and analyses only, never approves. To capture a new demand, use")} <Link href="/intake" className="underline">{t("intake.title", "Intake")}</Link>.</p>
     </main>
   );
 }

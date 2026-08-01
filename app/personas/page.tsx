@@ -6,6 +6,7 @@ import {
   loadRequestorRecords, buildCohortPatterns, listRequestorDirectory, normalizeRequester,
 } from "@/lib/persona";
 import { ShareBars, Chips, EthicsNote } from "./shared";
+import { getT } from "@/lib/i18n-server";
 
 export const dynamic = "force-dynamic";
 
@@ -23,12 +24,13 @@ const COHORT_DIMENSIONS = [
 type CohortDimension = (typeof COHORT_DIMENSIONS)[number]["key"];
 
 export default async function PersonasPage({ searchParams }: { searchParams: { by?: string } }) {
+  const t = getT();
   const session = await getSession();
   if (!can(session, "view_board")) {
     return (
       <main className="mx-auto max-w-[820px] px-6 py-10">
-        <h1 className="text-lg font-semibold">Persona Analyst</h1>
-        <p className="mt-2 text-sm text-muted-foreground">You don&apos;t have access to this view.</p>
+        <h1 className="text-lg font-semibold">{t("personas.title", "Persona Analyst")}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{t("access.denied", "You don't have access to this view.")}</p>
       </main>
     );
   }
@@ -46,15 +48,15 @@ export default async function PersonasPage({ searchParams }: { searchParams: { b
   return (
     <main className="mx-auto max-w-[1000px] px-6 py-6">
       <nav className="mb-2 text-sm text-muted-foreground">
-        <Link href="/" className="hover:text-foreground">Home</Link>
+        <Link href="/" className="hover:text-foreground">{t("nav.home", "Home")}</Link>
         <span className="mx-1.5" aria-hidden>›</span>
-        <span className="text-foreground">Persona Analyst</span>
+        <span className="text-foreground">{t("personas.title", "Persona Analyst")}</span>
       </nav>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold">Persona Analyst</h1>
+          <h1 className="text-lg font-semibold">{t("personas.title", "Persona Analyst")}</h1>
           <p className="text-sm text-muted-foreground">
-            Understand requestors — their role, jobs, daily workflows, and the digitalization they need — to serve them better.
+            {t("personas.intro", "Understand requestors — their role, jobs, daily workflows, and the digitalization they need — to serve them better.")}
           </p>
         </div>
       </div>
@@ -63,11 +65,11 @@ export default async function PersonasPage({ searchParams }: { searchParams: { b
       {iHaveDemands && (
         <Card className="mt-6 flex items-center justify-between gap-3 p-4">
           <div>
-            <h2 className="text-sm font-semibold">Your profile</h2>
-            <p className="text-xs text-muted-foreground">See how your own demands read — the work and support they point to.</p>
+            <h2 className="text-sm font-semibold">{t("personas.yourProfile", "Your profile")}</h2>
+            <p className="text-xs text-muted-foreground">{t("personas.yourProfileDesc", "See how your own demands read — the work and support they point to.")}</p>
           </div>
           <Link href={`/personas/${encodeURIComponent(mine)}`} className="rounded-md border px-3 py-1.5 text-sm font-medium hover:border-foreground/40">
-            View →
+            {t("common.view", "View")} →
           </Link>
         </Card>
       )}
@@ -75,8 +77,8 @@ export default async function PersonasPage({ searchParams }: { searchParams: { b
       {/* Cohort patterns — aggregate, never a person. */}
       <section className="mt-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">Cohort patterns by {by}</h2>
-          <div className="inline-flex rounded-md border p-0.5 text-xs" role="tablist" aria-label="Group cohorts by">
+          <h2 className="text-sm font-semibold">{t("personas.cohortBy", "Cohort patterns by")} {by}</h2>
+          <div className="inline-flex rounded-md border p-0.5 text-xs" role="tablist" aria-label={t("personas.groupBy", "Group cohorts by")}>
             {COHORT_DIMENSIONS.map((d) => (
               <Link
                 key={d.key}
@@ -85,29 +87,29 @@ export default async function PersonasPage({ searchParams }: { searchParams: { b
                 aria-selected={by === d.key}
                 className={`rounded px-2.5 py-1 font-medium ${by === d.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
               >
-                {d.label}
+                {t(`field.${d.key}`, d.label)}
               </Link>
             ))}
           </div>
         </div>
         <p className="mb-3 mt-1 text-xs text-muted-foreground">
-          Aggregate across requestor groups (≥2 requestors each) — what each {by}&apos;s requestors tend to need.
+          {t("personas.cohortAggregatePre", "Aggregate across requestor groups (≥2 requestors each) — what each")} {by}{t("personas.cohortAggregatePost", "’s requestors tend to need.")}
         </p>
         {cohorts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Not enough demand yet to show cohort patterns.</p>
+          <p className="text-sm text-muted-foreground">{t("personas.notEnoughCohort", "Not enough demand yet to show cohort patterns.")}</p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             {cohorts.map((c) => (
               <Card key={c.key} className="p-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold capitalize">{c.key}</h3>
-                  <span className="text-xs text-muted-foreground">{c.requestorCount} requestors · {c.demandCount} demands</span>
+                  <span className="text-xs text-muted-foreground">{c.requestorCount} {t("personas.requestorsUnit", "requestors")} · {c.demandCount} {t("demands.unit", "demands")}</span>
                 </div>
-                <p className="mt-3 text-xs font-medium text-muted-foreground">Solution shapes they need</p>
+                <p className="mt-3 text-xs font-medium text-muted-foreground">{t("personas.solutionShapes", "Solution shapes they need")}</p>
                 <div className="mt-1"><ShareBars items={c.topArchetypes} /></div>
                 {c.topThemes.length > 0 && (
                   <>
-                    <p className="mt-3 text-xs font-medium text-muted-foreground">Recurring themes</p>
+                    <p className="mt-3 text-xs font-medium text-muted-foreground">{t("personas.recurringThemes", "Recurring themes")}</p>
                     <div className="mt-1"><Chips items={c.topThemes} /></div>
                   </>
                 )}
@@ -120,12 +122,12 @@ export default async function PersonasPage({ searchParams }: { searchParams: { b
       {/* Requestor directory — alphabetical, restricted to view_all. */}
       {viewAll && (
         <section className="mt-8">
-          <h2 className="text-sm font-semibold">Requestors</h2>
+          <h2 className="text-sm font-semibold">{t("personas.requestorsHeading", "Requestors")}</h2>
           <p className="mb-3 text-xs text-muted-foreground">
-            A directory, sorted by name — deliberately not a leaderboard.
+            {t("personas.requestorsDesc", "A directory, sorted by name — deliberately not a leaderboard.")}
           </p>
           {directory.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No requestors on record yet.</p>
+            <p className="text-sm text-muted-foreground">{t("personas.noRequestors", "No requestors on record yet.")}</p>
           ) : (
             <div className="divide-y rounded-lg border">
               {directory.map((d) => (
@@ -138,7 +140,7 @@ export default async function PersonasPage({ searchParams }: { searchParams: { b
                   <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
                     {d.topDomain && <span className="capitalize">{d.topDomain}</span>}
                     {d.topArchetype && <span className="hidden sm:inline">· {d.topArchetype}</span>}
-                    <span>· {d.demandCount} demand{d.demandCount === 1 ? "" : "s"}</span>
+                    <span>· {d.demandCount} {d.demandCount === 1 ? t("demands.unitOne", "demand") : t("demands.unit", "demands")}</span>
                   </span>
                 </Link>
               ))}

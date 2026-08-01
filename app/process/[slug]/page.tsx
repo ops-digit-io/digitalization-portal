@@ -280,7 +280,7 @@ export default function EngagementCockpit() {
   if (error) {
     return (
       <main className="mx-auto max-w-[1100px] px-4 py-6">
-        <Link href="/process" className="text-sm text-muted-foreground hover:text-foreground">← Process Funnel</Link>
+        <Link href="/process" className="text-sm text-muted-foreground hover:text-foreground">← {C.pc(locale, "funnel.title")}</Link>
         <p className="mt-4 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p>
       </main>
     );

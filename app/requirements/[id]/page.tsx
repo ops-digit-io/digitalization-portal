@@ -10,10 +10,12 @@ import { getSession } from "@/lib/auth/current";
 import { Card } from "@/components/ui/card";
 import { Md, AnalyseButton } from "../render";
 import { RequirementsBoard } from "./board";
+import { getT } from "@/lib/i18n-server";
 
 export const dynamic = "force-dynamic";
 
 export default async function CaseRequirements({ params }: { params: { id: string } }) {
+  const t = getT();
   const id = params.id;
   const demand = await readDemand(id);
   if (demand === undefined) notFound();
@@ -40,9 +42,9 @@ export default async function CaseRequirements({ params }: { params: { id: strin
   return (
     <main className="mx-auto max-w-[1000px] px-6 py-6">
       <nav className="mb-2 text-sm text-muted-foreground">
-        <Link href="/" className="hover:text-foreground">Home</Link>
+        <Link href="/" className="hover:text-foreground">{t("nav.home", "Home")}</Link>
         <span className="mx-1.5" aria-hidden>›</span>
-        <Link href="/requirements" className="hover:text-foreground">Requirements</Link>
+        <Link href="/requirements" className="hover:text-foreground">{t("requirements.title", "Requirements")}</Link>
         <span className="mx-1.5" aria-hidden>›</span>
         <span className="font-mono text-foreground">{id}</span>
       </nav>
@@ -50,15 +52,15 @@ export default async function CaseRequirements({ params }: { params: { id: strin
         <div>
           <h1 className="text-lg font-semibold">{title}</h1>
           <p className="text-sm text-muted-foreground">
-            <span className="font-mono">{id}</span> · epics &amp; features to verify during PoC / pilot · <Link href={`/uc/${id}`} className="underline">the demand</Link>
+            <span className="font-mono">{id}</span> · {t("requirements.subtitle", "epics & features to verify during PoC / pilot")} · <Link href={`/uc/${id}`} className="underline">{t("requirements.theDemand", "the demand")}</Link>
           </p>
         </div>
-        <AnalyseButton id={id} label={analysed ? "Re-analyse" : "Analyse"} />
+        <AnalyseButton id={id} label={analysed ? t("requirements.reanalyse", "Re-analyse") : t("requirements.analyse", "Analyse")} />
       </div>
 
       {!analysed ? (
         <Card className="mt-6 p-8 text-center text-sm text-muted-foreground">
-          This demand hasn&apos;t been analysed yet. Run the requirements-analysis agent to generate epics, features, and acceptance criteria from it.
+          {t("requirements.notAnalysedYet", "This demand hasn't been analysed yet. Run the requirements-analysis agent to generate epics, features, and acceptance criteria from it.")}
         </Card>
       ) : (
         <div className="mt-6 space-y-6">
@@ -77,7 +79,7 @@ export default async function CaseRequirements({ params }: { params: { id: strin
           {analysis && (
             <details className="group">
               <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
-                <span className="transition-transform group-open:rotate-90">▸</span> Domain analysis &amp; enhancement
+                <span className="transition-transform group-open:rotate-90">▸</span> {t("requirements.domainAnalysis", "Domain analysis & enhancement")}
               </summary>
               <Card className="mt-2 p-6">
                 <Md body={analysis} />
@@ -87,7 +89,7 @@ export default async function CaseRequirements({ params }: { params: { id: strin
           {research && (
             <details className="group">
               <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
-                <span className="transition-transform group-open:rotate-90">▸</span> Domain research (reference cases &amp; testimonials)
+                <span className="transition-transform group-open:rotate-90">▸</span> {t("requirements.domainResearch", "Domain research (reference cases & testimonials)")}
               </summary>
               <Card className="mt-2 p-6">
                 <Md body={research} />
@@ -98,7 +100,7 @@ export default async function CaseRequirements({ params }: { params: { id: strin
           {requirements && (
             <details className="group">
               <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
-                <span className="transition-transform group-open:rotate-90">▸</span> Full requirements document (markdown)
+                <span className="transition-transform group-open:rotate-90">▸</span> {t("requirements.fullDoc", "Full requirements document (markdown)")}
               </summary>
               <Card className="mt-2 p-6">
                 <Md body={requirements} />

@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { getT } from "@/lib/i18n-server";
 
 type GateState = "passed" | "open" | "pending" | "killed" | "parked";
 
@@ -16,13 +17,14 @@ export interface GateNode {
  * a native `title` so the demo has no extra runtime dependency.
  */
 export function GateTimeline({ gates }: { gates: GateNode[] }) {
+  const t = getT();
   return (
     <ol className="flex items-center gap-0" role="list">
       {gates.map((g, i) => (
         <li key={g.id} className="flex items-center">
           <button
             title={`${g.id} · ${g.label}: ${
-              g.state === "passed" ? `passed ${g.on ?? ""} by ${g.by ?? ""}` : g.state
+              g.state === "passed" ? `${t("gate.passed", "passed")} ${g.on ?? ""} ${t("gate.by", "by")} ${g.by ?? ""}` : g.state
             }`}
             className={cn(
               "size-3.5 rounded-full border-2 transition-colors",

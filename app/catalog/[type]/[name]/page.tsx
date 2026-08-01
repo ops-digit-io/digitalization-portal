@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { RichEditor } from "@/components/portal/rich-editor";
+import { useI18n } from "@/components/providers";
 import { parseFrontmatter, serializeFrontmatter } from "@/lib/agent/frontmatter";
 
 interface Entry { type: string; name: string; bundle: boolean; files: string[] }
@@ -17,6 +18,7 @@ const ENTRY_FILE = "SKILL.md";
 type SaveState = "idle" | "saving" | "saved" | "error";
 
 export default function RegistryEditor() {
+  const { t } = useI18n();
   const { type, name } = useParams<{ type: string; name: string }>();
   const [entry, setEntry] = useState<Entry | null>(null);
   const [files, setFiles] = useState<string[]>([]);
@@ -45,7 +47,7 @@ export default function RegistryEditor() {
         setFiles(e.files);
         setSelected(e.files[0] ?? "");
       })
-      .catch(() => setError("Failed to load."));
+      .catch(() => setError(t("catalog.editor.loadFailed", "Failed to load.")));
   }, [type, name]);
 
   // Lazy-load selected file.
@@ -95,7 +97,7 @@ export default function RegistryEditor() {
         body: JSON.stringify({ type, name, bundle: entry?.bundle ?? type === "skill", files: payload }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "save failed");
+      if (!res.ok) throw new Error(json.error ?? t("catalog.editor.saveFailedMsg", "save failed"));
       setTarget(`${json.host === "github" ? "main" : "working tree"}`);
       setDirty(new Set());
       setSaveState("saved");
@@ -129,9 +131,9 @@ export default function RegistryEditor() {
   return (
     <main className="mx-auto max-w-[1100px] px-4 py-6">
       <nav className="mb-2 text-sm text-muted-foreground">
-        <Link href="/" className="hover:text-foreground">Home</Link>
+        <Link href="/" className="hover:text-foreground">{t("nav.home", "Home")}</Link>
         <span className="mx-1.5" aria-hidden>›</span>
-        <Link href="/catalog" className="hover:text-foreground">Skills &amp; Playbooks</Link>
+        <Link href="/catalog" className="hover:text-foreground">{t("nav.skillsPlaybooks", "Skills & Playbooks")}</Link>
         <span className="mx-1.5" aria-hidden>›</span>
         <span className="text-foreground">{name}</span>
       </nav>
@@ -139,19 +141,19 @@ export default function RegistryEditor() {
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-lg font-semibold">{name}</h1>
         <Badge variant="outline">{type}</Badge>
-        {entry?.bundle && <Badge variant="secondary" className="font-normal">bundle · {files.length} files</Badge>}
+        {entry?.bundle && <Badge variant="secondary" className="font-normal">{t("catalog.editor.bundle", "bundle")} · {files.length} {t("catalog.editor.files", "files")}</Badge>}
         <div className="ml-auto flex items-center gap-2 text-xs">
           <span className={saveState === "saved" ? "text-ok" : saveState === "saving" ? "text-muted-foreground" : saveState === "error" ? "text-destructive" : "text-muted-foreground"}>
-            {saveState === "saving" ? "Saving…" : saveState === "saved" ? `Saved to ${target || "main"}` : saveState === "error" ? "Save failed" : dirty.size > 0 ? "Unsaved changes" : "All changes saved"}
+            {saveState === "saving" ? t("common.saving", "Saving…") : saveState === "saved" ? `${t("catalog.editor.savedTo", "Saved to")} ${target || "main"}` : saveState === "error" ? t("catalog.editor.saveFailed", "Save failed") : dirty.size > 0 ? t("catalog.editor.unsaved", "Unsaved changes") : t("catalog.editor.allSaved", "All changes saved")}
           </span>
-          <Button size="sm" onClick={() => void save()} disabled={dirty.size === 0 || saveState === "saving"}>Save</Button>
+          <Button size="sm" onClick={() => void save()} disabled={dirty.size === 0 || saveState === "saving"}>{t("common.save", "Save")}</Button>
         </div>
       </div>
       {error && <div className="mt-3 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm">{error}</div>}
 
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-[220px_1fr]">
         <aside>
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Files</div>
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("catalog.editor.filesLabel", "Files")}</div>
           <ul className="space-y-0.5 text-sm">
             {files.map((f) => (
               <li key={f}>
@@ -172,41 +174,41 @@ export default function RegistryEditor() {
         </aside>
 
         <section className="min-w-0">
-          {!doc && <Card className="p-6 text-sm text-muted-foreground">Loading…</Card>}
+          {!doc && <Card className="p-6 text-sm text-muted-foreground">{t("common.loading", "Loading…")}</Card>}
 
           {doc && doc.isEntry && (
             <Card className="mb-3 space-y-3 p-4">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="text-sm">
-                  <span className="text-xs font-medium text-muted-foreground">Name</span>
+                  <span className="text-xs font-medium text-muted-foreground">{t("catalog.editor.name", "Name")}</span>
                   <input value={String(doc.meta.name ?? name)} readOnly className="mt-1 h-9 w-full rounded-md border bg-secondary/40 px-3 text-sm" />
                 </label>
                 {type === "skill" ? (
                   <>
                     <label className="text-sm">
-                      <span className="text-xs font-medium text-muted-foreground">Capabilities</span>
+                      <span className="text-xs font-medium text-muted-foreground">{t("catalog.editor.capabilities", "Capabilities")}</span>
                       <input value={cap.join(", ")} onChange={(e) => setMeta("capabilities", asArr(e.target.value))} placeholder="view_board, draft" className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
                     </label>
                     <label className="text-sm sm:col-span-2">
-                      <span className="text-xs font-medium text-muted-foreground">Tools</span>
+                      <span className="text-xs font-medium text-muted-foreground">{t("catalog.editor.tools", "Tools")}</span>
                       <input value={tools.join(", ")} onChange={(e) => setMeta("tools", asArr(e.target.value))} placeholder="portfolio-query, start-poc" className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
                     </label>
                   </>
                 ) : type === "playbook" ? (
                   <>
                     <label className="text-sm">
-                      <span className="text-xs font-medium text-muted-foreground">Skills</span>
+                      <span className="text-xs font-medium text-muted-foreground">{t("catalog.editor.skills", "Skills")}</span>
                       <input value={pbSkills.join(", ")} onChange={(e) => setMeta("skills", asArr(e.target.value))} className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
                     </label>
                     <label className="text-sm sm:col-span-2">
-                      <span className="text-xs font-medium text-muted-foreground">Checkpoints</span>
+                      <span className="text-xs font-medium text-muted-foreground">{t("catalog.editor.checkpoints", "Checkpoints")}</span>
                       <input value={checkpoints.join(", ")} onChange={(e) => setMeta("checkpoints", asArr(e.target.value))} className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
                     </label>
                   </>
                 ) : null}
               </div>
               <label className="block text-sm">
-                <span className="text-xs font-medium text-muted-foreground">Description</span>
+                <span className="text-xs font-medium text-muted-foreground">{t("catalog.editor.description", "Description")}</span>
                 <textarea value={String(doc.meta.description ?? "")} onChange={(e) => setMeta("description", e.target.value)} rows={2} className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
               </label>
             </Card>
@@ -219,7 +221,7 @@ export default function RegistryEditor() {
       </div>
 
       <p className="mt-3 text-xs text-muted-foreground">
-        Changes save automatically and are written to the skill repo&apos;s <strong>main</strong> branch (a local working copy without credentials). No pull requests.
+        {t("catalog.editor.footerA", "Changes save automatically and are written to the skill repo's")} <strong>main</strong> {t("catalog.editor.footerB", "branch (a local working copy without credentials). No pull requests.")}
       </p>
     </main>
   );
