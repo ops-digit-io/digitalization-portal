@@ -7,27 +7,23 @@
  * then a diff a human can review, and "who changed what P-03 wants, and when" has
  * an answer without an audit table.
  *
- * The library SEEDS itself from `domain-knowledge.ts` the first time it is read.
- * Those role names are already what the requirements engine writes into stories,
- * so seeding turns an existing implicit vocabulary into an explicit one instead of
- * starting from an empty page nobody fills in. Seeded records are marked as such:
- * they are honest stubs, not researched personas, and the UI says so.
+ * The library starts EMPTY and stays empty until a person describes a persona.
+ * Seeding it from the domain baseline was tried and removed: a generated record
+ * carries a role name and nothing anybody said, and once it has an id it gets
+ * cited by a requirements document, at which point a placeholder has quietly
+ * become a governed definition. An empty library is an honest one — the
+ * requirements engine falls back to plain role names until real personas exist.
  */
 
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { getGitHost, hasGitHubCredentials, type RepoRef } from "./git/index.js";
-import { DOMAINS } from "./demand.js";
-import { knowledgeFor } from "./domain-knowledge.js";
 import {
-  completePersona, nextPersonaId, parsePersona, renderPersona, type Persona, type PersonaKind,
+  completePersona, nextPersonaId, parsePersona, renderPersona, type Persona,
 } from "./persona-library.js";
 
 const DIR = "personas";
-
-/** The marker that says a record is a stub the portal wrote, not a person's words. */
-export const SEED_SOURCE = "seeded from the domain baseline — not yet confirmed with a person";
 
 function live(): boolean {
   return hasGitHubCredentials();
@@ -68,59 +64,11 @@ async function listFiles(): Promise<string[]> {
   return ents.filter((f) => f.endsWith(".md")).sort();
 }
 
-// ── seed ──────────────────────────────────────────────────────────────────────
-
-/**
- * The starting library: for each domain, its primary role as a `user` persona and
- * its decision-maker as a `buyer`, drawn from the domain baseline the requirements
- * engine already uses. Deliberately thin — a seeded persona carries the role, the
- * domain and nothing invented. Goals read as the one thing the role is for, which
- * is checkable and therefore correctable.
- */
-export function seedPersonas(now?: string): Persona[] {
-  const out: Persona[] = [];
-  let n = 0;
-  const add = (name: string, kind: PersonaKind, domain: string, authority: Persona["authority"], goal: string) => {
-    n += 1;
-    out.push(
-      completePersona(
-        {
-          name: name.replace(/^\w/, (c) => c.toUpperCase()),
-          kind,
-          authority,
-          domains: [domain],
-          summary: `${name.replace(/^\w/, (c) => c.toUpperCase())} in ${domain}.`,
-          goals: [goal],
-          sourcedFrom: SEED_SOURCE,
-        },
-        `P-${String(n).padStart(2, "0")}`,
-        now,
-      ),
-    );
-  };
-  for (const domain of DOMAINS) {
-    const kb = knowledgeFor(domain);
-    const [primary, , decider] = kb.personas;
-    if (primary) add(primary, "user", domain, "uses", `Get through the ${domain} work of the day without fighting the tools.`);
-    if (decider) add(decider, "buyer", domain, "approves budget", `Spend the ${domain} budget where it removes the most friction.`);
-  }
-  return out;
-}
-
 // ── read ──────────────────────────────────────────────────────────────────────
 
-/**
- * Every persona, id order. Seeds the library on first read and PERSISTS the seed,
- * so the ids handed to a requirements document are stable from that moment —
- * a citation that changed meaning on the next deploy would be worse than no id.
- */
+/** Every persona, id order. Empty until somebody describes one. */
 export async function listPersonas(): Promise<Persona[]> {
   const files = await listFiles();
-  if (files.length === 0) {
-    const seeded = seedPersonas(new Date().toISOString());
-    await Promise.all(seeded.map((p) => putRaw(fileOf(p.id), renderPersona(p), `Seed persona ${p.id} ${p.name}`)));
-    return seeded;
-  }
   const raws = await Promise.all(files.map((f) => getRaw(`${DIR}/${f}`)));
   return raws
     .filter((r): r is string => typeof r === "string" && r.trim() !== "")
@@ -180,10 +128,6 @@ export async function retirePersona(id: string, reason: string, now: string): Pr
   return p;
 }
 
-/** True when a record is a portal-written stub rather than a described person. */
-export function isSeeded(p: Persona): boolean {
-  return (p.sourcedFrom ?? "").startsWith(SEED_SOURCE.slice(0, 20));
-}
 export function isRetired(p: Persona): boolean {
   return (p.sourcedFrom ?? "").startsWith("RETIRED");
 }

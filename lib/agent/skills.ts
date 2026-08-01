@@ -17,6 +17,13 @@ export interface Skill {
   capabilities: string[];
   /** Tool names this skill expects to be available, if declared. */
   tools: string[];
+  /**
+   * Skills this skill itself composes. A skill is a reusable unit, not a leaf:
+   * one that names `evidence-standards` gets it inlined wherever it is used, so
+   * the standard lives in one file instead of being copied into every method.
+   * Resolved transitively by `lib/agent/compose.ts`, which also catches cycles.
+   */
+  skills: string[];
   /** The markdown guidance body handed to the model. */
   body: string;
 }
@@ -30,6 +37,7 @@ export function loadSkill(source: string, fallbackName = "unnamed-skill"): Skill
     description,
     capabilities: metaList(meta.capabilities),
     tools: metaList(meta.tools),
+    skills: metaList(meta.skills),
     body,
   };
 }
