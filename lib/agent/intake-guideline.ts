@@ -13,10 +13,9 @@
  * still runs on the full guidance before it lands in the registry.
  */
 
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { INTAKE_FIELDS } from "../demand.js";
-import { readEntryFile, type EntryType } from "../registry-store.js";
+import { loadGoverning } from "./governing.js";
+import type { EntryType } from "../registry-store.js";
 
 /** The playbook that governs the interview. */
 export const INTAKE_PLAYBOOK = "s1-intake";
@@ -37,24 +36,9 @@ export interface IntakeGuideline {
   contract: string;
 }
 
-/** Read an entry file from the registry, falling back to the bundled repo copy. */
+/** Read an entry from the agent registry. There is no bundled copy in this repo. */
 async function readGoverning(type: EntryType, name: string, relPath?: string): Promise<string> {
-  const fromRegistry = await readEntryFile(type, name, relPath).catch(() => undefined);
-  if (fromRegistry && fromRegistry.trim()) return fromRegistry.trim();
-
-  const candidates =
-    type === "playbook"
-      ? [join("playbooks", `${name}.md`)]
-      : type === "contract"
-        ? [join("contracts", `${name}.md`)]
-        : relPath
-          ? [join("skills", name, relPath)]
-          : [join("skills", name, "SKILL.md"), join("skills", `${name}.md`)];
-  for (const rel of candidates) {
-    const body = await readFile(join(process.cwd(), rel), "utf8").catch(() => undefined);
-    if (body && body.trim()) return body.trim();
-  }
-  return "";
+  return loadGoverning(type, name, relPath);
 }
 
 /** Read the playbook, interview guide, governing skills, and operating contract. */

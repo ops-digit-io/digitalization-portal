@@ -29,16 +29,14 @@ graph TB
     AGENT["lib/agent — the model seam"]
   end
 
-  subgraph governance["Governance library — git"]
-    PB["playbooks/"]
-    SK["skills/"]
-    CT["contracts/"]
+  subgraph external["Outside this repository — git"]
+    PB["du-agent-registry<br/>playbooks · skills · contracts"]
+    TPL["du-templates<br/>artefact templates"]
   end
 
   subgraph record["Systems of record — git"]
     DEM["du-demands<br/><i>demands + artefacts</i>"]
     PROC["du-processes<br/><i>engagements · personas · champions</i>"]
-    REG["du-agent-registry<br/><i>live governance</i>"]
   end
 
   MODEL["Model provider<br/><i>Anthropic · OpenAI · offline</i>"]
@@ -48,13 +46,12 @@ graph TB
   API --> LIB
   LIB --> AGENT
   AGENT -->|compose| PB
-  PB --> SK
-  SK --> SK
-  AGENT --> CT
+  LIB -->|templates| TPL
   AGENT -->|bounded retry + timeout| MODEL
   LIB -->|GitHost| DEM
   LIB -->|GitHost| PROC
-  PB -.->|registry first, bundled fallback| REG
+  PB -.->|GitHub, else local mirror| MIRROR["mirror<br/><i>npm run content:pull</i>"]
+  TPL -.-> MIRROR
 ```
 
 Four decisions hold this together and explain most of the code:
@@ -66,9 +63,13 @@ Four decisions hold this together and explain most of the code:
 2. **The engines are deterministic and the model is optional.** Every AI feature has
    a rule-based floor that produces a usable answer with no key. A model refines;
    it is never the only path. The header says which you are getting.
-3. **Governance is data, not code.** No module hardcodes a prompt. Behaviour is
-   composed at runtime from the library, registry first so an edit takes effect
-   without a deploy.
+3. **Governance and templates are not in this repository.** The playbooks, skills
+   and contracts live in `du-agent-registry`; the artefact templates live in
+   `du-templates`. The app repo carries machinery, not method — so the portal can
+   be read, forked or handed over without handing over the thing that makes it
+   work, and the people who own the method can change it without a deploy. No
+   module hardcodes a prompt and none holds a bundled copy: resolution is GitHub →
+   local mirror (`npm run content:pull`) → reported as missing.
 4. **Both integration seams are bounded.** Git and model calls go through one retry
    envelope with per-attempt timeouts, retrying transient failures only.
 
@@ -229,6 +230,8 @@ one it is in rather than pretending.
 
 | Missing | What still works | What you see |
 |---|---|---|
+| The registry | the engines, the UI, every deterministic path | every agent reports missing governance; `/api/status` → `content.registry.ok: false` |
+| The templates | everything except a pre-filled section | "Load template" does nothing and the prompt says the template is unavailable |
 | Model key | everything — deterministic engines, prompt export for every agent | header reads **Offline**; "copy prompt, run it in your assistant, paste it back" |
 | GitHub App | everything — local file store under the OS temp dir | `/api/status` reports `git.live: false` |
 | A skill file | the agent runs | the prompt says which governance is missing; the UI marks the run partial |

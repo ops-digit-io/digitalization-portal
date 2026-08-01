@@ -2,7 +2,8 @@
 
 # Governance graph
 
-**44 playbooks · 20 skills · 6 contracts.**
+**44 playbooks · 23 skills · 6 contracts** —
+all in `du-agent-registry`, none in this repository.
 
 A playbook composes skills, and a skill may compose skills of its own — resolved
 transitively by `lib/agent/compose.ts`, which reports anything missing and terminates
@@ -85,12 +86,22 @@ and the agent framings. They are guidance in themselves and compose nothing.
 | `poc-builder` | — | Build a proof of concept for a use case — repo, spec, and artifact — with a human approval checkpoint. Use when a user a |
 | `portfolio-analysis` | — | Answer portfolio questions within the caller's visibility, read-only. Use for counts by stage, what is stalling, and whe |
 | `problem-framing` | — | Turn a raw, solution-shaped demand into a crisp, testable problem statement — the job to be done, the observable symptom |
+| `product-brainstorming` | — | Brainstorm product ideas, explore problem spaces, and challenge assumptions as a thinking partner. Use when exploring a  |
 | `requirements-analysis` | — | Derive standardized requirements — epics, user stories with acceptance criteria, NFRs — from a captured demand, grounded |
+| `requirements-analysis-jwynia` | — | Diagnose requirements problems and guide discovery of real needs and constraints |
 | `risk-assumptions` | — | Build the risk, assumption, open-question, and out-of-scope register for a digital use case — seeded by the archetype's  |
 | `stakeholder-mapping` | — | Identify the personas, the accountable owner, and who must adopt a digital use case for it to deliver value — feeding us |
+| `test` | — | One line on what this skill does and when to use it. |
 | `usecase-archetypes` | — | Classify a digital use case by its SOLUTION SHAPE (analytics, prediction, computer vision, GenAI/RAG, automation, optimi |
 | `value-sizing` | — | Size the impact of a digital use case honestly — a defensible value hypothesis built from the baseline, the mechanism of |
 
 ## Contracts
 
 `analyst` · `business-case` · `champions` · `intake` · `persona` · `requirements`
+
+
+## Templates
+
+From `du-templates` — **19** artefact templates, also outside this repository.
+
+`sections/business-case` · `sections/cost-of-change` · `sections/diagnosis` · `sections/diagnostics` · `sections/flow` · `sections/increment` · `sections/iteration` · `sections/knowledge` · `sections/kpi` · `sections/literacy` · `sections/mapping` · `sections/profile` · `sections/purpose` · `sections/toolchain` · `advisory/challenge` · `advisory/clusters` · `advisory/improvements` · `advisory/target-tech` · `misc/scale-template`

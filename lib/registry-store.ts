@@ -18,6 +18,7 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { loadPlaybook, loadSkill } from "./agent/skills.js";
 import { getGitHost, hasGitHubCredentials, type RepoRef } from "./git/index.js";
+import { registryRepo as registryContentRepo } from "./content-repo.js";
 import { LocalHost } from "./git/local-host.js";
 import { slugify } from "./poc/scaffold.js";
 
@@ -42,8 +43,16 @@ const DIR: Record<EntryType, string> = { skill: "skills", playbook: "playbooks",
 /** The entry file inside a skill bundle. */
 export const ENTRY_FILE = "SKILL.md";
 
+/**
+ * The local MIRROR of the registry — never `process.cwd()`.
+ *
+ * The library is not in this repository. When GitHub is not configured the
+ * registry is read from a mirror directory outside the working tree, populated by
+ * `npm run content:pull`. Pointing this at the app repo would re-create exactly
+ * the bundled copy that was removed.
+ */
 function root(): string {
-  return process.cwd();
+  return registryMirrorDir();
 }
 
 async function isDir(p: string): Promise<boolean> {
@@ -64,6 +73,10 @@ async function walk(dir: string, base = ""): Promise<string[]> {
 /** True when the registry is read/written live over GitHub rather than the local tree. */
 function live(): boolean {
   return hasGitHubCredentials();
+}
+
+function registryMirrorDir(): string {
+  return registryContentRepo().mirrorDir;
 }
 
 /** The registry repo ref (GitHub). */
@@ -203,10 +216,9 @@ async function resolvePath(type: EntryType, name: string, relPath?: string): Pro
 }
 
 /**
- * Read one file within an entry. Live, the registry wins; when the registry doesn't
- * have it, fall back to the bundled copy shipped on disk (so a not-yet-synced entry
- * still opens with its real content in the editor, not a blank template). Returns
- * undefined only when neither has it.
+ * Read one file within an entry: GitHub when configured, else the local mirror.
+ * Returns undefined when neither has it — there is no bundled copy in this repo to
+ * fall back to, by design.
  */
 export async function readEntryFile(type: EntryType, name: string, relPath?: string): Promise<string | undefined> {
   if (live()) {
@@ -219,7 +231,7 @@ export async function readEntryFile(type: EntryType, name: string, relPath?: str
       fromRegistry = await host.getFile(registryRepo(), `${DIR[type]}/${safe(name)}.md`);
     }
     if (fromRegistry !== undefined) return fromRegistry;
-    // Fall through to the bundled copy shipped with the app.
+    // Fall through to the mirror — useful when a fresh entry has not synced yet.
   }
   const { path } = await resolvePath(type, name, relPath);
   return readFile(path, "utf8").catch(() => undefined);

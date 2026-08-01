@@ -1,5 +1,5 @@
 /**
- * The SHIPPED library, checked as a graph.
+ * The LIVE library, checked as a graph.
  *
  * `compose.test.ts` proves the resolver behaves; this proves the files it will
  * actually resolve are sound. It is the test that keeps composition trustworthy as
@@ -7,7 +7,11 @@
  * skills reference each other, the suite goes red instead of an agent quietly
  * running on partial governance in production.
  *
- * Reads the repo directly — no mocks — so it fails on a real typo in a real file.
+ * The library is NOT in this repository — it is `du-agent-registry`, mirrored
+ * locally by `npm run content:pull`. These tests read the mirror, so they check
+ * the real files. With no mirror they fail loudly with the fix, rather than
+ * skipping: a silently-skipped integrity check is how a broken reference reaches
+ * production.
  */
 
 import { describe, it, expect } from "vitest";
@@ -15,14 +19,21 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { loadPlaybook, loadSkill } from "./skills";
 
-const ROOT = process.cwd();
+import { registryRepo } from "../content-repo";
+
+const ROOT = registryRepo().mirrorDir;
+const FIX = `no registry mirror at ${ROOT} — run: npm run content:pull`;
 
 async function playbookFiles(): Promise<string[]> {
-  const files = await readdir(join(ROOT, "playbooks"));
+  const files = await readdir(join(ROOT, "playbooks")).catch(() => {
+    throw new Error(FIX);
+  });
   return files.filter((f) => f.endsWith(".md") && f.toLowerCase() !== "readme.md");
 }
 async function skillDirs(): Promise<string[]> {
-  const ents = await readdir(join(ROOT, "skills"), { withFileTypes: true });
+  const ents = await readdir(join(ROOT, "skills"), { withFileTypes: true }).catch(() => {
+    throw new Error(FIX);
+  });
   return ents.filter((e) => e.isDirectory()).map((e) => e.name);
 }
 const readSkill = (name: string) => readFile(join(ROOT, "skills", name, "SKILL.md"), "utf8");

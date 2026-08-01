@@ -11,11 +11,16 @@
  *   node scripts/gen-docs.mjs --check   exit 1 if they are stale
  */
 
-import { readdir, readFile, writeFile, stat } from "node:fs/promises";
+import { readdir, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 
 const ROOT = process.cwd();
 const DOCS = join(ROOT, "docs");
+/** The agent library is not in this repo — it is mirrored from du-agent-registry. */
+const REGISTRY = process.env.REGISTRY_MIRROR_DIR ?? join(tmpdir(), "du-agent-registry");
+/** The artefact templates are not in this repo either. */
+const TEMPLATES = process.env.TEMPLATES_MIRROR_DIR ?? join(tmpdir(), "du-templates");
 
 // ── discovery ─────────────────────────────────────────────────────────────────
 
@@ -82,21 +87,37 @@ const meta = (src) => {
 
 /** The governance graph: playbooks → skills → skills, and the contracts. */
 async function governance() {
-  const pbFiles = (await readdir(join(ROOT, "playbooks"))).filter((f) => f.endsWith(".md") && f.toLowerCase() !== "readme.md");
+  const missing = () => {
+    throw new Error(`no registry mirror at ${REGISTRY} — run: npm run content:pull`);
+  };
+  const pbFiles = (await readdir(join(REGISTRY, "playbooks")).catch(missing)).filter(
+    (f) => f.endsWith(".md") && f.toLowerCase() !== "readme.md",
+  );
   const playbooks = [];
   for (const f of pbFiles.sort()) {
-    const m = meta(await readFile(join(ROOT, "playbooks", f), "utf8"));
+    const m = meta(await readFile(join(REGISTRY, "playbooks", f), "utf8"));
     playbooks.push({ name: f.replace(/\.md$/, ""), skills: m.skills ?? [], declared: Boolean(m.name) });
   }
-  const skillDirs = (await readdir(join(ROOT, "skills"), { withFileTypes: true })).filter((e) => e.isDirectory()).map((e) => e.name);
+  const skillDirs = (await readdir(join(REGISTRY, "skills"), { withFileTypes: true }).catch(missing))
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name);
   const skills = [];
   for (const name of skillDirs.sort()) {
-    const src = await readFile(join(ROOT, "skills", name, "SKILL.md"), "utf8").catch(() => "");
+    const src = await readFile(join(REGISTRY, "skills", name, "SKILL.md"), "utf8").catch(() => "");
     const m = meta(src);
     skills.push({ name, skills: m.skills ?? [], description: m.description ?? "" });
   }
-  const contracts = (await readdir(join(ROOT, "contracts"))).filter((f) => f.endsWith(".md")).map((f) => f.replace(/\.md$/, "")).sort();
-  return { playbooks, skills, contracts };
+  const contracts = (await readdir(join(REGISTRY, "contracts")).catch(() => []))
+    .filter((f) => f.endsWith(".md"))
+    .map((f) => f.replace(/\.md$/, ""))
+    .sort();
+  const templates = [];
+  for (const kind of ["sections", "advisory", "misc"]) {
+    for (const f of (await readdir(join(TEMPLATES, kind)).catch(() => [])).sort()) {
+      if (f.endsWith(".md")) templates.push(`${kind}/${f.replace(/\.md$/, "")}`);
+    }
+  }
+  return { playbooks, skills, contracts, templates };
 }
 
 // ── rendering ─────────────────────────────────────────────────────────────────
@@ -175,7 +196,8 @@ function renderGovernance(g) {
     "",
     "# Governance graph",
     "",
-    `**${g.playbooks.length} playbooks · ${g.skills.length} skills · ${g.contracts.length} contracts.**`,
+    `**${g.playbooks.length} playbooks · ${g.skills.length} skills · ${g.contracts.length} contracts** —`,
+    "all in `du-agent-registry`, none in this repository.",
     "",
     "A playbook composes skills, and a skill may compose skills of its own — resolved",
     "transitively by `lib/agent/compose.ts`, which reports anything missing and terminates",
@@ -213,6 +235,15 @@ function renderGovernance(g) {
     lines.push(`| \`${s.name}\` | ${s.skills.map((x) => `\`${x}\``).join(", ") || "—"} | ${s.description.slice(0, 120)} |`);
   }
   lines.push("", "## Contracts", "", g.contracts.map((c) => `\`${c}\``).join(" · "), "");
+  lines.push(
+    "",
+    "## Templates",
+    "",
+    `From \`du-templates\` — **${g.templates.length}** artefact templates, also outside this repository.`,
+    "",
+    g.templates.map((t) => `\`${t}\``).join(" · "),
+    "",
+  );
   return lines.join("\n");
 }
 

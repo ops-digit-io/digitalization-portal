@@ -2,7 +2,6 @@ import Link from "next/link";
 import { listRegistry, type RegistryEntry } from "@/lib/registry-store";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { SyncButton } from "./sync-button";
 // Reference-skill import lives in the dedicated Skill Library tool (/skill-library),
 // kept out of the registry so this stays focused on checking & adjusting skills.
 
@@ -50,12 +49,12 @@ export default async function Catalog() {
         <div>
           <h1 className="text-lg font-semibold">Skills &amp; Playbooks registry</h1>
           <p className="text-sm text-muted-foreground">
-            Git-backed agent capabilities. Edit a skill or playbook and it saves straight to the
-            registry repo — changes are live for the agent.
+            The agent library lives in <code>du-agent-registry</code>, not in this application.
+            Edit a skill or playbook and it saves straight there — changes are live for the agent
+            on the next request, with no deploy.
           </p>
         </div>
         <div className="ml-auto flex items-start gap-2">
-          <SyncButton />
           <Link href="/catalog/new?type=skill" className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground">+ Skill</Link>
           <Link href="/catalog/new?type=playbook" className="rounded-md border px-3 py-2 text-sm font-medium">+ Playbook</Link>
           <Link href="/catalog/new?type=contract" className="rounded-md border px-3 py-2 text-sm font-medium">+ Contract</Link>
