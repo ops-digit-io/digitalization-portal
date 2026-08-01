@@ -104,7 +104,7 @@ export default function FormTool() {
           {error && <div className="mb-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-1.5 text-xs text-destructive">{error}</div>}
           <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span className="uppercase tracking-wide">{t("intake.form.proposedLane", "Proposed lane")}</span>
-            <Badge variant="secondary" className="font-normal">{LANE_LABEL[classification.lane] ?? classification.lane}</Badge>
+            <Badge variant="secondary" className="font-normal">{t(`lane.${classification.lane}`, LANE_LABEL[classification.lane] ?? classification.lane)}</Badge>
             <span>· {t("intake.form.triageConfirms", "triage confirms it.")} {classification.rationale}</span>
           </div>
           {!saved ? (

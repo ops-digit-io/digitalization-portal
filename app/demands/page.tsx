@@ -94,7 +94,7 @@ export default async function Demands({ searchParams }: { searchParams: Params }
         />
         <select name="lane" defaultValue={searchParams.lane ?? ""} className="h-9 rounded-md border bg-transparent px-2 text-muted-foreground">
           <option value="">{t("demands.allLanes", "All lanes")}</option>
-          {LANES.map((l) => <option key={l} value={l}>{LANE_LABEL[l] ?? l}</option>)}
+          {LANES.map((l) => <option key={l} value={l}>{t(`lane.${l}`, LANE_LABEL[l] ?? l)}</option>)}
         </select>
         <select name="plant" defaultValue={searchParams.plant ?? ""} className="h-9 rounded-md border bg-transparent px-2 text-muted-foreground">
           <option value="">{t("demands.allPlants", "All plants")}</option>
@@ -135,7 +135,7 @@ export default async function Demands({ searchParams }: { searchParams: Params }
                   </div>
                 </td>
                 <td className="px-4 py-2.5 tabular-nums text-muted-foreground">{d.stage ?? "—"}</td>
-                <td className="px-4 py-2.5">{d.lane ? <Badge variant="secondary" className="font-normal text-muted-foreground">{LANE_LABEL[d.lane] ?? d.lane}</Badge> : "—"}</td>
+                <td className="px-4 py-2.5">{d.lane ? <Badge variant="secondary" className="font-normal text-muted-foreground">{t(`lane.${d.lane}`, LANE_LABEL[d.lane] ?? d.lane)}</Badge> : "—"}</td>
                 <td className="px-4 py-2.5 text-muted-foreground">{d.plant ?? "—"}</td>
                 <td className="px-4 py-2.5 text-muted-foreground">{d.domain ?? "—"}</td>
                 <td className="px-4 py-2.5 tabular-nums text-muted-foreground">{d.since ?? "—"}</td>

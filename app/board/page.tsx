@@ -80,7 +80,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Params
   const stageIdx = (s?: Stage) => (s ? STAGES.indexOf(s) : 99);
   let columns: { title: string; subtitle?: string; colorVar?: string; cards: BoardCard[] }[];
   if (group === "stage") {
-    columns = STAGES.map((s) => ({ title: `${s} ${STAGE_LABEL[s]}`, colorVar: `--stage-${s.toLowerCase()}`, cards: board.columns[s] }));
+    columns = STAGES.map((s) => ({ title: `${s} ${t(`stage.${s}`, STAGE_LABEL[s])}`, colorVar: `--stage-${s.toLowerCase()}`, cards: board.columns[s] }));
   } else {
     const key = group === "lane" ? (c: BoardCard) => (c.lane as string) ?? "—" : (c: BoardCard) => c.plant ?? "—";
     const groups = new Map<string, BoardCard[]>();
@@ -88,7 +88,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Params
       const k = key(c);
       (groups.get(k) ?? groups.set(k, []).get(k)!).push(c);
     }
-    columns = [...groups.entries()].sort((a, b) => b[1].length - a[1].length).map(([k, cards]) => ({ title: LANE_LABEL[k] ?? k, cards }));
+    columns = [...groups.entries()].sort((a, b) => b[1].length - a[1].length).map(([k, cards]) => ({ title: t(`lane.${k}`, LANE_LABEL[k] ?? k), cards }));
   }
 
   const groupTabs: { id: Group; label: string }[] = [{ id: "stage", label: t("board.group.stage", "Stage") }, { id: "lane", label: t("board.group.lane", "Lane") }, { id: "plant", label: t("board.group.plant", "Plant") }];
@@ -132,7 +132,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Params
           current={searchParams as Record<string, string | undefined>}
           search={{ param: "q", placeholder: t("board.searchPlaceholder", "Search id or title…") }}
           selects={[
-            { param: "lane", label: t("filter.lane", "Lane"), options: lanes, labels: LANE_LABEL },
+            { param: "lane", label: t("filter.lane", "Lane"), options: lanes, labels: Object.fromEntries(lanes.map((l) => [l, t(`lane.${l}`, LANE_LABEL[l] ?? l)])) },
             { param: "plant", label: t("filter.plant", "Plant"), options: plants },
             { param: "domain", label: t("filter.domain", "Domain"), options: domains },
             { param: "status", label: t("filter.status", "Status"), options: ["active", "parked", "killed"] },

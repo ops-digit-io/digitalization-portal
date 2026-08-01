@@ -175,7 +175,7 @@ export default function ChatTool() {
             <div className="pt-2">
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("intake.demandPage", "Demand page")}</span>
-                <Badge variant="secondary" className="font-normal">{LANE_LABEL[classification.lane] ?? classification.lane}</Badge>
+                <Badge variant="secondary" className="font-normal">{t(`lane.${classification.lane}`, LANE_LABEL[classification.lane] ?? classification.lane)}</Badge>
                 {classification.domain && <Badge variant="outline" className="font-normal">{classification.domain}</Badge>}
               </div>
               <pre className="whitespace-pre-wrap rounded-lg border bg-secondary/20 p-3 text-xs leading-relaxed">{preview}</pre>

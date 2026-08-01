@@ -46,7 +46,7 @@ export default function MarkdownTool() {
         <div className="flex items-center justify-between gap-2 border-b px-4 py-2">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("intake.md.demandMarkdown", "Demand markdown")}</span>
-            <Badge variant="secondary" className="font-normal">{LANE_LABEL[classification.lane] ?? classification.lane}</Badge>
+            <Badge variant="secondary" className="font-normal">{t(`lane.${classification.lane}`, LANE_LABEL[classification.lane] ?? classification.lane)}</Badge>
             {classification.domain && <Badge variant="outline" className="font-normal">{classification.domain}</Badge>}
           </div>
           <span className="text-xs text-muted-foreground">{t("intake.md.normalisedThrough", "normalised through")} <span className="font-mono">buildDemand</span> {t("intake.md.onSave", "on save")}</span>

@@ -55,7 +55,7 @@ export default async function Requirements() {
                     <div className="font-mono text-xs text-muted-foreground">{d.id}</div>
                   </td>
                   <td className="px-4 py-2.5 text-muted-foreground">{d.domain ?? "—"}</td>
-                  <td className="px-4 py-2.5">{d.lane ? <Badge variant="secondary" className="font-normal text-muted-foreground">{LANE_LABEL[d.lane] ?? d.lane}</Badge> : "—"}</td>
+                  <td className="px-4 py-2.5">{d.lane ? <Badge variant="secondary" className="font-normal text-muted-foreground">{t(`lane.${d.lane}`, LANE_LABEL[d.lane] ?? d.lane)}</Badge> : "—"}</td>
                   <td className="px-4 py-2.5">
                     {analysed
                       ? <Badge variant="outline" className="border-ok/50 font-normal text-ok">{t("requirements.generated", "generated")}</Badge>

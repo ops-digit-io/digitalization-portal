@@ -922,6 +922,21 @@ const EN: Strings = {
   "value.tableTitle": "Realized vs. business case (S8)",
   "value.title": "Value Cockpit",
   "valueFigure.needsInput": "Needs input",
+
+  // --- page & component strings (merged) ---
+  "error.network": "Network error — nothing was saved.",
+  "error.requestFailed": "Request failed",
+  "triage.act.accept": "Accept",
+  "triage.act.accepting": "Accepting…",
+  "triage.act.assignLane": "Assign lane",
+  "triage.act.assignLanePlaceholder": "Assign lane…",
+  "triage.act.assigning": "Assigning…",
+  "triage.act.laneTitle": "Confirm or override the lane",
+  "triage.act.passTitle": "Pass",
+  "triage.act.reasonPlaceholder": "Reason (required) — reroutes to backlog",
+  "triage.act.reasonRequired": "A rejection needs a reason.",
+  "triage.act.reject": "Reject",
+  "triage.act.rejecting": "Rejecting…",
 };
 
 const DE: Strings = {
@@ -1810,6 +1825,21 @@ const DE: Strings = {
   "value.tableTitle": "Realisiert vs. Business Case (S8)",
   "value.title": "Wert-Cockpit",
   "valueFigure.needsInput": "Eingabe erforderlich",
+
+  // --- page & component strings (merged) ---
+  "error.network": "Netzwerkfehler — nichts wurde gespeichert.",
+  "error.requestFailed": "Anfrage fehlgeschlagen",
+  "triage.act.accept": "Annehmen",
+  "triage.act.accepting": "Wird angenommen…",
+  "triage.act.assignLane": "Lane zuweisen",
+  "triage.act.assignLanePlaceholder": "Lane zuweisen…",
+  "triage.act.assigning": "Wird zugewiesen…",
+  "triage.act.laneTitle": "Lane bestätigen oder überschreiben",
+  "triage.act.passTitle": "Passieren",
+  "triage.act.reasonPlaceholder": "Grund (erforderlich) — wird ins Backlog umgeleitet",
+  "triage.act.reasonRequired": "Eine Ablehnung braucht einen Grund.",
+  "triage.act.reject": "Ablehnen",
+  "triage.act.rejecting": "Wird abgelehnt…",
 };
 
 const ES: Strings = {
@@ -2698,6 +2728,21 @@ const ES: Strings = {
   "value.tableTitle": "Realizado vs. caso de negocio (S8)",
   "value.title": "Cockpit de valor",
   "valueFigure.needsInput": "Requiere datos",
+
+  // --- page & component strings (merged) ---
+  "error.network": "Error de red — no se guardó nada.",
+  "error.requestFailed": "La solicitud falló",
+  "triage.act.accept": "Aceptar",
+  "triage.act.accepting": "Aceptando…",
+  "triage.act.assignLane": "Asignar carril",
+  "triage.act.assignLanePlaceholder": "Asignar carril…",
+  "triage.act.assigning": "Asignando…",
+  "triage.act.laneTitle": "Confirmar o anular el carril",
+  "triage.act.passTitle": "Pasar",
+  "triage.act.reasonPlaceholder": "Motivo (obligatorio) — se reenvía al backlog",
+  "triage.act.reasonRequired": "Un rechazo necesita un motivo.",
+  "triage.act.reject": "Rechazar",
+  "triage.act.rejecting": "Rechazando…",
 };
 
 const ZH: Strings = {
@@ -3586,6 +3631,21 @@ const ZH: Strings = {
   "value.tableTitle": "已实现 vs. 商业论证（S8）",
   "value.title": "价值驾驶舱",
   "valueFigure.needsInput": "需要输入",
+
+  // --- page & component strings (merged) ---
+  "error.network": "网络错误——未保存任何内容。",
+  "error.requestFailed": "请求失败",
+  "triage.act.accept": "接受",
+  "triage.act.accepting": "接受中…",
+  "triage.act.assignLane": "分配泳道",
+  "triage.act.assignLanePlaceholder": "分配泳道…",
+  "triage.act.assigning": "分配中…",
+  "triage.act.laneTitle": "确认或覆盖泳道",
+  "triage.act.passTitle": "通过",
+  "triage.act.reasonPlaceholder": "原因（必填）——将转入待办列表",
+  "triage.act.reasonRequired": "拒绝需要填写原因。",
+  "triage.act.reject": "拒绝",
+  "triage.act.rejecting": "拒绝中…",
 };
 
 const DICT: Record<Locale, Strings> = { en: EN, de: DE, es: ES, zh: ZH };

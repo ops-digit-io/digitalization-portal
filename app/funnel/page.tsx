@@ -61,7 +61,7 @@ export default async function Funnel({ searchParams }: { searchParams: { lane?: 
           path="/funnel"
           current={searchParams as Record<string, string | undefined>}
           selects={[
-            { param: "lane", label: t("filter.lane", "Lane"), options: lanes, labels: LANE_LABEL },
+            { param: "lane", label: t("filter.lane", "Lane"), options: lanes, labels: Object.fromEntries(lanes.map((l) => [l, t(`lane.${l}`, LANE_LABEL[l] ?? l)])) },
             { param: "plant", label: t("filter.plant", "Plant"), options: plants },
           ]}
         />

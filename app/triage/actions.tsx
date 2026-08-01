@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { LANES } from "@/lib/types";
+import { useI18n } from "@/components/providers";
 
 /**
  * Triage row actions — the three triage acts, all server-enforced:
@@ -32,6 +33,7 @@ export function TriageActions({
   currentLane?: string;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [busy, setBusy] = useState<null | "accept" | "lane" | "reject">(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -49,13 +51,13 @@ export function TriageActions({
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        setError(data.error ?? `Request failed (${res.status}).`);
+        setError(data.error ?? `${t("error.requestFailed", "Request failed")} (${res.status}).`);
         return false;
       }
       startTransition(() => router.refresh());
       return true;
     } catch {
-      setError("Network error — nothing was saved.");
+      setError(t("error.network", "Network error — nothing was saved."));
       return false;
     }
   }
@@ -75,7 +77,7 @@ export function TriageActions({
   }
 
   async function reject() {
-    if (reason.trim() === "") { setError("A rejection needs a reason."); return; }
+    if (reason.trim() === "") { setError(t("triage.act.reasonRequired", "A rejection needs a reason.")); return; }
     setBusy("reject");
     const ok = await post(`/api/demands/${encodeURIComponent(id)}/triage`, { action: "reject", reason });
     setBusy(null);
@@ -90,22 +92,22 @@ export function TriageActions({
           onClick={accept}
           disabled={working || !gate}
           className="rounded-md bg-primary px-2.5 py-1 font-medium text-primary-foreground disabled:opacity-50"
-          title={gate ? `Pass ${gate}${gateLabel ? ` — ${gateLabel}` : ""}` : undefined}
+          title={gate ? `${t("triage.act.passTitle", "Pass")} ${gate}${gateLabel ? ` — ${gateLabel}` : ""}` : undefined}
         >
-          {busy === "accept" ? "Accepting…" : gate ? `Accept ${gate} →` : "Accept"}
+          {busy === "accept" ? t("triage.act.accepting", "Accepting…") : gate ? `${t("triage.act.accept", "Accept")} ${gate} →` : t("triage.act.accept", "Accept")}
         </button>
 
         <select
-          aria-label="Assign lane"
+          aria-label={t("triage.act.assignLane", "Assign lane")}
           value={currentLane ?? ""}
           disabled={working}
           onChange={(e) => void assignLane(e.target.value)}
           className="rounded-md border bg-transparent px-2 py-1 text-muted-foreground disabled:opacity-50"
-          title="Confirm or override the lane"
+          title={t("triage.act.laneTitle", "Confirm or override the lane")}
         >
-          <option value="" disabled>{busy === "lane" ? "Assigning…" : "Assign lane…"}</option>
+          <option value="" disabled>{busy === "lane" ? t("triage.act.assigning", "Assigning…") : t("triage.act.assignLanePlaceholder", "Assign lane…")}</option>
           {LANES.map((l) => (
-            <option key={l} value={l}>{LANE_LABEL[l] ?? l}</option>
+            <option key={l} value={l}>{t(`lane.${l}`, LANE_LABEL[l] ?? l)}</option>
           ))}
         </select>
 
@@ -115,7 +117,7 @@ export function TriageActions({
           disabled={working}
           className="rounded-md border px-2.5 py-1 text-muted-foreground hover:border-destructive/40 hover:text-destructive disabled:opacity-50"
         >
-          Reject
+          {t("triage.act.reject", "Reject")}
         </button>
       </div>
 
@@ -126,7 +128,7 @@ export function TriageActions({
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") void reject(); }}
-            placeholder="Reason (required) — reroutes to backlog"
+            placeholder={t("triage.act.reasonPlaceholder", "Reason (required) — reroutes to backlog")}
             className="w-64 rounded-md border bg-transparent px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-ring"
           />
           <button
@@ -135,7 +137,7 @@ export function TriageActions({
             disabled={working || reason.trim() === ""}
             className="rounded-md bg-destructive px-2.5 py-1 text-xs font-medium text-destructive-foreground disabled:opacity-50"
           >
-            {busy === "reject" ? "Rejecting…" : "Confirm"}
+            {busy === "reject" ? t("triage.act.rejecting", "Rejecting…") : t("common.confirm", "Confirm")}
           </button>
         </div>
       )}
