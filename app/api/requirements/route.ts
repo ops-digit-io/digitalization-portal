@@ -6,6 +6,7 @@ import { parseDemandToAnswers } from "@/lib/demand";
 import { analyseIntake, buildRequirementsMarkdown, buildAnalysisMarkdown } from "@/lib/requirements";
 import { runResearch } from "@/lib/agent/research-runner";
 import { readDemand, saveArtifact } from "@/lib/demands-store";
+import { listPersonas } from "@/lib/persona-library-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,7 +43,11 @@ export async function POST(req: Request) {
   // Research the demand against public data (live) or emit the seed plan (offline),
   // then analyse and derive requirements grounded in it.
   const research = await runResearch(answers, meta);
-  const { analysis, requirements } = analyseIntake(answers);
+  // Stories cite the persona library, so "As a P-03 · Maintenance Planner" points
+  // at a record a reviewer can open. A library read that fails must not sink the
+  // whole analysis — the baseline role names still produce a usable document.
+  const library = await listPersonas().catch(() => []);
+  const { analysis, requirements } = analyseIntake(answers, library);
   const requirementsMd = buildRequirementsMarkdown(meta, requirements);
   const analysisMd = buildAnalysisMarkdown(meta, analysis);
 
