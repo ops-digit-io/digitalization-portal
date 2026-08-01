@@ -31,6 +31,7 @@ import { INTAKE_FIELDS, type DemandAnswers } from "../demand.js";
 import { loadGoverning } from "./governing.js";
 import { type ModelProvider } from "./provider.js";
 import { resolveProvider } from "../model-settings.js";
+import { recordUsage } from "../usage-meter.js";
 
 /** The git-managed playbook that governs this agent's behaviour. */
 export const ENHANCE_PLAYBOOK = "s1-intake-enhance";
@@ -302,6 +303,7 @@ export async function enhanceDemand(
       effort: "low",
       maxTokens: 2500,
     });
+    await recordUsage({ feature: "intake.enhance", provider: provider.name, model: provider.model, usage: res.usage });
     const parsed = extractJson(res.text);
     if (!parsed) return { ...enhanceOffline(answers), provider: provider.name, live: true };
     return fromModelJson(answers, parsed, provider.name);

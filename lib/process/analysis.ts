@@ -8,6 +8,7 @@
 
 import { type ToolSpec } from "../agent/provider";
 import { resolveProvider } from "../model-settings";
+import { recordUsage } from "../usage-meter";
 import { loadGoverning, stripFrontmatter } from "../agent/governing";
 import { composeSystemPrompt, governedBy, resolveGovernance } from "../agent/compose";
 import { agentPrompt } from "./prompts";
@@ -234,6 +235,7 @@ export async function analyse(
       // are what get cut, and a cut list falls silently back to the seed.
       maxTokens: 8000,
     });
+    await recordUsage({ feature: "process.analysis", provider: provider.name, model: provider.model, usage: res.usage });
     const raw = (res.toolCalls[0]?.input as { demands?: DemandProposal[] } | undefined)?.demands;
     const demands = Array.isArray(raw) && raw.length ? raw : seed;
     return { demands: demands.map(normalise), live: provider.live, assessed, ...(g ? { governance: governedBy(g) } : {}) };

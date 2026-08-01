@@ -108,7 +108,7 @@ export class NoDigestError extends Error {
 }
 
 export async function generate(slug: string, now: string): Promise<Digest> {
-  const out = await llm.chat(await buildPrompt(slug), [{ role: "user", content: "Produce the digest now." }], { maxTokens: 9000 });
+  const out = await llm.chat(await buildPrompt(slug), [{ role: "user", content: "Produce the digest now." }], { maxTokens: 9000, feature: "process.digest" });
   const data = extractJson(out.text);
   if (!data || !data.processStatement) throw new NoDigestError(out.text.slice(0, 500));
   return store.writeDigest(slug, { ...(data as unknown as Digest), model: out.model, provider: out.provider }, now);

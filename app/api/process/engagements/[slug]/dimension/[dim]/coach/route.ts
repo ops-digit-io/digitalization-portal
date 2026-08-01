@@ -22,7 +22,7 @@ export async function POST(req: Request, { params }: { params: { slug: string; d
   const seed = locale === "de" ? "Starte die Erhebung dieser Dimension." : "Start assessing this dimension.";
   const msgs = history.length ? history : [{ role: "user" as const, content: seed }];
   try {
-    const out = await llm.chat(await coach.build(slug, dim, locale), msgs, { maxTokens: 4096 });
+    const out = await llm.chat(await coach.build(slug, dim, locale), msgs, { maxTokens: 4096, feature: "process.coach" });
     return NextResponse.json({ text: out.text, usage: out.usage, model: out.model });
   } catch (e) {
     const err = e as Error & { code?: string };

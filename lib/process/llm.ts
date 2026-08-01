@@ -10,6 +10,7 @@
 
 import { type ModelMessage } from "../agent/provider";
 import { resolveProvider, resolveStatus } from "../model-settings";
+import { recordUsage } from "../usage-meter";
 
 export async function provider(): Promise<string> {
   return (await resolveStatus()).provider;
@@ -53,7 +54,7 @@ export class NoKeyError extends Error {
 export async function chat(
   system: string,
   messages: { role: "user" | "assistant"; content: string }[],
-  opts: { maxTokens?: number } = {},
+  opts: { maxTokens?: number; feature?: string } = {},
 ): Promise<ChatResult> {
   const status = await resolveStatus();
   if (!status.live) throw new NoKeyError();
@@ -63,6 +64,9 @@ export async function chat(
     messages: messages as ModelMessage[],
     maxTokens: opts.maxTokens ?? 4096,
   });
+  // Meter the call for the cost overview. Fire-safe: recordUsage swallows its own
+  // errors, so a metering hiccup never touches the coaching result.
+  await recordUsage({ feature: opts.feature ?? "process.chat", provider: status.provider, model: status.model, usage: res.usage });
   return {
     text: res.text,
     usage: res.usage ?? null,

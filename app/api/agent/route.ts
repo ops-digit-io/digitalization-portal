@@ -100,6 +100,7 @@ export async function POST(req: Request) {
       userMessage,
       now: new Date().toISOString(),
       traceId: `trace-${task}-${body.useCaseId ?? "chat"}`,
+      feature: `agent.${task}`,
       enabled: agentToolsEnabled(),
       ...(toolNames ? { toolNames } : {}),
     });

@@ -21,7 +21,7 @@ export async function POST(req: Request, { params }: { params: { slug: string; k
   const locale = new URL(req.url).searchParams.get("lang") === "de" ? "de" : "en";
   const prompt = locale === "de" ? "Erzeuge den Abschnitt jetzt." : "Produce the section now.";
   try {
-    const out = await llm.chat(await coach.buildSection(slug, key, locale), [{ role: "user", content: prompt }], { maxTokens: 6000 });
+    const out = await llm.chat(await coach.buildSection(slug, key, locale), [{ role: "user", content: prompt }], { maxTokens: 6000, feature: "process.section" });
     const doc = llm.extractArtefact(out.text) || out.text;
     if (doc.trim().length <= 40) {
       return NextResponse.json({ error: "the model returned no document", code: "NO_ARTEFACT", reply: out.text.slice(0, 400) }, { status: 502 });

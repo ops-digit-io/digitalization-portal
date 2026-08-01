@@ -2,7 +2,7 @@
 
 # API map
 
-Every HTTP endpoint the portal exposes: **55 routes**, grouped by area.
+Every HTTP endpoint the portal exposes: **57 routes**, grouped by area.
 Generated from `app/api/**/route.ts`, so it cannot drift from the code.
 
 ```mermaid
@@ -34,6 +34,7 @@ graph LR
     _api_demands__id__advance["/[id]/advance<br/><i>POST</i>"]
     _api_demands__id__attachments["/[id]/attachments<br/><i>POST</i>"]
     _api_demands__id__edit["/[id]/edit<br/><i>POST</i>"]
+    _api_demands__id__requirements_edits["/[id]/requirements-edits<br/><i>POST</i>"]
     _api_demands__id__state["/[id]/state<br/><i>POST</i>"]
     _api_demands__id__triage["/[id]/triage<br/><i>POST</i>"]
     _api_demands__id__verification["/[id]/verification<br/><i>POST</i>"]
@@ -91,6 +92,9 @@ graph LR
   subgraph status["/api/status"]
     _api_status["/<br/><i>GET</i>"]
   end
+  subgraph usage["/api/usage"]
+    _api_usage["/<br/><i>GET POST</i>"]
+  end
   subgraph webhooks["/api/webhooks"]
     _api_webhooks_github["/github<br/><i>POST</i>"]
   end
@@ -112,6 +116,7 @@ graph LR
 | `/api/demands/[id]/advance` | POST | `app/api/demands/[id]/advance/route.ts` |
 | `/api/demands/[id]/attachments` | POST | `app/api/demands/[id]/attachments/route.ts` |
 | `/api/demands/[id]/edit` | POST | `app/api/demands/[id]/edit/route.ts` |
+| `/api/demands/[id]/requirements-edits` | POST | `app/api/demands/[id]/requirements-edits/route.ts` |
 | `/api/demands/[id]/state` | POST | `app/api/demands/[id]/state/route.ts` |
 | `/api/demands/[id]/triage` | POST | `app/api/demands/[id]/triage/route.ts` |
 | `/api/demands/[id]/verification` | POST | `app/api/demands/[id]/verification/route.ts` |
@@ -152,4 +157,5 @@ graph LR
 | `/api/registry/search` | POST | `app/api/registry/search/route.ts` |
 | `/api/requirements` | POST | `app/api/requirements/route.ts` |
 | `/api/status` | GET | `app/api/status/route.ts` |
+| `/api/usage` | GET, POST | `app/api/usage/route.ts` |
 | `/api/webhooks/github` | POST | `app/api/webhooks/github/route.ts` |

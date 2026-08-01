@@ -17,6 +17,7 @@
 
 import { ModelError, type ToolSpec } from "./agent/provider.js";
 import { resolveProvider } from "./model-settings.js";
+import { recordUsage } from "./usage-meter.js";
 import { composeSystemPrompt, governedBy, resolveGovernance } from "./agent/compose.js";
 import {
   buildCoverage, buildLoads, findCandidates, isActive,
@@ -305,6 +306,7 @@ export async function analyseNetwork(input: AnalysisInput, now: string): Promise
       // gets cut, and a cut list falls back to the floor without saying why.
       maxTokens: 8000,
     });
+    await recordUsage({ feature: "champions.analysis", provider: provider.name, model: provider.model, usage: res.usage });
     const raw = (res.toolCalls[0]?.input as { actions?: NetworkAction[] } | undefined)?.actions;
     const actions = Array.isArray(raw) ? raw.filter((a) => a && String(a.finding ?? "").trim() !== "") : [];
     // An empty or unusable tool call must not blank the page: the floor stands.

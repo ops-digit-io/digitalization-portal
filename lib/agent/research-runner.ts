@@ -11,6 +11,7 @@
 import type { DemandAnswers } from "../demand.js";
 import { seedResearchBrief, buildResearchMarkdown, type ResearchMeta } from "../research.js";
 import { resolveProvider } from "../model-settings.js";
+import { recordUsage } from "../usage-meter.js";
 import { loadGoverning } from "./governing.js";
 
 /** The library playbook that governs this agent's behaviour. */
@@ -61,6 +62,7 @@ export async function runResearch(answers: DemandAnswers, meta: ResearchMeta): P
         // reasoning AND the brief, which 1 800 did not.
         maxTokens: 4000,
       });
+      await recordUsage({ feature: "research", provider: provider.name, model: provider.model, usage: res.usage });
       const text = res.text?.trim();
       if (text) {
         const header = `# Research · ${meta.id} · ${meta.title}\n\n> Domain research via public sources, gathered by the research agent on ${meta.generatedOn}. External findings — verify before relying on them.\n\n`;

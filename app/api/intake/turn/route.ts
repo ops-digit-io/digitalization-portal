@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac";
 import { getSession } from "@/lib/auth/current";
 import { resolveProvider } from "@/lib/model-settings";
+import { recordUsage } from "@/lib/usage-meter";
 import { loadIntakeGuideline, intakeSystemPrompt, SAVE_DEMAND_TOOL, INTAKE_PLAYBOOK, INTAKE_SKILLS } from "@/lib/agent/intake-guideline";
 import { startIntake, submitAnswer, type ChatMessage, type IntakeState } from "@/lib/intake-agent";
 import { INTAKE_FIELDS, EMPTY_ANSWERS, missingRequired, type DemandAnswers } from "@/lib/demand";
@@ -65,6 +66,7 @@ export async function POST(req: Request) {
     // One interview question at a time, so low effort — and enough room that the
     // question itself is never what gets truncated on a model that thinks first.
     const res = await provider.complete({ system, messages, tools: [SAVE_DEMAND_TOOL], effort: "low", maxTokens: 1500 });
+    await recordUsage({ feature: "intake.turn", provider: provider.name, model: provider.model, usage: res.usage });
     const call = res.toolCalls.find((t) => t.name === "save_demand");
 
     if (call) {

@@ -268,6 +268,30 @@ With an empty library the stories fall back to plain role names — which at lea
 generated record carries a role name and nothing anybody said, and the moment it has
 an id a document cites it and a placeholder has become a definition.
 
+Everything the analysis produces is an **assumption a human owns**. The
+requirements board lets a reviewer add, edit or remove epics and user stories,
+and every item wears its provenance — `AI`, `human-edited`, `added by human`.
+Those edits are not written into `requirements.md` (which is regenerated from
+scratch each analysis, and would wipe them); they live as an overlay in the
+demand README, exactly where the PoC verification checkmarks live, and are
+re-applied over the regenerated baseline:
+
+```mermaid
+graph LR
+  RG["requirements.md<br/><i>regenerated each analysis</i>"] -->|parse| P["parsed doc"]
+  OV["demand README<br/>## Requirements Edits<br/><i>human overlay, durable</i>"] -->|parse| O["overlay"]
+  P --> AP["applyOverrides"]
+  O --> AP
+  AP --> B["the board<br/><i>AI · edited · added</i>"]
+  B -->|add / edit / remove| API["/api/demands/:id/requirements-edits"]
+  API --> OV
+```
+
+Because the generated ids are deterministic from the demand answers, re-analysis
+reproduces the same ids and every edit re-binds to the item it was made against.
+A removal is a tombstone that can be restored; a human-added epic gets an id
+(`E-H1`) that can never collide with a generated one.
+
 ### 3.3 The network: who carries the work
 
 ```mermaid
@@ -340,3 +364,33 @@ And when the model answers, but badly:
 | Rate-limited or overloaded | bounded retry, then the deterministic floor | fewer and duller actions, and the header says rule-based |
 | The key is wrong | fails immediately — retrying a 401 makes one clear error into three slow ones | `/api/status?probe=1` → `health.ok: false` |
 | A stream goes silent | the attempt is aborted on inactivity, not on elapsed time | a long generation is allowed to be long |
+
+---
+
+## 6. What the portal spends
+
+Every live model call is metered — which feature made it, which model answered,
+and the tokens it cost — so the operator can see the bill and decide what to
+limit. Recording is one pipelined KV write on the call's own path (`recordUsage`),
+fire-safe: a metering failure never touches the call it measures. `/admin/usage`
+(admin-only) rolls it up.
+
+```mermaid
+graph LR
+  SEAM["every model call<br/><i>llm.chat · analysis · champions · research · intake · agent loop</i>"] -->|recordUsage| KV["KV day buckets<br/><i>by feature · by model</i>"]
+  KV -->|readUsage| RPT["rollup"]
+  RPT --> COST["cost = tokens × lib/pricing.ts"]
+  RPT --> VOL["volume by feature"]
+  COST --> PAGE["/admin/usage"]
+  VOL --> PAGE
+```
+
+Two axes, because they answer different questions. **Cost is by model** — switch
+the default model in the options to trade capability for spend. **Volume is by
+feature** — that is the "what to limit" view, and the levers are already there:
+the `AGENT_TOOLS` kill switch and the model picker today, per-feature limits when
+the numbers say which feature to cap. Costs are estimates from a small
+hand-maintained price table, always labelled as such; an unpriced model is shown
+as volume with no cost rather than a guess. Metering records only counts and
+model names — never prompt or response content — and needs KV, without which the
+overview reads zero and says it needs a store.

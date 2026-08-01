@@ -2,7 +2,7 @@
 
 # Pages and the endpoints they call
 
-**37 pages.** Each row lists the `/api` paths referenced by the page and the client
+**38 pages.** Each row lists the `/api` paths referenced by the page and the client
 components beside it. A page with no calls renders from a server component and reads its
 data directly through `lib/` — which is the portal's default, not an omission.
 
@@ -10,6 +10,8 @@ data directly through `lib/` — which is the portal's default, not an omission.
 graph LR
   _admin_categories(["/admin/categories"])
   _admin_categories --> _api_categories["/api/categories"]
+  _admin_usage(["/admin/usage"])
+  _admin_usage --> _api_usage["/api/usage"]
   _analysis(["/analysis"])
   _assistant(["/assistant"])
   _assistant --> _api_agent["/api/agent"]
@@ -51,6 +53,7 @@ graph LR
   _process(["/process"])
   _requirements__id_(["/requirements/[id]"])
   _requirements__id_ --> _api_demands___encodeURIComponent["/api/demands/${encodeURIComponent"]
+  _requirements__id_ --> _api_demands__id__requirements_edits["/api/demands/[id]/requirements-edits"]
   _requirements__id_ --> _api_demands__id__verification["/api/demands/[id]/verification"]
   _requirements(["/requirements"])
   _requirements --> _api_requirements["/api/requirements"]
@@ -80,6 +83,7 @@ graph LR
 | Page | Calls |
 |---|---|
 | `/admin/categories` | `/api/categories` |
+| `/admin/usage` | `/api/usage` |
 | `/analysis` | _server-rendered_ |
 | `/assistant` | `/api/agent` |
 | `/board` | _server-rendered_ |
@@ -104,7 +108,7 @@ graph LR
 | `/process/[slug]/assess/[dim]` | _server-rendered_ |
 | `/process/[slug]` | `/api/process/engagements/:param/report` |
 | `/process` | _server-rendered_ |
-| `/requirements/[id]` | `/api/demands/${encodeURIComponent`<br/>`/api/demands/[id]/verification` |
+| `/requirements/[id]` | `/api/demands/${encodeURIComponent`<br/>`/api/demands/[id]/requirements-edits`<br/>`/api/demands/[id]/verification` |
 | `/requirements` | `/api/requirements` |
 | `/settings` | `/api/model-settings`<br/>`/api/status` |
 | `/simulate` | _server-rendered_ |

@@ -17,6 +17,7 @@ import type { Session } from "../rbac.js";
 import type { ToolRegistry } from "./tools.js";
 import type { ModelMessage, ModelProvider, ToolResultBlock, ToolSpec } from "./provider.js";
 import { TraceRecorder, type Trace } from "./trace.js";
+import { recordUsage } from "../usage-meter.js";
 
 /**
  * A ceiling on one tool result. A tool that returns a whole repository fills
@@ -49,6 +50,8 @@ export interface RunAgentParams {
   /** Injected so the loop stays deterministic/replayable. */
   now: string;
   traceId: string;
+  /** Usage-meter label for the cost overview (e.g. "agent.chat"). */
+  feature?: string;
 }
 
 export interface RunAgentResult {
@@ -106,6 +109,9 @@ export async function runAgent(params: RunAgentParams): Promise<RunAgentResult> 
   for (let i = 0; i < maxIterations; i++) {
     const res = await provider.complete({ system, messages, tools: specs });
     rec.add("model", provider.live ? "model turn" : "offline turn", res.text || undefined, res.usage);
+    // Meter every turn — a tool-using agent spends across several turns, and the
+    // cost overview should see all of them, not just the last.
+    await recordUsage({ feature: params.feature ?? "agent.chat", provider: provider.name, model: provider.model, usage: res.usage });
 
     if (res.toolCalls.length === 0) {
       finalText = res.text;

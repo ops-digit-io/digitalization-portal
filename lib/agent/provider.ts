@@ -104,6 +104,8 @@ export interface ModelResponse {
 export interface ModelProvider {
   readonly name: string;
   readonly live: boolean;
+  /** The resolved model id, for metering and display. Absent for offline. */
+  readonly model?: string;
   complete(req: CompletionRequest): Promise<ModelResponse>;
 }
 
@@ -297,7 +299,7 @@ export class AnthropicProvider implements ModelProvider {
   readonly live = true;
   private readonly apiKey: string;
   private readonly baseUrl: string;
-  private readonly model: string;
+  readonly model: string;
 
   constructor(opts: { apiKey: string; baseUrl?: string; model?: string }) {
     this.apiKey = opts.apiKey;
@@ -434,7 +436,7 @@ export class OpenAIProvider implements ModelProvider {
   readonly live = true;
   private readonly apiKey: string;
   private readonly baseUrl: string;
-  private readonly model: string;
+  readonly model: string;
 
   constructor(opts: { apiKey: string; baseUrl?: string; model?: string }) {
     this.apiKey = opts.apiKey;
