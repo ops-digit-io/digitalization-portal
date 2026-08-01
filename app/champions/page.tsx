@@ -8,6 +8,7 @@ import { getAllCategories } from "@/lib/category-store";
 import { listDemandRows } from "@/lib/demands-store";
 import * as processStore from "@/lib/process/store";
 import { ChampionEditor } from "./editor";
+import { ChampionsAnalysis } from "./analysis";
 
 export const dynamic = "force-dynamic";
 
@@ -189,6 +190,9 @@ export default async function ChampionsPage() {
           </div>
         )}
       </section>
+
+      {/* The agentic reading, governed from the library. */}
+      <ChampionsAnalysis />
 
       {/* Already doing the job. The register's failure mode is being a wish list. */}
       {candidates.length > 0 && (

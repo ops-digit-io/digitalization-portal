@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac";
 import { getSession } from "@/lib/auth/current";
 import { renderPersona, validatePersona } from "@/lib/persona-library";
-import { isRetired, isSeeded, readPersona, retirePersona, writePersona } from "@/lib/persona-library-store";
+import { isRetired, readPersona, retirePersona, writePersona } from "@/lib/persona-library-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   if (!p) return NextResponse.json({ error: "no such persona" }, { status: 404 });
   // `markdown` is the record itself — the same bytes git holds, so a reader can
   // check the rendering against the source without a second endpoint.
-  return NextResponse.json({ persona: { ...p, seeded: isSeeded(p), retired: isRetired(p) }, markdown: renderPersona(p) });
+  return NextResponse.json({ persona: { ...p, retired: isRetired(p) }, markdown: renderPersona(p) });
 }
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {

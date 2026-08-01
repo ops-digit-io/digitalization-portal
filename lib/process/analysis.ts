@@ -8,6 +8,7 @@
 
 import { getProvider, type ToolSpec } from "../agent/provider";
 import { loadGoverning, stripFrontmatter } from "../agent/governing";
+import { composeSystemPrompt, governedBy, resolveGovernance } from "../agent/compose";
 import { agentPrompt } from "./prompts";
 import { render } from "./render";
 import { buildDemand, classifyDemand, EMPTY_ANSWERS, type DemandAnswers } from "../demand";
@@ -128,6 +129,9 @@ export function deterministicDemands(
   return out;
 }
 
+/** The library playbook that governs the pre-funnel's demand split. */
+export const ANALYSIS_PLAYBOOK = "process-analysis";
+
 // ---------------------------------------------------------- the agent
 const proposeTool: ToolSpec = {
   name: "propose_demands",
@@ -187,7 +191,7 @@ async function diagnosisFacts(slug: string): Promise<{ summary: string; meta: st
 export async function analyse(
   slug: string,
   locale: Locale = "en",
-): Promise<{ demands: DemandProposal[]; live: boolean; assessed: boolean }> {
+): Promise<{ demands: DemandProposal[]; live: boolean; assessed: boolean; governance?: ReturnType<typeof governedBy> }> {
   const { summary, profile } = await diagnosisFacts(slug);
   const seed = deterministicDemands(profile, locale);
   const assessed = profile.ratedCount > 0;
@@ -195,8 +199,17 @@ export async function analyse(
 
   const provider = getProvider();
   const speak = locale === "de" ? "Antworte auf Deutsch." : "Respond in English.";
-  const system = (await loadGoverning("playbook", "process-analysis").then(stripFrontmatter).catch(() => "")) ||
-    "Du bist ein Intake-Analyst. Zerlege die Diagnose in einzelne Bedarfe und rufe propose_demands auf.";
+  // The pre-funnel's demand split runs on the composed library like every other
+  // agent: the playbook names `demand-splitting`, which itself composes
+  // `evidence-standards` and `usecase-archetypes`. Missing governance is stated
+  // in the prompt rather than silently replaced by a one-line fallback.
+  const g = await resolveGovernance(ANALYSIS_PLAYBOOK).catch(() => null);
+  const system = g
+    ? composeSystemPrompt(
+        "You are the Intake Analyst of the pre-funnel. You disassemble a finished process diagnosis into distinct, shippable demands.",
+        g,
+      )
+    : "You are the Intake Analyst. Split the diagnosis into individual demands and call propose_demands.";
 
   // The ```facts block lets the offline provider echo the deterministic seed;
   // a live model refines/expands it against the diagnosis.
@@ -210,9 +223,9 @@ export async function analyse(
     const res = await provider.complete({ system: `${system}\n\n${speak}`, messages: [{ role: "user", content: user }], tools: [proposeTool], maxTokens: 3000 });
     const raw = (res.toolCalls[0]?.input as { demands?: DemandProposal[] } | undefined)?.demands;
     const demands = Array.isArray(raw) && raw.length ? raw : seed;
-    return { demands: demands.map(normalise), live: provider.live, assessed };
+    return { demands: demands.map(normalise), live: provider.live, assessed, ...(g ? { governance: governedBy(g) } : {}) };
   } catch {
-    return { demands: seed.map(normalise), live: false, assessed };
+    return { demands: seed.map(normalise), live: false, assessed, ...(g ? { governance: governedBy(g) } : {}) };
   }
 }
 

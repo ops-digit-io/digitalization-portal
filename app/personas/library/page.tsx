@@ -3,7 +3,7 @@ import { getSession } from "@/lib/auth/current";
 import { can } from "@/lib/rbac";
 import { Card } from "@/components/ui/card";
 import { citePersona, type Persona } from "@/lib/persona-library";
-import { isRetired, isSeeded, listPersonas } from "@/lib/persona-library-store";
+import { isRetired, listPersonas } from "@/lib/persona-library-store";
 import { getAllCategories } from "@/lib/category-store";
 import { PersonaEditor } from "./editor";
 
@@ -50,7 +50,6 @@ export default async function PersonaLibraryPage() {
     listPersonas().catch(() => [] as Persona[]),
     getAllCategories(),
   ]);
-  const seeded = personas.filter(isSeeded).length;
   const mayEdit = can(session, "draft");
 
   return (
@@ -71,22 +70,20 @@ export default async function PersonaLibraryPage() {
         </p>
       </header>
 
-      {seeded > 0 && (
-        <Card className="mb-4 border-amber-500/40 bg-amber-500/5 p-3">
-          <p className="text-sm">
-            <b>{seeded} of {personas.length}</b> records are seeded stubs.
-          </p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            They carry a role name the requirements engine already used and nothing that came from a
-            conversation. Confirming one with the person it describes is the single most valuable edit
-            on this page.
+      {personas.length === 0 && (
+        <Card className="mb-4 p-4">
+          <p className="text-sm">No personas yet.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            The library is deliberately not pre-filled. A generated record carries a role name and
+            nothing anybody said — and once it has an id, a requirements document cites it and the
+            placeholder has quietly become a definition. Until a real persona exists, requirements
+            fall back to plain role names, which at least look like the guesses they are.
           </p>
         </Card>
       )}
 
       <div className="space-y-2">
         {personas.map((p) => {
-          const stub = isSeeded(p);
           const retired = isRetired(p);
           return (
             <Card key={p.id} className={`p-3 ${retired ? "opacity-60" : ""}`}>
@@ -97,11 +94,6 @@ export default async function PersonaLibraryPage() {
                   {p.kind}
                 </span>
                 <span className="text-[11px] text-muted-foreground">{p.authority}</span>
-                {stub && (
-                  <span className="rounded-full border border-dashed px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                    stub
-                  </span>
-                )}
                 {retired && <span className="text-[11px] text-muted-foreground">retired</span>}
                 <span className="flex-1" />
                 <span className="text-[11px] text-muted-foreground">

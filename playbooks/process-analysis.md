@@ -1,7 +1,7 @@
 ---
 name: process-analysis
 description: Analyses a finished (or partial) process diagnosis and disassembles it into distinct, shippable demands for the demand funnel — one demand per intervention, smallest independently valuable cut first.
-skills: []
+skills: [demand-splitting]
 checkpoints: []
 ---
 

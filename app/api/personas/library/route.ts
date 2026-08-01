@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac";
 import { getSession } from "@/lib/auth/current";
 import { validatePersona } from "@/lib/persona-library";
-import { createPersona, isRetired, isSeeded, listPersonas } from "@/lib/persona-library-store";
+import { createPersona, isRetired, listPersonas } from "@/lib/persona-library-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,9 +18,8 @@ export async function GET() {
   if (!can(session, "view_board")) return NextResponse.json({ error: "not authenticated" }, { status: 401 });
   const personas = await listPersonas();
   return NextResponse.json({
-    personas: personas.map((p) => ({ ...p, seeded: isSeeded(p), retired: isRetired(p) })),
-    // The two numbers that say whether this library is real yet.
-    counts: { total: personas.length, seeded: personas.filter(isSeeded).length },
+    personas: personas.map((p) => ({ ...p, retired: isRetired(p) })),
+    counts: { total: personas.length },
   });
 }
 
