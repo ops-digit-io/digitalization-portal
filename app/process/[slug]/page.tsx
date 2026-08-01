@@ -214,6 +214,21 @@ const CATALOGUE = "__catalogue__";
 const ADVISORY = "__advisory__";
 const ANALYSE = "__analyse__";
 
+/**
+ * Tab ↔ URL. The sentinels are internal; the URL carries a readable name
+ * (?tab=advisory, ?tab=discovery), so a reload or a shared link lands on the
+ * tab the sender was looking at instead of always on Overview.
+ */
+const TAB_SLUGS: Record<string, string> = {
+  [OVERVIEW]: "overview", [ADVISORY]: "advisory", [CATALOGUE]: "catalogue", [ANALYSE]: "analysis",
+};
+const tabToSlug = (id: string): string => TAB_SLUGS[id] ?? id;
+const slugToTab = (v: string | null): string | null => {
+  if (!v) return null;
+  const hit = Object.entries(TAB_SLUGS).find(([, slug]) => slug === v);
+  return hit ? hit[0] : v; // stage ids ("discovery") pass through as-is
+};
+
 // ------------------------------------------------------------------ page
 export default function EngagementCockpit() {
   const params = useParams<{ slug: string }>();
@@ -223,7 +238,23 @@ export default function EngagementCockpit() {
   const [eng, setEng] = useState<Engagement | null>(null);
   const [config, setConfig] = useState<Config | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<string>(OVERVIEW);
+  const [tab, setTabState] = useState<string>(OVERVIEW);
+
+  // Adopt the URL's tab once on mount; from then on the URL follows the state.
+  // replaceState (not push): tab flips are one view, not browser-history steps.
+  useEffect(() => {
+    const wanted = slugToTab(new URLSearchParams(window.location.search).get("tab"));
+    // Only known ids: the four fixed tabs plus a stage id (lowercase word). A
+    // mistyped value must land on Overview, not on a blank panel.
+    if (wanted && (TAB_SLUGS[wanted] !== undefined || /^[a-z][a-z-]*$/.test(wanted))) setTabState(wanted);
+  }, []);
+  const setTab = useCallback((id: string) => {
+    setTabState(id);
+    const url = new URL(window.location.href);
+    if (id === OVERVIEW) url.searchParams.delete("tab");
+    else url.searchParams.set("tab", tabToSlug(id));
+    window.history.replaceState(null, "", url);
+  }, []);
 
   const reload = useCallback(async () => {
     const e = await apiGet<Engagement>(`/engagements/${slug}`);
@@ -262,7 +293,13 @@ export default function EngagementCockpit() {
   const filled = meta.filledSections ?? eng.filledSections ?? [];
   const reportUrl = `/api/process/engagements/${slug}/report?format=md`;
 
-  const activeStage = config.groups.find((g) => g.id === tab);
+  // A ?tab value that matches nothing (a renamed stage, a typo) renders Overview
+  // rather than an empty panel under an unselected strip.
+  const knownTab =
+    [OVERVIEW, CATALOGUE, ADVISORY, ANALYSE].includes(tab) || config.groups.some((g) => g.id === tab)
+      ? tab
+      : OVERVIEW;
+  const activeStage = config.groups.find((g) => g.id === knownTab);
   const byKey = Object.fromEntries(config.sections.map((x) => [x.key, x]));
   const stagesInOrder = [...config.groups].sort((a, b) => a.order - b.order);
   // Engagements written under the earlier phase model carry a stale id ("P0"),
@@ -297,7 +334,7 @@ export default function EngagementCockpit() {
     const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
     if (!keys.includes(e.key)) return;
     e.preventDefault();
-    const i = tabs.findIndex((t) => t.id === tab);
+    const i = tabs.findIndex((t) => t.id === knownTab);
     const last = tabs.length - 1;
     const next =
       e.key === "Home" ? 0
@@ -391,7 +428,7 @@ export default function EngagementCockpit() {
               key={t.id}
               id={t.id}
               label={t.label}
-              active={tab === t.id}
+              active={knownTab === t.id}
               current={t.current}
               count={t.count}
               gate={t.gate}
@@ -407,13 +444,13 @@ export default function EngagementCockpit() {
 
       {/* Tab content */}
       <div
-        id={`panel-${tab}`}
+        id={`panel-${knownTab}`}
         role="tabpanel"
-        aria-labelledby={`tab-${tab}`}
+        aria-labelledby={`tab-${knownTab}`}
         tabIndex={0}
         className="mt-4 outline-none"
       >
-        {tab === OVERVIEW && (
+        {knownTab === OVERVIEW && (
           <OverviewTab
             slug={slug}
             score={score}
@@ -424,8 +461,8 @@ export default function EngagementCockpit() {
             onChanged={reload}
           />
         )}
-        {tab === CATALOGUE && <CatalogueTab slug={slug} profile={profile} locale={locale} />}
-        {tab === ADVISORY && (
+        {knownTab === CATALOGUE && <CatalogueTab slug={slug} profile={profile} locale={locale} />}
+        {knownTab === ADVISORY && (
           <AdvisoryTab
             slug={slug}
             items={config.advisory}
@@ -449,7 +486,7 @@ export default function EngagementCockpit() {
             onChanged={reload}
           />
         )}
-        {tab === ANALYSE && (
+        {knownTab === ANALYSE && (
           <AnalyseTab
             slug={slug}
             demands={meta.demands ?? []}
