@@ -1180,6 +1180,18 @@ const EN: Strings = {
   "demandGroup.Classification": "Classification",
   "demandGroup.Scope & context": "Scope & context",
   "demandGroup.The problem": "The problem",
+
+  // --- page & component strings (merged) ---
+  "api.authRequired": "authentication required",
+  "api.forbidden": "forbidden",
+  "api.idRequired": "id is required",
+  "api.invalidJson": "invalid JSON",
+  "api.liveCoachDisabled": "live coaching disabled",
+  "api.liveGenDisabled": "live generation disabled",
+  "api.noEngagement": "no such engagement",
+  "api.notAuthenticated": "not authenticated",
+  "api.unauthorized": "unauthorized",
+  "api.unknownAction": "unknown action",
 };
 
 const DE: Strings = {
@@ -2326,6 +2338,18 @@ const DE: Strings = {
   "demandGroup.Classification": "Klassifizierung",
   "demandGroup.Scope & context": "Umfang & Kontext",
   "demandGroup.The problem": "Das Problem",
+
+  // --- page & component strings (merged) ---
+  "api.authRequired": "Authentifizierung erforderlich",
+  "api.forbidden": "verboten",
+  "api.idRequired": "id ist erforderlich",
+  "api.invalidJson": "ungültiges JSON",
+  "api.liveCoachDisabled": "Live-Coaching deaktiviert",
+  "api.liveGenDisabled": "Live-Generierung deaktiviert",
+  "api.noEngagement": "kein solches Engagement",
+  "api.notAuthenticated": "nicht authentifiziert",
+  "api.unauthorized": "nicht autorisiert",
+  "api.unknownAction": "unbekannte Aktion",
 };
 
 const ES: Strings = {
@@ -3472,6 +3496,18 @@ const ES: Strings = {
   "demandGroup.Classification": "Clasificación",
   "demandGroup.Scope & context": "Alcance y contexto",
   "demandGroup.The problem": "El problema",
+
+  // --- page & component strings (merged) ---
+  "api.authRequired": "autenticación requerida",
+  "api.forbidden": "prohibido",
+  "api.idRequired": "se requiere id",
+  "api.invalidJson": "JSON no válido",
+  "api.liveCoachDisabled": "coaching en vivo desactivado",
+  "api.liveGenDisabled": "generación en vivo desactivada",
+  "api.noEngagement": "no existe ese engagement",
+  "api.notAuthenticated": "no autenticado",
+  "api.unauthorized": "no autorizado",
+  "api.unknownAction": "acción desconocida",
 };
 
 const ZH: Strings = {
@@ -4618,6 +4654,18 @@ const ZH: Strings = {
   "demandGroup.Classification": "分类",
   "demandGroup.Scope & context": "范围与背景",
   "demandGroup.The problem": "问题",
+
+  // --- page & component strings (merged) ---
+  "api.authRequired": "需要认证",
+  "api.forbidden": "禁止访问",
+  "api.idRequired": "需要 id",
+  "api.invalidJson": "无效的 JSON",
+  "api.liveCoachDisabled": "实时指导已禁用",
+  "api.liveGenDisabled": "实时生成已禁用",
+  "api.noEngagement": "无此项目",
+  "api.notAuthenticated": "未认证",
+  "api.unauthorized": "未授权",
+  "api.unknownAction": "未知操作",
 };
 
 const DICT: Record<Locale, Strings> = { en: EN, de: DE, es: ES, zh: ZH };
