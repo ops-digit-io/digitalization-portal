@@ -55,7 +55,11 @@ export async function runResearch(answers: DemandAnswers, meta: ResearchMeta): P
         system: researchSystemPrompt(playbook),
         messages: [{ role: "user", content: researchTask(answers) }],
         webSearch: true,
-        maxTokens: 1800,
+        // Reading several search results and writing a brief from them is the
+        // one place here where thinking earns its budget, so effort is left at
+        // the model's default — but the ceiling has to cover the searching, the
+        // reasoning AND the brief, which 1 800 did not.
+        maxTokens: 4000,
       });
       const text = res.text?.trim();
       if (text) {

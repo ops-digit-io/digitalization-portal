@@ -291,7 +291,12 @@ export async function enhanceDemand(
     const res = await provider.complete({
       system: enhanceSystemPrompt(guidance),
       messages: [{ role: "user", content: buildUserMessage(answers) }],
-      maxTokens: 1500,
+      // Tidying answers into JSON is mechanical: low effort keeps the reply
+      // terse and leaves the budget for the JSON rather than the reasoning.
+      // On a model that thinks by default, the old 1 500 was a ceiling both had
+      // to share, and the JSON is the half that gets cut.
+      effort: "low",
+      maxTokens: 2500,
     });
     const parsed = extractJson(res.text);
     if (!parsed) return { ...enhanceOffline(answers), provider: provider.name, live: true };

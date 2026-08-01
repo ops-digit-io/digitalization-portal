@@ -15,7 +15,7 @@
  * to ask. The contract forbids it from contradicting the numbers.
  */
 
-import { getProvider, type ToolSpec } from "./agent/provider.js";
+import { getProvider, ModelError, type ToolSpec } from "./agent/provider.js";
 import { composeSystemPrompt, governedBy, resolveGovernance } from "./agent/compose.js";
 import {
   buildCoverage, buildLoads, findCandidates, isActive,
@@ -44,6 +44,12 @@ export interface ChampionsAnalysis {
   actions: NetworkAction[];
   /** True when a live model refined the deterministic floor. */
   live: boolean;
+  /**
+   * Why the floor is standing alone, when it is. "No key" and "your key was
+   * rejected" produce the same actions but call for opposite responses, and
+   * reporting both as "rule-based (no model key)" tells one of them a lie.
+   */
+  fallback?: string;
   /** What governed the run — playbook, skills, contract, and any missing pieces. */
   governance: ReturnType<typeof governedBy>;
   /** The arithmetic the actions rest on, echoed so a reader can check them. */
@@ -269,7 +275,7 @@ export async function analyseNetwork(input: AnalysisInput, now: string): Promise
   };
 
   const provider = getProvider();
-  if (!provider.live) return base;
+  if (!provider.live) return { ...base, fallback: "no model key is configured" };
 
   const system = composeSystemPrompt(
     "You are the Champions Analyst inside the Digitalization Portal. You read the hub-and-spoke register against the work the portal is carrying and return actions that close the network's holes.",
@@ -294,15 +300,22 @@ export async function analyseNetwork(input: AnalysisInput, now: string): Promise
       messages: [{ role: "user", content: user }],
       tools: [proposeTool],
       toolChoice: { type: "tool", name: proposeTool.name },
-      maxTokens: 3000,
+      // Room for the reasoning AND the actions. Below this the list is what
+      // gets cut, and a cut list falls back to the floor without saying why.
+      maxTokens: 8000,
     });
     const raw = (res.toolCalls[0]?.input as { actions?: NetworkAction[] } | undefined)?.actions;
     const actions = Array.isArray(raw) ? raw.filter((a) => a && String(a.finding ?? "").trim() !== "") : [];
     // An empty or unusable tool call must not blank the page: the floor stands.
-    if (actions.length === 0) return base;
+    if (actions.length === 0) {
+      return { ...base, fallback: res.truncated ? "the model ran out of room before it finished the list" : "the model returned no usable actions" };
+    }
     return { ...base, actions: actions.map(normaliseAction), live: true };
-  } catch {
-    return base;
+  } catch (e) {
+    // The floor is the same either way, but the reason is not: a rejected key
+    // needs somebody to act, and an overloaded model needs nothing but patience.
+    const kind = e instanceof ModelError ? e.kind : "unknown";
+    return { ...base, fallback: `the model call failed (${kind})` };
   }
 }
 

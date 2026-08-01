@@ -229,7 +229,9 @@ export async function analyse(
       messages: [{ role: "user", content: user }],
       tools: [proposeTool],
       toolChoice: { type: "tool", name: proposeTool.name },
-      maxTokens: 3000,
+      // Room for the reasoning AND the list of demands. Below this the demands
+      // are what get cut, and a cut list falls silently back to the seed.
+      maxTokens: 8000,
     });
     const raw = (res.toolCalls[0]?.input as { demands?: DemandProposal[] } | undefined)?.demands;
     const demands = Array.isArray(raw) && raw.length ? raw : seed;

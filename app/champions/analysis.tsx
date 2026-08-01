@@ -31,6 +31,8 @@ interface Governance {
 interface Analysis {
   actions: NetworkAction[];
   live: boolean;
+  /** Why the floor is standing alone — absent when a model refined it. */
+  fallback?: string;
   governance: Governance;
   generatedAt: string;
 }
@@ -81,7 +83,9 @@ export function ChampionsAnalysis() {
         <Button size="sm" disabled={busy} onClick={run}>{busy ? "…" : result ? "Run again" : "Analyse the network"}</Button>
         {result && (
           <span className="text-xs text-muted-foreground">
-            {result.live ? "model-refined" : "rule-based (no model key)"} · {String(result.generatedAt).slice(0, 16).replace("T", " ")}
+            {/* "no model key" and "your key was rejected" produce identical
+                actions and call for opposite responses — so say which. */}
+            {result.live ? "model-refined" : `rule-based — ${result.fallback ?? "no model key"}`} · {String(result.generatedAt).slice(0, 16).replace("T", " ")}
           </span>
         )}
         {err && <span className="text-xs text-destructive">{err}</span>}

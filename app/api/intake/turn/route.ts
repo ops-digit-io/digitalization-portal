@@ -62,7 +62,9 @@ export async function POST(req: Request) {
     const messages = convo.map((m) => ({ role: m.role, content: m.text }));
     messages.push({ role: "user", content: body.action === "start" ? "(begin the intake)" : String(body.userText ?? "") });
 
-    const res = await provider.complete({ system, messages, tools: [SAVE_DEMAND_TOOL], maxTokens: 700 });
+    // One interview question at a time, so low effort — and enough room that the
+    // question itself is never what gets truncated on a model that thinks first.
+    const res = await provider.complete({ system, messages, tools: [SAVE_DEMAND_TOOL], effort: "low", maxTokens: 1500 });
     const call = res.toolCalls.find((t) => t.name === "save_demand");
 
     if (call) {
