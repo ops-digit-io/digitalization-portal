@@ -26,6 +26,13 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - name: Seed content mirror (best-effort)
+        # The agent library and templates live in their own repos (du-agent-registry,
+        # du-templates). When this runner can reach them the governance/library tests
+        # validate the real files; when it cannot, those specific tests skip visibly
+        # (they carry no content of this repo). Never fails the build — hence `|| true`.
+        run: npm run content:pull || echo "content unreachable — governance/library tests will skip"
+        continue-on-error: true
       - name: Typecheck
         run: npm run typecheck
       - name: Test

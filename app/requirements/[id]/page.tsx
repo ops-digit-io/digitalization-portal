@@ -4,6 +4,7 @@ import { readDemand, readArtifact } from "@/lib/demands-store";
 import { parseUseCase } from "@/lib/parse";
 import { parseRequirementsMarkdown } from "@/lib/requirements";
 import { parseVerification } from "@/lib/verification";
+import { parseOverrides, applyOverrides, emptyOverlay } from "@/lib/requirements-overrides";
 import { canEditDemand } from "@/lib/demand-edit";
 import { getSession } from "@/lib/auth/current";
 import { Card } from "@/components/ui/card";
@@ -26,9 +27,13 @@ export default async function CaseRequirements({ params }: { params: { id: strin
   ]);
   const analysed = requirements !== undefined || analysis !== undefined || research !== undefined;
 
-  // Parse the standardized requirements back into structure, and read the durable
-  // verification state from the demand README (survives re-analysis).
-  const doc = requirements ? parseRequirementsMarkdown(requirements) : undefined;
+  // Parse the standardized requirements back into structure, then apply the human
+  // overlay (add/edit/remove) from the demand README — both the overlay and the
+  // verification state live there so they survive re-analysis of requirements.md.
+  const parsed = requirements ? parseRequirementsMarkdown(requirements) : undefined;
+  const overlay = parseOverrides(demand);
+  const merged = parsed ? applyOverrides(parsed, overlay) : undefined;
+  const doc = merged?.doc;
   const verified = [...parseVerification(demand)];
   const canVerify = canEditDemand(session, demand);
 
@@ -57,7 +62,17 @@ export default async function CaseRequirements({ params }: { params: { id: strin
         </Card>
       ) : (
         <div className="mt-6 space-y-6">
-          {doc && <RequirementsBoard id={id} doc={doc} verified={verified} canVerify={canVerify} />}
+          {doc && merged && (
+            <RequirementsBoard
+              id={id}
+              doc={doc}
+              verified={verified}
+              canVerify={canVerify}
+              canEdit={canVerify}
+              provenance={merged.provenance}
+              removed={merged.removed}
+            />
+          )}
 
           {analysis && (
             <details className="group">

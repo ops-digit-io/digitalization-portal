@@ -9,7 +9,7 @@
  * in the host (Vercel); this page shows only whether they are present.
  */
 
-import { describeProvider, type ProviderStatus } from "./agent/provider.js";
+import { describeProvider, PROVIDERS, providerAvailable, modelFor, type ProviderStatus } from "./agent/provider.js";
 
 export type Level = "required" | "recommended" | "optional";
 
@@ -49,8 +49,6 @@ function has(v: string | undefined): boolean {
  */
 export function describeConfig(env: Record<string, string | undefined> = process.env): ConfigStatus {
   const model = describeProvider(env);
-  const hasAnthropic = has(env.ANTHROPIC_API_KEY);
-  const hasOpenAI = has(env.OPENAI_API_KEY);
   const gitLive = has(env.GITHUB_APP_ID) && has(env.GITHUB_APP_PRIVATE_KEY) && has(env.GITHUB_ORG);
   const org = env.GITHUB_ORG?.trim();
   const demandsRepo = env.DEMANDS_REPO?.trim() || "du-demands";
@@ -62,26 +60,24 @@ export function describeConfig(env: Record<string, string | undefined> = process
     {
       title: "Model providers",
       blurb:
-        "The assistant, intake enhancement, and research agents run live when a key is present, and fall back to a deterministic offline engine otherwise. At least one is recommended.",
+        "The portal is provider-agnostic: Anthropic and OpenAI are built in, and any OpenAI-compatible endpoint works with a base URL, key and model. Agents run live when one is configured and fall back to a deterministic offline engine otherwise. The default is selectable in the options above.",
+      // Built from the provider catalogue, so a new provider appears here without
+      // editing this file — and the model shown is the one the provider would
+      // actually use, asked of the provider rather than repeated.
       items: [
-        {
-          key: "anthropic",
-          label: "Anthropic (Claude)",
-          configured: hasAnthropic,
-          detail: hasAnthropic ? env.ANTHROPIC_MODEL?.trim() || "claude-sonnet-5" : undefined,
-          envVars: ["ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL"],
-          level: "recommended",
-          note: "Set ANTHROPIC_API_KEY to enable Claude. Optional: ANTHROPIC_BASE_URL (EU endpoint), ANTHROPIC_MODEL.",
-        },
-        {
-          key: "openai",
-          label: "OpenAI (GPT)",
-          configured: hasOpenAI,
-          detail: hasOpenAI ? env.OPENAI_MODEL?.trim() || "gpt-4o" : undefined,
-          envVars: ["OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_MODEL"],
-          level: "optional",
-          note: "Set OPENAI_API_KEY to enable GPT. Used when Anthropic is absent, or when MODEL_PROVIDER=openai.",
-        },
+        ...PROVIDERS.filter((p) => p.id !== "offline").map((p): IntegrationItem => {
+          const available = providerAvailable(p, env);
+          const envVars = [p.keyEnv, p.baseUrlEnv, p.modelEnv].filter((v): v is string => Boolean(v));
+          return {
+            key: p.id,
+            label: p.label,
+            configured: available,
+            detail: available ? modelFor(p, env) : undefined,
+            envVars,
+            level: p.id === "anthropic" ? "recommended" : "optional",
+            note: p.blurb,
+          };
+        }),
         {
           key: "provider-override",
           label: "Provider override",
@@ -89,7 +85,7 @@ export function describeConfig(env: Record<string, string | undefined> = process
           detail: has(env.MODEL_PROVIDER) ? env.MODEL_PROVIDER?.trim() : undefined,
           envVars: ["MODEL_PROVIDER"],
           level: "optional",
-          note: "Optional: force anthropic | openai | offline. Otherwise the first keyed provider wins.",
+          note: "Optional: force a provider by catalogue id (anthropic | openai | openai-compatible | offline). Otherwise the highest-priority configured provider wins. The options picker sets this durably.",
         },
       ],
     },

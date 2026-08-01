@@ -10,7 +10,8 @@
 
 import type { DemandAnswers } from "../demand.js";
 import { seedResearchBrief, buildResearchMarkdown, type ResearchMeta } from "../research.js";
-import { getProvider } from "./provider.js";
+import { resolveProvider } from "../model-settings.js";
+import { recordUsage } from "../usage-meter.js";
 import { loadGoverning } from "./governing.js";
 
 /** The library playbook that governs this agent's behaviour. */
@@ -47,7 +48,7 @@ function researchTask(answers: DemandAnswers): string {
 
 /** Produce research.md for a demand — live public research when possible, else the seed. */
 export async function runResearch(answers: DemandAnswers, meta: ResearchMeta): Promise<{ markdown: string; live: boolean }> {
-  const provider = getProvider();
+  const provider = await resolveProvider();
   if (provider.live) {
     try {
       const playbook = await loadResearchPlaybook();
@@ -55,8 +56,13 @@ export async function runResearch(answers: DemandAnswers, meta: ResearchMeta): P
         system: researchSystemPrompt(playbook),
         messages: [{ role: "user", content: researchTask(answers) }],
         webSearch: true,
-        maxTokens: 1800,
+        // Reading several search results and writing a brief from them is the
+        // one place here where thinking earns its budget, so effort is left at
+        // the model's default — but the ceiling has to cover the searching, the
+        // reasoning AND the brief, which 1 800 did not.
+        maxTokens: 4000,
       });
+      await recordUsage({ feature: "research", provider: provider.name, model: provider.model, usage: res.usage });
       const text = res.text?.trim();
       if (text) {
         const header = `# Research · ${meta.id} · ${meta.title}\n\n> Domain research via public sources, gathered by the research agent on ${meta.generatedOn}. External findings — verify before relying on them.\n\n`;

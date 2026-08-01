@@ -2,7 +2,7 @@
 
 # API map
 
-Every HTTP endpoint the portal exposes: **54 routes**, grouped by area.
+Every HTTP endpoint the portal exposes: **58 routes**, grouped by area.
 Generated from `app/api/**/route.ts`, so it cannot drift from the code.
 
 ```mermaid
@@ -34,6 +34,7 @@ graph LR
     _api_demands__id__advance["/[id]/advance<br/><i>POST</i>"]
     _api_demands__id__attachments["/[id]/attachments<br/><i>POST</i>"]
     _api_demands__id__edit["/[id]/edit<br/><i>POST</i>"]
+    _api_demands__id__requirements_edits["/[id]/requirements-edits<br/><i>POST</i>"]
     _api_demands__id__state["/[id]/state<br/><i>POST</i>"]
     _api_demands__id__triage["/[id]/triage<br/><i>POST</i>"]
     _api_demands__id__verification["/[id]/verification<br/><i>POST</i>"]
@@ -43,6 +44,9 @@ graph LR
     _api_intake["/<br/><i>POST</i>"]
     _api_intake_similar["/similar<br/><i>GET</i>"]
     _api_intake_turn["/turn<br/><i>POST</i>"]
+  end
+  subgraph model_settings["/api/model-settings"]
+    _api_model_settings["/<br/><i>GET POST</i>"]
   end
   subgraph personas["/api/personas"]
     _api_personas_library__id_["/library/[id]<br/><i>GET PUT DELETE</i>"]
@@ -88,6 +92,10 @@ graph LR
   subgraph status["/api/status"]
     _api_status["/<br/><i>GET</i>"]
   end
+  subgraph usage["/api/usage"]
+    _api_usage["/<br/><i>GET POST</i>"]
+    _api_usage_track["/track<br/><i>POST</i>"]
+  end
   subgraph webhooks["/api/webhooks"]
     _api_webhooks_github["/github<br/><i>POST</i>"]
   end
@@ -109,6 +117,7 @@ graph LR
 | `/api/demands/[id]/advance` | POST | `app/api/demands/[id]/advance/route.ts` |
 | `/api/demands/[id]/attachments` | POST | `app/api/demands/[id]/attachments/route.ts` |
 | `/api/demands/[id]/edit` | POST | `app/api/demands/[id]/edit/route.ts` |
+| `/api/demands/[id]/requirements-edits` | POST | `app/api/demands/[id]/requirements-edits/route.ts` |
 | `/api/demands/[id]/state` | POST | `app/api/demands/[id]/state/route.ts` |
 | `/api/demands/[id]/triage` | POST | `app/api/demands/[id]/triage/route.ts` |
 | `/api/demands/[id]/verification` | POST | `app/api/demands/[id]/verification/route.ts` |
@@ -116,6 +125,7 @@ graph LR
 | `/api/intake` | POST | `app/api/intake/route.ts` |
 | `/api/intake/similar` | GET | `app/api/intake/similar/route.ts` |
 | `/api/intake/turn` | POST | `app/api/intake/turn/route.ts` |
+| `/api/model-settings` | GET, POST | `app/api/model-settings/route.ts` |
 | `/api/personas/library/[id]` | GET, PUT, DELETE | `app/api/personas/library/[id]/route.ts` |
 | `/api/personas/library` | GET, POST | `app/api/personas/library/route.ts` |
 | `/api/poc` | POST | `app/api/poc/route.ts` |
@@ -148,4 +158,6 @@ graph LR
 | `/api/registry/search` | POST | `app/api/registry/search/route.ts` |
 | `/api/requirements` | POST | `app/api/requirements/route.ts` |
 | `/api/status` | GET | `app/api/status/route.ts` |
+| `/api/usage` | GET, POST | `app/api/usage/route.ts` |
+| `/api/usage/track` | POST | `app/api/usage/track/route.ts` |
 | `/api/webhooks/github` | POST | `app/api/webhooks/github/route.ts` |

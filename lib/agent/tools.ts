@@ -76,9 +76,18 @@ export class ToolRegistry {
     return this;
   }
 
-  /** All registered tools, regardless of session — for inspection/tests. */
+  /**
+   * All registered tools, regardless of session — for inspection/tests.
+   *
+   * Sorted by name, and that is not cosmetic: tool definitions render at
+   * position 0 of every request, so their order IS the head of the prompt cache
+   * prefix. Left in registration order, adding an import somewhere reshuffles
+   * the array and silently invalidates the cache for every agent in the portal.
+   * A name sort makes the order a property of the tools rather than of the
+   * module graph.
+   */
   all(): AgentTool[] {
-    return [...this.tools.values()];
+    return [...this.tools.values()].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   }
 
   get(name: string): AgentTool | undefined {

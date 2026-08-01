@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { hasRegistryMirror } from "./testing/mirror";
 import { mkdtempSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { listRegistry, newFileTemplate, saveEntry, readEntryFile, ENTRY_FILE } from "./registry-store.js";
 
-describe("registry store — bundles (read)", () => {
+describe.skipIf(!hasRegistryMirror)("registry store — bundles (read)", () => {
   it("reads skill bundles with their file tree", async () => {
     const { skills } = await listRegistry();
     const poc = skills.find((s) => s.name === "poc-builder");

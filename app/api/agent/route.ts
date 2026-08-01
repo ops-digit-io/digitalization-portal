@@ -10,7 +10,7 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac";
 import { runAgent } from "@/lib/agent/loop";
-import { getProvider } from "@/lib/agent/provider";
+import { resolveProvider } from "@/lib/model-settings";
 import { createDefaultRegistry } from "@/lib/agent/registry";
 import { makeImplementationAnalysisTool } from "@/lib/agent/tools/implementation-analysis";
 import { makeStartPocTool } from "@/lib/agent/tools/start-poc";
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
   if (!can(session, "view_board")) {
     return NextResponse.json({ error: "authentication required" }, { status: 401 });
   }
-  const provider = getProvider();
+  const provider = await resolveProvider();
   // Real funnel rows (with real business-case value), never seed.
   const rows = await listDemandRowsWithValue();
   const registry = createDefaultRegistry()
@@ -100,6 +100,7 @@ export async function POST(req: Request) {
       userMessage,
       now: new Date().toISOString(),
       traceId: `trace-${task}-${body.useCaseId ?? "chat"}`,
+      feature: `agent.${task}`,
       enabled: agentToolsEnabled(),
       ...(toolNames ? { toolNames } : {}),
     });

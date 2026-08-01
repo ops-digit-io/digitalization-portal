@@ -9,7 +9,8 @@
  * It returns only a boolean and a short, sanitised error — never a key.
  */
 
-import { getProvider, type ModelProvider } from "./provider.js";
+import { type ModelProvider } from "./provider.js";
+import { resolveProvider } from "../model-settings.js";
 
 export interface ProviderHealth {
   provider: string;
@@ -28,13 +29,22 @@ function sanitize(msg: string): string {
     .slice(0, 140);
 }
 
-export async function probeProvider(provider: ModelProvider = getProvider()): Promise<ProviderHealth> {
+export async function probeProvider(providerArg?: ModelProvider): Promise<ProviderHealth> {
+  // Resolve the active provider (honouring the admin's stored default) unless a
+  // caller injected one — the test does.
+  const provider = providerArg ?? (await resolveProvider());
   if (!provider.live) return { provider: provider.name, live: false, ok: false };
   try {
     await provider.complete({
       system: "Health check. Reply with the single word OK.",
       messages: [{ role: "user", content: "ping" }],
-      maxTokens: 1,
+      // Small, but not one token: on models where thinking is on by default a
+      // one-token ceiling is a request the API can legitimately reject, and a
+      // rejected probe would report a perfectly good key as broken. This asks
+      // the cheapest question that still only tests authentication.
+      maxTokens: 16,
+      effort: "low",
+      stream: false,
     });
     return { provider: provider.name, live: true, ok: true };
   } catch (e) {

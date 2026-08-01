@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { hasRegistryMirror } from "./testing/mirror";
 import { mkdtempSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -9,7 +10,7 @@ import { loadPersonaGuideline } from "./agent/persona-guideline.js";
 import { loadBusinessCaseGuideline } from "./agent/business-case-guideline.js";
 import { loadAnalystGuideline } from "./agent/analyst-guideline.js";
 
-describe("contracts as a first-class, file-managed governance type", () => {
+describe.skipIf(!hasRegistryMirror)("contracts as a first-class, file-managed governance type", () => {
   it("listRegistry surfaces the bundled contracts", async () => {
     const { contracts } = await listRegistry();
     const names = contracts.map((c) => c.name);
@@ -46,7 +47,7 @@ describe("contracts as a first-class, file-managed governance type", () => {
   });
 });
 
-describe("guidelines compose their file-managed contract", () => {
+describe.skipIf(!hasRegistryMirror)("guidelines compose their file-managed contract", () => {
   it("persona guideline exposes and composes the contract", async () => {
     const g = await loadPersonaGuideline();
     expect(g.contract).toMatch(/OPERATING CONTRACT/);

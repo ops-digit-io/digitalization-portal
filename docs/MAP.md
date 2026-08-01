@@ -112,6 +112,94 @@ graph LR
 
 ---
 
+## 2b. How a call reaches the model
+
+Everything asks `complete()` and gets back the same shape whichever provider
+answered — which is what lets the whole product run with no key at all, and what
+makes it **provider-agnostic**. A `PROVIDERS` catalogue (`lib/agent/provider.ts`)
+is the single source of truth for what the portal can talk to: Anthropic natively
+over the Messages API, OpenAI over Chat Completions, and — the same wire protocol
+pointed at any base URL — **any OpenAI-compatible endpoint** (OpenRouter, Groq,
+Together, Azure OpenAI, Ollama, vLLM, a local runtime). Adding one is a catalogue
+entry, not code.
+
+Which provider and model are active is resolved in three layers, most specific
+first: an **admin's runtime choice** (persisted in KV, set from the options page
+with no redeploy — `lib/model-settings.ts`), then the **environment**
+(`MODEL_PROVIDER`, the per-provider key/base-URL/model vars), then automatic
+selection by priority among whatever is configured, and finally offline. Keys and
+base URLs stay in the environment and never pass through the browser; the options
+picker moves only the *choice*, and offers only providers whose credentials are
+already present.
+
+```mermaid
+graph TB
+  CALL["module<br/><i>complete(req)</i>"] --> SHAPE["build the body"]
+  SHAPE --> T["tools<br/><i>position 0</i>"]
+  SHAPE --> S["system<br/><i>cache breakpoint when large</i>"]
+  SHAPE --> M["messages<br/><i>the only per-request part</i>"]
+  T --> DEC{"maxTokens ><br/>4 096?"}
+  S --> DEC
+  M --> DEC
+  DEC -->|yes| ST["stream · SSE<br/><i>inactivity deadline</i>"]
+  DEC -->|no| PL["single response<br/><i>whole-request deadline</i>"]
+  ST --> RES["ModelResponse"]
+  PL --> RES
+  RES --> STOP{"stop_reason"}
+  STOP -->|refusal| ERR["ModelError · refusal"]
+  STOP -->|max_tokens| TR["truncated: true<br/><i>saved, never called finished</i>"]
+  STOP -->|end_turn · tool_use| OK["text · toolCalls · content"]
+```
+
+Five decisions, each of which is load-bearing:
+
+1. **`claude-opus-5` is the default** for the Anthropic provider, and the model
+   name is what selects the server-tool versions — the older web-search tool is a
+   400 on a current model and the current one is a 400 on an older one. Each
+   catalogue provider carries its own default, so there is always a default model
+   whatever the active provider.
+2. **The system prompt is the cache breakpoint.** Render order is tools → system
+   → messages, so a marker on the system block caches both. The composed
+   governance prompts run to tens of thousands of characters and are
+   byte-identical across engagements, so everything after the first call reads
+   the prefix from cache. *Anything appended per-request to `system` destroys
+   this* — a locale sentence in the wrong place cost every German run the cache
+   the English runs had just paid to write. Per-request content belongs in the
+   user turn.
+3. **Large generations stream.** Not for the typing effect — a 9 000-token
+   digest cannot be asked to finish inside one request timeout. Streaming turns
+   "did it finish in time" into "is data still arriving", which is the question
+   that has a correct answer.
+4. **The assistant turn is replayed verbatim.** Thinking is on by default on
+   Opus 5, and a turn rebuilt from its text and tool calls has silently lost the
+   signed thinking block the next request must carry. Blocks the portal does not
+   understand are carried through untouched.
+5. **A stop reason is not an answer.** `max_tokens` marks the artefact truncated
+   and the UI says so; `refusal` raises rather than saving the empty document it
+   arrives with.
+
+Failures are typed (`ModelError.kind`) so a caller can tell "your key is wrong"
+— stop, tell somebody — from "the model is busy", where the right answer is the
+deterministic floor and no drama.
+
+On the way back, three rules hold for tool results:
+
+- **A failed tool is marked failed** (`is_error`). Otherwise "Error: the register
+  is unreachable" reads as a finding about the register.
+- **A runaway result is cut, and says it was cut.** A tool that returns the world
+  evicts the conversation it was meant to inform; a silent cut leaves the model
+  reasoning confidently about half a table.
+- **Running out of steps is an answer, not silence.** The loop that exhausts its
+  iterations says so; returning "" would present "I ran out of steps" as "I have
+  nothing to say".
+
+Tools are offered in name order, which is also not cosmetic: tool definitions
+render at position 0, so their order is the head of the cache prefix. In
+registration order, adding an import somewhere would reshuffle the array and
+invalidate the cache for every agent in the portal.
+
+---
+
 ## 3. The journeys
 
 ### 3.1 Pre-funnel → demand (the Process Funnel)
@@ -180,6 +268,30 @@ With an empty library the stories fall back to plain role names — which at lea
 generated record carries a role name and nothing anybody said, and the moment it has
 an id a document cites it and a placeholder has become a definition.
 
+Everything the analysis produces is an **assumption a human owns**. The
+requirements board lets a reviewer add, edit or remove epics and user stories,
+and every item wears its provenance — `AI`, `human-edited`, `added by human`.
+Those edits are not written into `requirements.md` (which is regenerated from
+scratch each analysis, and would wipe them); they live as an overlay in the
+demand README, exactly where the PoC verification checkmarks live, and are
+re-applied over the regenerated baseline:
+
+```mermaid
+graph LR
+  RG["requirements.md<br/><i>regenerated each analysis</i>"] -->|parse| P["parsed doc"]
+  OV["demand README<br/>## Requirements Edits<br/><i>human overlay, durable</i>"] -->|parse| O["overlay"]
+  P --> AP["applyOverrides"]
+  O --> AP
+  AP --> B["the board<br/><i>AI · edited · added</i>"]
+  B -->|add / edit / remove| API["/api/demands/:id/requirements-edits"]
+  API --> OV
+```
+
+Because the generated ids are deterministic from the demand answers, re-analysis
+reproduces the same ids and every edit re-binds to the item it was made against.
+A removal is a tombstone that can be restored; a human-added epic gets an id
+(`E-H1`) that can never collide with a generated one.
+
 ### 3.3 The network: who carries the work
 
 ```mermaid
@@ -241,5 +353,58 @@ one it is in rather than pretending.
 | GitHub App | everything — local file store under the OS temp dir | `/api/status` reports `git.live: false` |
 | A skill file | the agent runs | the prompt says which governance is missing; the UI marks the run partial |
 | A playbook | the agent refuses that step | stated in the prompt, surfaced by `governedBy().healthy` |
-| The registry | bundled governance is used | no visible change; edits need a deploy until it returns |
 | Both keys | the whole portal, rule-based | a demo that is honest about being one |
+
+And when the model answers, but badly:
+
+| What happened | What the portal does | What you see |
+|---|---|---|
+| The output ceiling was hit | saves the draft — 6 000 tokens of usable text is not rubbish | "saved, but cut off", not the completion tick |
+| The model declined | raises before anything is written | the pass failed, with the reason |
+| Rate-limited or overloaded | bounded retry, then the deterministic floor | fewer and duller actions, and the header says rule-based |
+| The key is wrong | fails immediately — retrying a 401 makes one clear error into three slow ones | `/api/status?probe=1` → `health.ok: false` |
+| A stream goes silent | the attempt is aborted on inactivity, not on elapsed time | a long generation is allowed to be long |
+
+---
+
+## 6. What the portal spends, and how it's used — the telemetry tool
+
+One tool measures both interfaces the portal has: the **AI interface** (every
+model call) and the **human interface** (every view and click). Both roll up into
+the same KV store, and `/admin/usage` (a first-class tool, on the launchpad)
+reads them together, so the question is not just "what does the model cost" but
+"how is the portal actually used, and what should we limit".
+
+```mermaid
+graph LR
+  AI["every model call<br/><i>llm.chat · analysis · champions · research · intake · agent loop</i>"] -->|recordUsage| KV["KV day buckets"]
+  UI["every view & click<br/><i>&lt;Telemetry/&gt; in the root layout</i>"] -->|/api/usage/track → recordUiEvents| KV
+  KV -->|readUsage| RPT["rollup"]
+  RPT --> COST["cost by model"]
+  RPT --> FEAT["AI calls by feature"]
+  RPT --> TOOL["views & clicks by tool"]
+  COST --> PAGE["/admin/usage"]
+  FEAT --> PAGE
+  TOOL --> PAGE
+```
+
+Three axes, because they answer three questions:
+
+- **Cost is by model.** Switch the default model in the options to trade
+  capability for spend.
+- **AI volume is by feature.** The "which AI step to limit" view — the
+  `AGENT_TOOLS` kill switch and the model picker are today's levers, per-feature
+  caps when the numbers say which to cap.
+- **Human volume is by tool.** Views and clicks per portal tool (`process`,
+  `champions`, `requirements`, …), so "how many clicks which tool has" and which
+  tools people actually reach for is answerable.
+
+Recording never touches the thing it measures: the AI meter is one pipelined KV
+write on the call's own path, the UI meter is a batched `sendBeacon` flushed
+every few seconds and on page-hide — both fire-safe and both no-ops without KV.
+It is **aggregate and content-free by construction**: a tool id, a model name, a
+token count, an event kind — never a user, a path detail, a record id, or
+anything typed. That is the same principle the people-facing tools hold to
+(§4): a measure of the system, never of a person. Costs are estimates from a
+small hand-maintained price table, always labelled as such; an unpriced model is
+shown as volume with no cost rather than a guess.

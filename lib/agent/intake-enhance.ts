@@ -29,7 +29,9 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { INTAKE_FIELDS, type DemandAnswers } from "../demand.js";
 import { loadGoverning } from "./governing.js";
-import { getProvider, type ModelProvider } from "./provider.js";
+import { type ModelProvider } from "./provider.js";
+import { resolveProvider } from "../model-settings.js";
+import { recordUsage } from "../usage-meter.js";
 
 /** The git-managed playbook that governs this agent's behaviour. */
 export const ENHANCE_PLAYBOOK = "s1-intake-enhance";
@@ -283,16 +285,25 @@ function fromModelJson(answers: DemandAnswers, parsed: unknown, providerName: st
  */
 export async function enhanceDemand(
   answers: DemandAnswers,
-  provider: ModelProvider = getProvider(),
+  providerArg?: ModelProvider,
 ): Promise<EnhancementResult> {
+  // Resolve the active provider (honouring the admin's stored default) unless a
+  // caller injected one — the test does, to run without a key.
+  const provider = providerArg ?? (await resolveProvider());
   if (!provider.live) return enhanceOffline(answers);
   try {
     const guidance = await loadEnhanceGuidance();
     const res = await provider.complete({
       system: enhanceSystemPrompt(guidance),
       messages: [{ role: "user", content: buildUserMessage(answers) }],
-      maxTokens: 1500,
+      // Tidying answers into JSON is mechanical: low effort keeps the reply
+      // terse and leaves the budget for the JSON rather than the reasoning.
+      // On a model that thinks by default, the old 1 500 was a ceiling both had
+      // to share, and the JSON is the half that gets cut.
+      effort: "low",
+      maxTokens: 2500,
     });
+    await recordUsage({ feature: "intake.enhance", provider: provider.name, model: provider.model, usage: res.usage });
     const parsed = extractJson(res.text);
     if (!parsed) return { ...enhanceOffline(answers), provider: provider.name, live: true };
     return fromModelJson(answers, parsed, provider.name);

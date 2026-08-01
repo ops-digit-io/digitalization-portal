@@ -15,8 +15,26 @@
 
 import type { Session } from "../rbac.js";
 import type { ToolRegistry } from "./tools.js";
-import type { ModelMessage, ModelProvider, ToolSpec } from "./provider.js";
+import type { ModelMessage, ModelProvider, ToolResultBlock, ToolSpec } from "./provider.js";
 import { TraceRecorder, type Trace } from "./trace.js";
+import { recordUsage } from "../usage-meter.js";
+
+/**
+ * A ceiling on one tool result. A tool that returns a whole repository fills
+ * the context and pushes out the conversation it was meant to inform. Cutting
+ * it is bad; cutting it silently is worse, so the cut says so — the model can
+ * then narrow the call rather than reason confidently about half a table.
+ */
+const MAX_TOOL_RESULT_CHARS = 24_000;
+
+const cap = (s: string): string =>
+  s.length <= MAX_TOOL_RESULT_CHARS
+    ? s
+    : `${s.slice(0, MAX_TOOL_RESULT_CHARS)}\n\n[truncated: ${s.length - MAX_TOOL_RESULT_CHARS} more characters. Narrow the query and call again if you need the rest.]`;
+
+/** What the loop says when it stops because it ran out of steps, not answers. */
+export const EXHAUSTED =
+  "I stopped before finishing: this run hit its limit on tool steps. The work so far is in the trace. Narrow the question and ask again.";
 
 export interface RunAgentParams {
   session: Session;
@@ -32,6 +50,8 @@ export interface RunAgentParams {
   /** Injected so the loop stays deterministic/replayable. */
   now: string;
   traceId: string;
+  /** Usage-meter label for the cost overview (e.g. "agent.chat"). */
+  feature?: string;
 }
 
 export interface RunAgentResult {
@@ -89,45 +109,55 @@ export async function runAgent(params: RunAgentParams): Promise<RunAgentResult> 
   for (let i = 0; i < maxIterations; i++) {
     const res = await provider.complete({ system, messages, tools: specs });
     rec.add("model", provider.live ? "model turn" : "offline turn", res.text || undefined, res.usage);
+    // Meter every turn — a tool-using agent spends across several turns, and the
+    // cost overview should see all of them, not just the last.
+    await recordUsage({ feature: params.feature ?? "agent.chat", provider: provider.name, model: provider.model, usage: res.usage });
 
     if (res.toolCalls.length === 0) {
       finalText = res.text;
       break;
     }
 
-    // Append the assistant turn (text + tool_use blocks) exactly as the API needs.
-    messages.push({
-      role: "assistant",
-      content: [
-        ...(res.text ? [{ type: "text" as const, text: res.text }] : []),
-        ...res.toolCalls.map((c) => ({ type: "tool_use" as const, id: c.id, name: c.name, input: c.input })),
-      ],
-    });
+    // Append the assistant turn EXACTLY as the provider returned it. Rebuilding
+    // it from `text` + `toolCalls` looks equivalent and is not: on models where
+    // thinking is on (the default on Claude Opus 5) the turn also carries signed
+    // thinking blocks, and the API rejects the next request if they are absent.
+    // Whatever we did not understand is carried through untouched.
+    messages.push({ role: "assistant", content: res.content });
 
-    const results = [];
+    const results: ToolResultBlock[] = [];
     for (const call of res.toolCalls) {
       const tool = chosen.find((t) => t.name === call.name);
       rec.add("tool_call", `call ${call.name}`, JSON.stringify(call.input));
       let content: string;
+      let failed = false;
       if (!tool) {
         content = `Error: tool "${call.name}" is not available to this session.`;
+        failed = true;
         rec.add("error", `tool ${call.name} unavailable`);
       } else {
         try {
           const out = await tool.run(call.input, { session });
-          content = typeof out === "string" ? out : JSON.stringify(out);
+          content = cap(typeof out === "string" ? out : JSON.stringify(out));
           rec.add("tool_result", `result ${call.name}`, content.slice(0, 2000));
         } catch (err) {
           content = `Error running ${call.name}: ${err instanceof Error ? err.message : String(err)}`;
+          failed = true;
           rec.add("error", `tool ${call.name} threw`, content);
         }
       }
-      results.push({ type: "tool_result" as const, tool_use_id: call.id, content });
+      // `is_error` is the difference between the model learning the call went
+      // wrong and the model reading the error text as a finding.
+      results.push({ type: "tool_result", tool_use_id: call.id, content, ...(failed ? { is_error: true } : {}) });
     }
     messages.push({ role: "user", content: results });
 
     if (i === maxIterations - 1) {
       rec.add("note", "max iterations reached");
+      // The loop has stopped mid-conversation: the model was still calling
+      // tools. Returning "" here would present "I ran out of steps" as "I have
+      // nothing to say", which is the one answer that is never true.
+      finalText = EXHAUSTED;
     }
   }
 

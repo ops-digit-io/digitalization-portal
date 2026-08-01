@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { hasRegistryMirror } from "./testing/mirror";
 import { analyseNetwork, buildFacts, deterministicActions, type AnalysisInput } from "./champions-analysis";
 import { completeChampion, type Champion, type EngagementRef } from "./champions";
 
@@ -157,7 +158,25 @@ describe("the facts block", () => {
   });
 });
 
-describe("always returns results", () => {
+
+/**
+ * The analysis call asks for enough tokens that it STREAMS, so a stub that
+ * answers with a single JSON body is not answering the request that was made.
+ * This re-encodes a Messages response as the SSE frames the provider reads.
+ */
+function sseFetch(msg: Record<string, any>) {
+  const frames: unknown[] = [{ type: "message_start", message: { usage: msg.usage } }];
+  (msg.content as Record<string, any>[]).forEach((block, index) => {
+    frames.push({ type: "content_block_start", index, content_block: { ...block, input: {} } });
+    frames.push({ type: "content_block_delta", index, delta: { type: "input_json_delta", partial_json: JSON.stringify(block.input) } });
+    frames.push({ type: "content_block_stop", index });
+  });
+  frames.push({ type: "message_delta", delta: { stop_reason: msg.stop_reason }, usage: { output_tokens: 1 } });
+  const body = frames.map((f) => `event: ${(f as any).type}\ndata: ${JSON.stringify(f)}\n\n`).join("");
+  return () => Promise.resolve(new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } }));
+}
+
+describe.skipIf(!hasRegistryMirror)("always returns results", () => {
   const withRegister = input({ champions: [ch({ id: "C-01", role: "champion", plants: ["DE-ALD"] })] });
 
   it("offline: returns the deterministic floor and says it was not live", async () => {
@@ -185,20 +204,44 @@ describe("always returns results", () => {
     expect(r.actions.length).toBeGreaterThan(0);
   });
 
-  it("live: an empty tool call falls back to the floor", async () => {
+  it("says WHY the floor is standing alone — a rejected key is not a missing one", async () => {
+    // Both produce the same actions and call for opposite responses. Reporting
+    // both as "no model key" tells one of them a lie.
+    const noKey = await analyseNetwork(withRegister, NOW);
+    expect(noKey.fallback).toMatch(/no model key/i);
+
     process.env.ANTHROPIC_API_KEY = "k";
     vi.stubGlobal("fetch", () =>
-      Promise.resolve(
-        new Response(
-          JSON.stringify({
+      Promise.resolve(new Response("nope", { status: 401, headers: { "content-type": "application/json" } })),
+    );
+    const rejected = await analyseNetwork(withRegister, NOW);
+    expect(rejected.live).toBe(false);
+    expect(rejected.actions.length).toBeGreaterThan(0); // the floor still stands
+    expect(rejected.fallback).toContain("auth");
+  });
+
+  it("a model refinement leaves no fallback note to explain away", async () => {
+    process.env.ANTHROPIC_API_KEY = "k";
+    vi.stubGlobal("fetch", sseFetch({
+      content: [{
+        type: "tool_use", id: "t", name: "propose_network_actions",
+        input: { actions: [{ kind: "uncovered", finding: "f", approach: "a", ask: "x", blocked: "", basis: "b" }] },
+      }],
+      stop_reason: "tool_use",
+      usage: { input_tokens: 1, output_tokens: 1 },
+    }));
+    const r = await analyseNetwork(withRegister, NOW);
+    expect(r.live).toBe(true);
+    expect(r.fallback).toBeUndefined();
+  });
+
+  it("live: an empty tool call falls back to the floor", async () => {
+    process.env.ANTHROPIC_API_KEY = "k";
+    vi.stubGlobal("fetch", sseFetch({
             content: [{ type: "tool_use", id: "t", name: "propose_network_actions", input: { actions: [] } }],
             stop_reason: "tool_use",
             usage: { input_tokens: 1, output_tokens: 1 },
-          }),
-          { status: 200, headers: { "content-type": "application/json" } },
-        ),
-      ),
-    );
+          }));
     const r = await analyseNetwork(withRegister, NOW);
     expect(r.live).toBe(false);
     expect(r.actions.length).toBeGreaterThan(0);
@@ -206,21 +249,14 @@ describe("always returns results", () => {
 
   it("live: a usable tool call replaces the floor and is marked live", async () => {
     process.env.ANTHROPIC_API_KEY = "k";
-    vi.stubGlobal("fetch", () =>
-      Promise.resolve(
-        new Response(
-          JSON.stringify({
+    vi.stubGlobal("fetch", sseFetch({
             content: [{
               type: "tool_use", id: "t", name: "propose_network_actions",
               input: { actions: [{ kind: "uncovered", finding: "SK-PUC has nobody.", approach: "Site lead", ask: "Nominate a spoke", blocked: "Intake", basis: "coverage: SK-PUC" }] },
             }],
             stop_reason: "tool_use",
             usage: { input_tokens: 1, output_tokens: 1 },
-          }),
-          { status: 200, headers: { "content-type": "application/json" } },
-        ),
-      ),
-    );
+          }));
     const r = await analyseNetwork(withRegister, NOW);
     expect(r.live).toBe(true);
     expect(r.actions).toHaveLength(1);
@@ -229,21 +265,14 @@ describe("always returns results", () => {
 
   it("normalises an unknown kind rather than trusting the model's shape", async () => {
     process.env.ANTHROPIC_API_KEY = "k";
-    vi.stubGlobal("fetch", () =>
-      Promise.resolve(
-        new Response(
-          JSON.stringify({
+    vi.stubGlobal("fetch", sseFetch({
             content: [{
               type: "tool_use", id: "t", name: "propose_network_actions",
               input: { actions: [{ kind: "nonsense", finding: "f", approach: "a", ask: "x", basis: "b" }] },
             }],
             stop_reason: "tool_use",
             usage: { input_tokens: 1, output_tokens: 1 },
-          }),
-          { status: 200, headers: { "content-type": "application/json" } },
-        ),
-      ),
-    );
+          }));
     const r = await analyseNetwork(withRegister, NOW);
     expect(r.actions[0]!.kind).toBe("uncovered");
     expect(r.actions[0]!.blocked).toBe("");

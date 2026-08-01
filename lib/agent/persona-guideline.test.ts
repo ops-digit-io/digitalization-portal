@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
+import { hasRegistryMirror } from "../testing/mirror";
 import { loadPersonaGuideline, personaSystemPrompt } from "./persona-guideline.js";
 
 /** Reads the bundled playbook + skills from the working tree — doubles as a contract
  *  that the Persona Analyst's library files exist, parse, and carry the ethics frame. */
-describe("persona guideline", () => {
+describe.skipIf(!hasRegistryMirror)("persona guideline", () => {
   it("loads the playbook and composes its method skills", async () => {
     const g = await loadPersonaGuideline();
     expect(g.playbook).toContain("persona-analysis");

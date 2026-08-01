@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { hasRegistryMirror } from "../testing/mirror";
 import { loadRequirementsGuideline, requirementsSystemPrompt } from "./requirements-guideline.js";
 
 /**
@@ -6,7 +7,7 @@ import { loadRequirementsGuideline, requirementsSystemPrompt } from "./requireme
  * loadGoverning), so they double as a contract that the Analyst's library files exist
  * and parse, and that the prompt composes both grounding axes.
  */
-describe("loadRequirementsGuideline", () => {
+describe.skipIf(!hasRegistryMirror)("loadRequirementsGuideline", () => {
   it("loads the playbook and composes the method skills it declares", async () => {
     const g = await loadRequirementsGuideline();
     expect(g.playbook).toContain("requirements-analysis");
@@ -19,7 +20,7 @@ describe("loadRequirementsGuideline", () => {
   });
 });
 
-describe("requirementsSystemPrompt", () => {
+describe.skipIf(!hasRegistryMirror)("requirementsSystemPrompt", () => {
   it("composes playbook + skills + both grounding axes + output contract", async () => {
     const g = await loadRequirementsGuideline();
     const prompt = requirementsSystemPrompt(g, { domain: "finance", archetypeId: "genai_assistant" });

@@ -8,19 +8,22 @@
  * analysis agent additionally has a deterministic offline proposer.
  */
 
-import { getProvider, describeProvider, type ModelMessage } from "../agent/provider";
+import { type ModelMessage } from "../agent/provider";
+import { resolveProvider, resolveStatus } from "../model-settings";
+import { recordUsage } from "../usage-meter";
 
-export function provider(): string {
-  return describeProvider().provider;
+export async function provider(): Promise<string> {
+  return (await resolveStatus()).provider;
 }
 
-export function model(): string | null {
-  return describeProvider().model ?? null;
+export async function model(): Promise<string | null> {
+  return (await resolveStatus()).model ?? null;
 }
 
-/** True when a live model key is configured. Offline (no key) is export-only. */
-export function available(): boolean {
-  return describeProvider().live;
+/** True when a live model provider is active. Offline (no key) is export-only.
+ *  Async because the active provider now honours the admin's stored choice. */
+export async function available(): Promise<boolean> {
+  return (await resolveStatus()).live;
 }
 
 export interface ChatResult {
@@ -28,6 +31,12 @@ export interface ChatResult {
   usage: { input: number; output: number } | null;
   model: string | null;
   provider: string;
+  /**
+   * The model hit the output ceiling — what came back is the beginning of an
+   * artefact, not one. Saved anyway (throwing away 6 000 tokens of usable draft
+   * helps nobody) but never presented as finished.
+   */
+  truncated: boolean;
 }
 
 export class NoKeyError extends Error {
@@ -45,21 +54,25 @@ export class NoKeyError extends Error {
 export async function chat(
   system: string,
   messages: { role: "user" | "assistant"; content: string }[],
-  opts: { maxTokens?: number } = {},
+  opts: { maxTokens?: number; feature?: string } = {},
 ): Promise<ChatResult> {
-  const status = describeProvider();
+  const status = await resolveStatus();
   if (!status.live) throw new NoKeyError();
-  const p = getProvider();
+  const p = await resolveProvider();
   const res = await p.complete({
     system,
     messages: messages as ModelMessage[],
     maxTokens: opts.maxTokens ?? 4096,
   });
+  // Meter the call for the cost overview. Fire-safe: recordUsage swallows its own
+  // errors, so a metering hiccup never touches the coaching result.
+  await recordUsage({ feature: opts.feature ?? "process.chat", provider: status.provider, model: status.model, usage: res.usage });
   return {
     text: res.text,
     usage: res.usage ?? null,
     model: status.model ?? null,
     provider: status.provider,
+    truncated: res.truncated,
   };
 }
 

@@ -8,7 +8,7 @@ function provider(over: Partial<ModelProvider> & { fail?: string }): ModelProvid
     live: over.live ?? true,
     async complete(): Promise<ModelResponse> {
       if (over.fail) throw new Error(over.fail);
-      return { text: "OK", toolCalls: [], stopReason: "end_turn", usage: { input: 1, output: 1 } };
+      return { text: "OK", toolCalls: [], content: [{ type: "text", text: "OK" }], stopReason: "end_turn", truncated: false, usage: { input: 1, output: 1 } };
     },
   };
 }

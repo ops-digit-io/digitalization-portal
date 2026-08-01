@@ -31,8 +31,26 @@ export interface ToolResultBlock {
   type: "tool_result";
   tool_use_id: string;
   content: string;
+  /**
+   * The tool failed. Without this the model reads "Error: no such demand" as a
+   * finding and reports it as one; with it, it knows the call went wrong and
+   * that trying differently is the right move.
+   */
+  is_error?: boolean;
 }
-export type ContentBlock = TextBlock | ToolUseBlock | ToolResultBlock;
+/**
+ * Everything else the API may put in an assistant turn — thinking and redacted
+ * thinking blocks, server-tool use, web-search results. We do not interpret
+ * these, we carry them: on Claude Opus 5 thinking is on by default, and an
+ * assistant turn that is replayed into a tool conversation WITHOUT its thinking
+ * block is rejected. Passing unknown blocks through verbatim is the only shape
+ * of this code that survives the next block type Anthropic adds.
+ */
+export interface OpaqueBlock {
+  type: string;
+  [key: string]: unknown;
+}
+export type ContentBlock = TextBlock | ToolUseBlock | ToolResultBlock | OpaqueBlock;
 
 export interface ModelMessage {
   role: Role;
@@ -52,24 +70,105 @@ export interface CompletionRequest {
   maxTokens?: number;
   /** Enable the provider's public web-search tool (Anthropic server tool). */
   webSearch?: boolean;
+  /**
+   * Force a tool instead of leaving the choice to the model. Structured
+   * extraction — "read this and call `propose_demands`" — is not a conversation,
+   * and letting the model answer in prose there costs a whole call for nothing.
+   */
+  toolChoice?: { type: "auto" } | { type: "any" } | { type: "tool"; name: string };
+  /**
+   * Thinking depth and overall token spend (Anthropic). Omitted means the
+   * model's own default, which is what we want almost everywhere; set it only
+   * where the call is demonstrably shallow or demonstrably hard.
+   */
+  effort?: "low" | "medium" | "high";
+  /** Override the streaming decision. Default: stream when `maxTokens` is large. */
+  stream?: boolean;
 }
 
 export interface ModelResponse {
   text: string;
   toolCalls: { id: string; name: string; input: unknown }[];
   stopReason: string;
-  usage: { input: number; output: number };
+  /**
+   * The assistant turn exactly as the provider returned it. Replay THIS into a
+   * tool conversation — rebuilding a turn from `text` + `toolCalls` silently
+   * drops thinking blocks, and the next request is then rejected.
+   */
+  content: ContentBlock[];
+  /** `stop_reason === "max_tokens"` — the answer is cut off, not finished. */
+  truncated: boolean;
+  usage: { input: number; output: number; cacheRead?: number; cacheWrite?: number };
 }
 
 export interface ModelProvider {
   readonly name: string;
   readonly live: boolean;
+  /** The resolved model id, for metering and display. Absent for offline. */
+  readonly model?: string;
   complete(req: CompletionRequest): Promise<ModelResponse>;
 }
 
+/**
+ * What went wrong, in terms a caller can act on. A generic `Error` forces every
+ * call site to regex a message to tell "your key is wrong" (stop, tell someone)
+ * from "the model is busy" (fall back to the deterministic floor and carry on).
+ */
+export type ModelErrorKind = "auth" | "rate_limit" | "invalid" | "overloaded" | "server" | "refusal" | "network";
+
+export class ModelError extends Error {
+  readonly kind: ModelErrorKind;
+  readonly status?: number;
+  constructor(kind: ModelErrorKind, status: number | undefined, message: string) {
+    super(message);
+    this.name = "ModelError";
+    this.kind = kind;
+    this.status = status;
+  }
+  /** Could the identical call succeed later? Configuration errors cannot. */
+  get transient(): boolean {
+    return this.kind === "rate_limit" || this.kind === "overloaded" || this.kind === "server" || this.kind === "network";
+  }
+}
+
+function kindForStatus(status: number): ModelErrorKind {
+  if (status === 401 || status === 403) return "auth";
+  if (status === 429) return "rate_limit";
+  if (status === 529) return "overloaded";
+  if (status >= 500) return "server";
+  return "invalid";
+}
+
 const ANTHROPIC_VERSION = "2023-06-01";
-const DEFAULT_MODEL = "claude-sonnet-5";
+const DEFAULT_MODEL = "claude-opus-5";
 const DEFAULT_OPENAI_MODEL = "gpt-4o";
+
+/**
+ * Minimum system-prompt size worth a cache breakpoint. Below roughly 1 000
+ * tokens Anthropic will not cache at all, and marking it anyway only pays the
+ * write premium — so the marker goes on the big composed governance prompts
+ * (tens of thousands of characters, byte-identical across every engagement) and
+ * stays off the one-line ones.
+ */
+const CACHE_MIN_CHARS = 4_000;
+
+/**
+ * Above this many output tokens the call is streamed. Not a preference: a
+ * non-streamed generation has to complete inside one HTTP timeout, and the
+ * digest asks for 9 000 tokens. Streaming turns "did the whole thing finish in
+ * time" into "is data still arriving", which is the question we can answer.
+ */
+const STREAM_ABOVE_TOKENS = 4_096;
+
+/**
+ * Models that carry the current server-tool versions. The older `_20250305`
+ * web-search variant is what the pre-4.6 generation accepts; sending the new
+ * one there is a 400, and sending the old one to Opus 5 forfeits dynamic
+ * filtering. The model name is the only signal we have, so it is the test.
+ */
+function modernServerTools(model: string): boolean {
+  return /^claude-(opus-5|opus-4-[678]|sonnet-5|sonnet-4-6|fable-5|mythos-5)/.test(model);
+}
 
 /**
  * Retry/timeout envelope for live model calls. Generation is slow, so the
@@ -86,13 +185,121 @@ function modelRetryOpts(): { attempts: number; baseMs: number; timeoutMs: number
   };
 }
 
+/** One assistant turn as the Messages API returns it, streamed or not. */
+interface RawMessage {
+  content: ContentBlock[];
+  stop_reason: string;
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
+  };
+}
+
+/**
+ * Reassemble a streamed message from its Server-Sent Events.
+ *
+ * `touch` is called on every chunk so the caller can keep an inactivity
+ * deadline rather than a total one — the point of streaming here.
+ */
+async function readSse(res: Response, touch: () => void): Promise<RawMessage> {
+  if (!res.body) throw new ModelError("network", undefined, "Anthropic stream carried no body");
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+
+  const blocks: ContentBlock[] = [];
+  /** Tool inputs arrive as JSON fragments; they are only parseable once closed. */
+  const partialJson = new Map<number, string>();
+  const out: RawMessage = { content: [], stop_reason: "end_turn", usage: { input_tokens: 0, output_tokens: 0 } };
+
+  const handle = (ev: Record<string, any>): void => {
+    switch (ev.type) {
+      case "message_start": {
+        const u = ev.message?.usage ?? {};
+        out.usage = {
+          input_tokens: u.input_tokens ?? 0,
+          output_tokens: u.output_tokens ?? 0,
+          cache_read_input_tokens: u.cache_read_input_tokens,
+          cache_creation_input_tokens: u.cache_creation_input_tokens,
+        };
+        break;
+      }
+      case "content_block_start":
+        blocks[ev.index] = { ...ev.content_block };
+        if (ev.content_block?.type === "tool_use") partialJson.set(ev.index, "");
+        break;
+      case "content_block_delta": {
+        const b = blocks[ev.index] as Record<string, any> | undefined;
+        const d = ev.delta ?? {};
+        if (!b) break;
+        if (d.type === "text_delta") b.text = (b.text ?? "") + d.text;
+        else if (d.type === "thinking_delta") b.thinking = (b.thinking ?? "") + d.thinking;
+        else if (d.type === "signature_delta") b.signature = (b.signature ?? "") + d.signature;
+        else if (d.type === "input_json_delta") partialJson.set(ev.index, (partialJson.get(ev.index) ?? "") + d.partial_json);
+        break;
+      }
+      case "content_block_stop": {
+        const raw = partialJson.get(ev.index);
+        const b = blocks[ev.index] as Record<string, any> | undefined;
+        if (raw === undefined || !b) break;
+        // A truncated stream leaves half a JSON object. An empty input is a
+        // recognisable "the model called the tool with nothing", which every
+        // caller already falls back on; a throw here would lose the whole turn.
+        try {
+          b.input = raw ? JSON.parse(raw) : {};
+        } catch {
+          b.input = {};
+        }
+        break;
+      }
+      case "message_delta":
+        if (ev.delta?.stop_reason) out.stop_reason = ev.delta.stop_reason;
+        if (ev.usage?.output_tokens != null) out.usage.output_tokens = ev.usage.output_tokens;
+        break;
+      case "error":
+        throw new ModelError("server", undefined, `Anthropic stream error: ${JSON.stringify(ev.error ?? {}).slice(0, 200)}`);
+    }
+  };
+
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    touch();
+    buffer += decoder.decode(value, { stream: true });
+    let split: number;
+    while ((split = buffer.indexOf("\n\n")) !== -1) {
+      const frame = buffer.slice(0, split);
+      buffer = buffer.slice(split + 2);
+      for (const line of frame.split("\n")) {
+        if (!line.startsWith("data:")) continue;
+        const payload = line.slice(5).trim();
+        if (!payload || payload === "[DONE]") continue;
+        let ev: Record<string, any>;
+        try {
+          ev = JSON.parse(payload);
+        } catch {
+          continue; // a keep-alive or a frame we do not understand
+        }
+        handle(ev);
+      }
+    }
+  }
+
+  // Indices are dense in practice; filtering holes keeps a dropped frame from
+  // producing `undefined` in a turn we are about to replay.
+  out.content = blocks.filter(Boolean);
+  return out;
+}
+
 /** The real Anthropic Messages API, called with `fetch` (no SDK dependency). */
 export class AnthropicProvider implements ModelProvider {
   readonly name = "anthropic";
   readonly live = true;
   private readonly apiKey: string;
   private readonly baseUrl: string;
-  private readonly model: string;
+  readonly model: string;
 
   constructor(opts: { apiKey: string; baseUrl?: string; model?: string }) {
     this.apiKey = opts.apiKey;
@@ -100,42 +307,105 @@ export class AnthropicProvider implements ModelProvider {
     this.model = opts.model ?? DEFAULT_MODEL;
   }
 
+  /**
+   * Build the request body.
+   *
+   * Two things here are load-bearing and easy to undo by accident:
+   *
+   *  - **The system prompt is a cache breakpoint.** The composed governance
+   *    prompts run to tens of thousands of characters and are byte-identical
+   *    across every engagement, so the whole prefix (tools render before system)
+   *    is read from cache after the first call. Anything per-request appended to
+   *    `system` destroys that for every later call — put it in the user turn.
+   *  - **Tool order is the cache prefix.** Tools render at position 0; adding,
+   *    dropping or reordering one invalidates everything behind it.
+   */
+  private body(req: CompletionRequest, stream: boolean): Record<string, unknown> {
+    const tools = [
+      ...(req.tools ?? []),
+      ...(req.webSearch
+        ? [{ type: modernServerTools(this.model) ? "web_search_20260209" : "web_search_20250305", name: "web_search", max_uses: 5 }]
+        : []),
+    ];
+    const cacheable = req.system.length >= CACHE_MIN_CHARS;
+    return {
+      model: this.model,
+      max_tokens: req.maxTokens ?? 2048,
+      system: cacheable
+        ? [{ type: "text", text: req.system, cache_control: { type: "ephemeral" } }]
+        : req.system,
+      messages: req.messages,
+      ...(tools.length > 0 ? { tools } : {}),
+      ...(req.toolChoice && tools.length > 0 ? { tool_choice: req.toolChoice } : {}),
+      ...(req.effort ? { output_config: { effort: req.effort } } : {}),
+      ...(stream ? { stream: true } : {}),
+    };
+  }
+
   async complete(req: CompletionRequest): Promise<ModelResponse> {
-    const res = await fetchRetry(`${this.baseUrl}/v1/messages`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": this.apiKey,
-        "anthropic-version": ANTHROPIC_VERSION,
-      },
-      body: JSON.stringify({
-        model: this.model,
-        max_tokens: req.maxTokens ?? 2048,
-        system: req.system,
-        messages: req.messages,
-        ...(() => {
-          // The web-search server tool (Anthropic runs it) lets the research agent
-          // use public data. Composes with any client tools.
-          const tools = [
-            ...(req.tools ?? []),
-            ...(req.webSearch ? [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }] : []),
-          ];
-          return tools.length > 0 ? { tools } : {};
-        })(),
-      }),
-    }, modelRetryOpts());
+    const retry = modelRetryOpts();
+    const stream = req.stream ?? (req.maxTokens ?? 2048) > STREAM_ABOVE_TOKENS;
 
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw new Error(`Anthropic API ${res.status}: ${body.slice(0, 300)}`);
-    }
-
-    const data = (await res.json()) as {
-      content: ContentBlock[];
-      stop_reason: string;
-      usage: { input_tokens: number; output_tokens: number };
+    // While a stream is running the deadline is "no data for `timeoutMs`", not
+    // "not finished in `timeoutMs`" — a long generation is healthy, a silent
+    // socket is not.
+    let idle: ReturnType<typeof setTimeout> | undefined;
+    let controller: AbortController | undefined;
+    const touch = (): void => {
+      if (!controller) return;
+      if (idle) clearTimeout(idle);
+      idle = setTimeout(() => controller?.abort(new Error("model stream went silent")), retry.timeoutMs);
     };
 
+    try {
+      const res = await fetchRetry(
+        `${this.baseUrl}/v1/messages`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-api-key": this.apiKey,
+            "anthropic-version": ANTHROPIC_VERSION,
+            ...(stream ? { accept: "text/event-stream" } : {}),
+          },
+          body: JSON.stringify(this.body(req, stream)),
+        },
+        {
+          ...retry,
+          ...(stream
+            ? {
+                onResponse: (c) => {
+                  controller = c;
+                  touch();
+                },
+              }
+            : {}),
+        },
+      );
+
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new ModelError(kindForStatus(res.status), res.status, `Anthropic API ${res.status}: ${body.slice(0, 300)}`);
+      }
+
+      const data = stream ? await readSse(res, touch) : ((await res.json()) as RawMessage);
+      return this.shape(data);
+    } catch (err) {
+      if (err instanceof ModelError) throw err;
+      throw new ModelError("network", undefined, err instanceof Error ? err.message : String(err));
+    } finally {
+      if (idle) clearTimeout(idle);
+    }
+  }
+
+  private shape(data: RawMessage): ModelResponse {
+    // A policy decline comes back 200 with no usable content. Reading
+    // `content[0].text` there yields "" and the caller saves an empty artefact,
+    // so it is raised instead — the one stop reason that must not look like an
+    // answer.
+    if (data.stop_reason === "refusal") {
+      throw new ModelError("refusal", undefined, "the model declined this request");
+    }
     const text = data.content
       .filter((b): b is TextBlock => b.type === "text")
       .map((b) => b.text)
@@ -147,8 +417,15 @@ export class AnthropicProvider implements ModelProvider {
     return {
       text,
       toolCalls,
+      content: data.content,
       stopReason: data.stop_reason,
-      usage: { input: data.usage.input_tokens, output: data.usage.output_tokens },
+      truncated: data.stop_reason === "max_tokens",
+      usage: {
+        input: data.usage.input_tokens,
+        output: data.usage.output_tokens,
+        ...(data.usage.cache_read_input_tokens != null ? { cacheRead: data.usage.cache_read_input_tokens } : {}),
+        ...(data.usage.cache_creation_input_tokens != null ? { cacheWrite: data.usage.cache_creation_input_tokens } : {}),
+      },
     };
   }
 }
@@ -159,7 +436,7 @@ export class OpenAIProvider implements ModelProvider {
   readonly live = true;
   private readonly apiKey: string;
   private readonly baseUrl: string;
-  private readonly model: string;
+  readonly model: string;
 
   constructor(opts: { apiKey: string; baseUrl?: string; model?: string }) {
     this.apiKey = opts.apiKey;
@@ -210,7 +487,13 @@ export class OpenAIProvider implements ModelProvider {
         type: "function",
         function: { name: t.name, description: t.description, parameters: t.input_schema },
       }));
-      body.tool_choice = "auto";
+      const tc = req.toolChoice;
+      body.tool_choice =
+        tc?.type === "tool"
+          ? { type: "function", function: { name: tc.name } }
+          : tc?.type === "any"
+            ? "required"
+            : "auto";
     }
 
     const res = await fetchRetry(`${this.baseUrl}/chat/completions`, {
@@ -218,7 +501,10 @@ export class OpenAIProvider implements ModelProvider {
       headers: { "content-type": "application/json", authorization: `Bearer ${this.apiKey}` },
       body: JSON.stringify(body),
     }, modelRetryOpts());
-    if (!res.ok) throw new Error(`OpenAI API ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new ModelError(kindForStatus(res.status), res.status, `OpenAI API ${res.status}: ${body.slice(0, 300)}`);
+    }
 
     const data = (await res.json()) as {
       choices: { message: { content: string | null; tool_calls?: { id: string; function: { name: string; arguments: string } }[] }; finish_reason: string }[];
@@ -230,10 +516,18 @@ export class OpenAIProvider implements ModelProvider {
       try { input = JSON.parse(tc.function.arguments || "{}"); } catch { /* keep {} */ }
       return { id: tc.id, name: tc.function.name, input };
     });
+    const text = choice?.message.content ?? "";
     return {
-      text: choice?.message.content ?? "",
+      text,
       toolCalls,
+      // OpenAI has no opaque blocks to preserve, so the replayable turn is
+      // exactly what we can see. Synthesising it here keeps the loop provider-blind.
+      content: [
+        ...(text ? [{ type: "text" as const, text }] : []),
+        ...toolCalls.map((c) => ({ type: "tool_use" as const, id: c.id, name: c.name, input: c.input })),
+      ],
       stopReason: choice?.finish_reason ?? "stop",
+      truncated: choice?.finish_reason === "length",
       usage: { input: data.usage?.prompt_tokens ?? 0, output: data.usage?.completion_tokens ?? 0 },
     };
   }
@@ -265,10 +559,13 @@ export class OfflineProvider implements ModelProvider {
     if (req.tools && req.tools.length > 0) {
       const tool = req.tools[0]!;
       const input = this.extractFacts(req.messages) ?? {};
+      const id = `offline-${tool.name}`;
       return {
         text: "",
-        toolCalls: [{ id: `offline-${tool.name}`, name: tool.name, input }],
+        toolCalls: [{ id, name: tool.name, input }],
+        content: [{ type: "tool_use", id, name: tool.name, input }],
         stopReason: "tool_use",
+        truncated: false,
         usage: { input: 0, output: 0 },
       };
     }
@@ -290,9 +587,13 @@ export class OfflineProvider implements ModelProvider {
         const t = r.totals as { count: number; totalEffortWeeks: number; totalHorizonValue: number; landingCount: number };
         const top = (r.ranked as { id: string; title: string; valuePerEffort: number }[]).slice(0, 3);
         const cap = r.capacity as { feasible: boolean; overCommitmentWeeks: number } | undefined;
+        const plan = r.plan as { inPlan: string[]; deferred: string[]; valueCaptured: number; valueDeferred: number } | undefined;
         return [
           `Over the ${String(r.horizon)}, ${t.count} active use cases carry ${t.totalEffortWeeks} person-weeks of work, and ${eur(t.totalHorizonValue)} of value lands within the horizon (${t.landingCount} go live in time).`,
-          cap ? (cap.feasible ? "This fits the team's capacity." : `This is over capacity by ${cap.overCommitmentWeeks} person-weeks — sequence or drop the weakest items.`) : "",
+          cap ? (cap.feasible ? "This fits the team's capacity." : `This is over capacity by ${cap.overCommitmentWeeks} person-weeks.`) : "",
+          plan && plan.deferred.length > 0
+            ? `To fit the budget, keep ${plan.inPlan.length} (${eur(plan.valueCaptured)} captured) and defer ${plan.deferred.length} (${eur(plan.valueDeferred)}): ${plan.deferred.join(", ")}.`
+            : "",
           `Best value per effort: ${top.map((x) => `${x.id} (${eur(x.valuePerEffort)}/pw)`).join(", ")}.`,
         ].filter(Boolean).join(" ") + note;
       }
@@ -339,11 +640,24 @@ export class OfflineProvider implements ModelProvider {
   }
 
   private reply(text: string): ModelResponse {
-    return { text, toolCalls: [], stopReason: "end_turn", usage: { input: 0, output: 0 } };
+    return {
+      text,
+      toolCalls: [],
+      content: [{ type: "text", text }],
+      stopReason: "end_turn",
+      truncated: false,
+      usage: { input: 0, output: 0 },
+    };
   }
 }
 
-export type ProviderName = "anthropic" | "openai" | "offline";
+/**
+ * A provider name is now open-ended — the catalogue decides what exists, not a
+ * union in this file. `offline` and the two built-ins are still guaranteed, but
+ * an OpenAI-compatible gateway is just another catalogue entry, which is what
+ * makes the portal genuinely provider-agnostic: adding one is data, not code.
+ */
+export type ProviderName = string;
 
 export interface ProviderStatus {
   provider: ProviderName;
@@ -352,50 +666,158 @@ export interface ProviderStatus {
   model?: string;
 }
 
+/** The wire protocol a provider speaks. Two cover the field: Anthropic's own
+ *  Messages API, and the OpenAI Chat Completions shape that nearly every other
+ *  vendor and local runtime (OpenRouter, Groq, Together, Azure, Ollama, vLLM…)
+ *  also implements. */
+export type ProviderProtocol = "anthropic" | "openai";
+
+export interface ProviderDef {
+  id: string;
+  label: string;
+  protocol: ProviderProtocol;
+  /** Env var holding the API key. Absent only for offline. */
+  keyEnv?: string;
+  /** Env var overriding the base URL. */
+  baseUrlEnv?: string;
+  /** Env var overriding the model. */
+  modelEnv?: string;
+  /** Base URL used when the env var is absent. */
+  defaultBaseUrl?: string;
+  /** Model used when the env var is absent. Absent for a pure gateway whose
+   *  model is whatever you point it at. */
+  defaultModel?: string;
+  /** The base URL is the whole identity of the provider — it must be set for the
+   *  provider to be usable (the generic OpenAI-compatible gateway). */
+  requiresBaseUrl?: boolean;
+  /** Suggested models for the picker. Never a hard allow-list — a compatible
+   *  gateway serves arbitrary names, so free text is always accepted too. */
+  suggestedModels: string[];
+  /** Auto-selection order when nothing is forced; lower wins. */
+  priority: number;
+  /** One line for the options page. */
+  blurb: string;
+}
+
+/**
+ * The provider catalogue — the single source of truth for what the portal can
+ * talk to. Anthropic is native; `openai` is the vendor; `openai-compatible` is
+ * the same wire protocol pointed at any base URL, which is how one entry covers
+ * OpenRouter, Groq, Together, Azure OpenAI, Ollama, vLLM and anything else that
+ * speaks Chat Completions. `offline` is always present and needs no key.
+ */
+export const PROVIDERS: readonly ProviderDef[] = [
+  {
+    id: "anthropic",
+    label: "Anthropic (Claude)",
+    protocol: "anthropic",
+    keyEnv: "ANTHROPIC_API_KEY",
+    baseUrlEnv: "ANTHROPIC_BASE_URL",
+    modelEnv: "ANTHROPIC_MODEL",
+    defaultBaseUrl: "https://api.anthropic.com",
+    defaultModel: DEFAULT_MODEL,
+    suggestedModels: ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5", "claude-opus-4-8"],
+    priority: 1,
+    blurb: "Claude, called natively over the Messages API. The portal's default.",
+  },
+  {
+    id: "openai",
+    label: "OpenAI (GPT)",
+    protocol: "openai",
+    keyEnv: "OPENAI_API_KEY",
+    baseUrlEnv: "OPENAI_BASE_URL",
+    modelEnv: "OPENAI_MODEL",
+    defaultBaseUrl: "https://api.openai.com/v1",
+    defaultModel: DEFAULT_OPENAI_MODEL,
+    suggestedModels: ["gpt-4o", "gpt-4o-mini", "o3", "o3-mini"],
+    priority: 2,
+    blurb: "OpenAI's own endpoint over Chat Completions.",
+  },
+  {
+    id: "openai-compatible",
+    label: "OpenAI-compatible endpoint",
+    protocol: "openai",
+    keyEnv: "OPENAI_COMPAT_API_KEY",
+    baseUrlEnv: "OPENAI_COMPAT_BASE_URL",
+    modelEnv: "OPENAI_COMPAT_MODEL",
+    requiresBaseUrl: true,
+    suggestedModels: [],
+    priority: 3,
+    blurb: "Any endpoint that speaks the OpenAI Chat Completions API — OpenRouter, Groq, Together, Azure OpenAI, Ollama, vLLM, a local runtime. Set its base URL, key and model.",
+  },
+  {
+    id: "offline",
+    label: "Offline (deterministic)",
+    protocol: "openai", // unused; offline never builds a transport
+    suggestedModels: [],
+    priority: 99,
+    blurb: "No key required. Deterministic rule-based engine — the honest demo, and the floor every live provider falls back to.",
+  },
+];
+
+export function providerById(id: string | undefined): ProviderDef | undefined {
+  return PROVIDERS.find((p) => p.id === id);
+}
+
 function has(v: string | undefined): boolean {
   return typeof v === "string" && v.trim() !== "";
 }
 
+/** Is this provider usable in the given environment? Offline always is; the
+ *  rest need their key, and a gateway also needs its base URL. */
+export function providerAvailable(def: ProviderDef, env: Record<string, string | undefined> = process.env): boolean {
+  if (def.id === "offline") return true;
+  if (def.keyEnv && !has(env[def.keyEnv])) return false;
+  if (def.requiresBaseUrl && !has(def.baseUrlEnv ? env[def.baseUrlEnv] : undefined)) return false;
+  return true;
+}
+
+/** The provider chosen for the environment — the forced one if it is available,
+ *  else the highest-priority available non-offline provider, else offline. */
+function selectProvider(env: Record<string, string | undefined>): ProviderDef {
+  const offline = providerById("offline")!;
+  const forcedId = env.MODEL_PROVIDER?.trim().toLowerCase();
+  if (forcedId) {
+    const forced = providerById(forcedId);
+    if (forced && providerAvailable(forced, env)) return forced;
+    if (forcedId === "offline") return offline;
+    // A forced-but-unavailable provider falls through to auto-selection rather
+    // than silently going offline behind the operator's back — but if nothing
+    // else is available they still land on offline, which is honest.
+  }
+  const auto = [...PROVIDERS]
+    .filter((p) => p.id !== "offline" && providerAvailable(p, env))
+    .sort((a, b) => a.priority - b.priority)[0];
+  return auto ?? offline;
+}
+
+/** The model a provider would use in this environment. */
+export function modelFor(def: ProviderDef, env: Record<string, string | undefined> = process.env): string | undefined {
+  if (def.id === "offline") return undefined;
+  const fromEnv = def.modelEnv ? env[def.modelEnv]?.trim() : undefined;
+  return fromEnv || def.defaultModel;
+}
+
 /**
  * Decide which provider is active WITHOUT constructing it or touching a key —
- * safe to call from a server component to render the status chip. Selection:
- * `MODEL_PROVIDER` override (anthropic|openai|offline) if its key is present,
- * else Anthropic if keyed, else OpenAI if keyed, else offline.
+ * safe to call from a server component to render the status chip. Catalogue-
+ * driven: `MODEL_PROVIDER` forces a choice when that provider is available, else
+ * the highest-priority keyed provider wins, else offline.
  */
 export function describeProvider(env: Record<string, string | undefined> = process.env): ProviderStatus {
-  const forced = env.MODEL_PROVIDER?.trim().toLowerCase() as ProviderName | undefined;
-  const hasA = has(env.ANTHROPIC_API_KEY);
-  const hasO = has(env.OPENAI_API_KEY);
-
-  let provider: ProviderName;
-  if (forced === "offline") provider = "offline";
-  else if (forced === "anthropic" && hasA) provider = "anthropic";
-  else if (forced === "openai" && hasO) provider = "openai";
-  else if (hasA) provider = "anthropic";
-  else if (hasO) provider = "openai";
-  else provider = "offline";
-
-  if (provider === "anthropic") return { provider, live: true, model: env.ANTHROPIC_MODEL ?? DEFAULT_MODEL };
-  if (provider === "openai") return { provider, live: true, model: env.OPENAI_MODEL ?? DEFAULT_OPENAI_MODEL };
-  return { provider, live: false };
+  const def = selectProvider(env);
+  if (def.id === "offline") return { provider: "offline", live: false };
+  return { provider: def.id, live: true, model: modelFor(def, env) };
 }
 
 /** Construct the active provider from the environment. */
 export function getProvider(env: Record<string, string | undefined> = process.env): ModelProvider {
-  const status = describeProvider(env);
-  if (status.provider === "anthropic") {
-    return new AnthropicProvider({
-      apiKey: env.ANTHROPIC_API_KEY!,
-      baseUrl: env.ANTHROPIC_BASE_URL,
-      model: env.ANTHROPIC_MODEL,
-    });
-  }
-  if (status.provider === "openai") {
-    return new OpenAIProvider({
-      apiKey: env.OPENAI_API_KEY!,
-      baseUrl: env.OPENAI_BASE_URL,
-      model: env.OPENAI_MODEL,
-    });
-  }
-  return new OfflineProvider();
+  const def = selectProvider(env);
+  if (def.id === "offline") return new OfflineProvider();
+  const opts = {
+    apiKey: (def.keyEnv ? env[def.keyEnv] : undefined) ?? "",
+    baseUrl: (def.baseUrlEnv ? env[def.baseUrlEnv]?.trim() : undefined) || def.defaultBaseUrl,
+    model: modelFor(def, env),
+  };
+  return def.protocol === "anthropic" ? new AnthropicProvider(opts) : new OpenAIProvider(opts);
 }

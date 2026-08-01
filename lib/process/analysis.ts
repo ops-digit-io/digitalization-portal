@@ -6,7 +6,9 @@
  * demands from the profile so it also works with no model key (offline).
  */
 
-import { getProvider, type ToolSpec } from "../agent/provider";
+import { type ToolSpec } from "../agent/provider";
+import { resolveProvider } from "../model-settings";
+import { recordUsage } from "../usage-meter";
 import { loadGoverning, stripFrontmatter } from "../agent/governing";
 import { composeSystemPrompt, governedBy, resolveGovernance } from "../agent/compose";
 import { agentPrompt } from "./prompts";
@@ -197,7 +199,7 @@ export async function analyse(
   const assessed = profile.ratedCount > 0;
   if (!assessed) return { demands: [], live: false, assessed };
 
-  const provider = getProvider();
+  const provider = await resolveProvider();
   const speak = locale === "de" ? "Antworte auf Deutsch." : "Respond in English.";
   // The pre-funnel's demand split runs on the composed library like every other
   // agent: the playbook names `demand-splitting`, which itself composes
@@ -220,7 +222,20 @@ export async function analyse(
   });
 
   try {
-    const res = await provider.complete({ system: `${system}\n\n${speak}`, messages: [{ role: "user", content: user }], tools: [proposeTool], maxTokens: 3000 });
+    // `speak` is already in the user turn. Appending it to the system prompt as
+    // well made the composed governance prefix differ per locale, so every
+    // German run missed the cache the English runs had just written — for a
+    // sentence the model had already read.
+    const res = await provider.complete({
+      system,
+      messages: [{ role: "user", content: user }],
+      tools: [proposeTool],
+      toolChoice: { type: "tool", name: proposeTool.name },
+      // Room for the reasoning AND the list of demands. Below this the demands
+      // are what get cut, and a cut list falls silently back to the seed.
+      maxTokens: 8000,
+    });
+    await recordUsage({ feature: "process.analysis", provider: provider.name, model: provider.model, usage: res.usage });
     const raw = (res.toolCalls[0]?.input as { demands?: DemandProposal[] } | undefined)?.demands;
     const demands = Array.isArray(raw) && raw.length ? raw : seed;
     return { demands: demands.map(normalise), live: provider.live, assessed, ...(g ? { governance: governedBy(g) } : {}) };

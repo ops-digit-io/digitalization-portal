@@ -23,6 +23,17 @@ export interface RetryOptions {
   timeoutMs?: number;
   /** Cap on a server-sent Retry-After, ms. Default 5 000. */
   retryAfterCapMs?: number;
+  /**
+   * Streaming callers only. When set, `timeoutMs` bounds the wait for the
+   * response HEADERS, and the attempt's `AbortController` is handed over here so
+   * the caller can run its own inactivity deadline while the body arrives.
+   *
+   * Without this, a whole-request timeout aborts a long but perfectly healthy
+   * generation mid-stream: a 9 000-token digest legitimately takes longer than
+   * any sane per-attempt timeout, and the failure would look like a network
+   * fault rather than what it is.
+   */
+  onResponse?: (controller: AbortController) => void;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -53,14 +64,24 @@ export async function fetchRetry(url: string, init: RequestInit, opts: RetryOpti
 
   let lastError: unknown;
   for (let attempt = 1; attempt <= attempts; attempt++) {
+    // Streaming attempts get a controller the caller keeps alive; everything
+    // else keeps the simple whole-request deadline.
+    const handover = opts.onResponse;
+    const ctl = handover ? new AbortController() : undefined;
+    const headerTimer = ctl ? setTimeout(() => ctl.abort(new Error("headers timed out")), timeoutMs) : undefined;
     try {
-      const res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
-      if (!isTransientStatus(res.status) || attempt === attempts) return res;
+      const res = await fetch(url, { ...init, signal: ctl ? ctl.signal : AbortSignal.timeout(timeoutMs) });
+      if (headerTimer) clearTimeout(headerTimer);
+      if (!isTransientStatus(res.status) || attempt === attempts) {
+        if (ctl && handover) handover(ctl);
+        return res;
+      }
       lastError = new Error(`HTTP ${res.status}`);
       // Drain the body so the socket can be reused before the retry.
       await res.arrayBuffer().catch(() => undefined);
       await sleep(retryAfterMs(res, cap) ?? baseMs * 2 ** (attempt - 1));
     } catch (err) {
+      if (headerTimer) clearTimeout(headerTimer);
       lastError = err;
       if (attempt === attempts) break;
       await sleep(baseMs * 2 ** (attempt - 1));
