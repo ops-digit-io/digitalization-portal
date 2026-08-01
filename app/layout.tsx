@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { AppHeader } from "@/components/portal/app-header";
+import { Telemetry } from "@/components/portal/telemetry";
 
 export const metadata: Metadata = {
   title: "Digitalization Portal",
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <AppHeader />
           {children}
+          <Telemetry />
         </Providers>
       </body>
     </html>

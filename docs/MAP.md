@@ -367,30 +367,44 @@ And when the model answers, but badly:
 
 ---
 
-## 6. What the portal spends
+## 6. What the portal spends, and how it's used — the telemetry tool
 
-Every live model call is metered — which feature made it, which model answered,
-and the tokens it cost — so the operator can see the bill and decide what to
-limit. Recording is one pipelined KV write on the call's own path (`recordUsage`),
-fire-safe: a metering failure never touches the call it measures. `/admin/usage`
-(admin-only) rolls it up.
+One tool measures both interfaces the portal has: the **AI interface** (every
+model call) and the **human interface** (every view and click). Both roll up into
+the same KV store, and `/admin/usage` (a first-class tool, on the launchpad)
+reads them together, so the question is not just "what does the model cost" but
+"how is the portal actually used, and what should we limit".
 
 ```mermaid
 graph LR
-  SEAM["every model call<br/><i>llm.chat · analysis · champions · research · intake · agent loop</i>"] -->|recordUsage| KV["KV day buckets<br/><i>by feature · by model</i>"]
+  AI["every model call<br/><i>llm.chat · analysis · champions · research · intake · agent loop</i>"] -->|recordUsage| KV["KV day buckets"]
+  UI["every view & click<br/><i>&lt;Telemetry/&gt; in the root layout</i>"] -->|/api/usage/track → recordUiEvents| KV
   KV -->|readUsage| RPT["rollup"]
-  RPT --> COST["cost = tokens × lib/pricing.ts"]
-  RPT --> VOL["volume by feature"]
+  RPT --> COST["cost by model"]
+  RPT --> FEAT["AI calls by feature"]
+  RPT --> TOOL["views & clicks by tool"]
   COST --> PAGE["/admin/usage"]
-  VOL --> PAGE
+  FEAT --> PAGE
+  TOOL --> PAGE
 ```
 
-Two axes, because they answer different questions. **Cost is by model** — switch
-the default model in the options to trade capability for spend. **Volume is by
-feature** — that is the "what to limit" view, and the levers are already there:
-the `AGENT_TOOLS` kill switch and the model picker today, per-feature limits when
-the numbers say which feature to cap. Costs are estimates from a small
-hand-maintained price table, always labelled as such; an unpriced model is shown
-as volume with no cost rather than a guess. Metering records only counts and
-model names — never prompt or response content — and needs KV, without which the
-overview reads zero and says it needs a store.
+Three axes, because they answer three questions:
+
+- **Cost is by model.** Switch the default model in the options to trade
+  capability for spend.
+- **AI volume is by feature.** The "which AI step to limit" view — the
+  `AGENT_TOOLS` kill switch and the model picker are today's levers, per-feature
+  caps when the numbers say which to cap.
+- **Human volume is by tool.** Views and clicks per portal tool (`process`,
+  `champions`, `requirements`, …), so "how many clicks which tool has" and which
+  tools people actually reach for is answerable.
+
+Recording never touches the thing it measures: the AI meter is one pipelined KV
+write on the call's own path, the UI meter is a batched `sendBeacon` flushed
+every few seconds and on page-hide — both fire-safe and both no-ops without KV.
+It is **aggregate and content-free by construction**: a tool id, a model name, a
+token count, an event kind — never a user, a path detail, a record id, or
+anything typed. That is the same principle the people-facing tools hold to
+(§4): a measure of the system, never of a person. Costs are estimates from a
+small hand-maintained price table, always labelled as such; an unpriced model is
+shown as volume with no cost rather than a guess.

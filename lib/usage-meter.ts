@@ -23,6 +23,7 @@
 
 import { kvConfigured, kvPipeline, kvCommand } from "./kv.js";
 import { estimateCost, isPriced, type TokenCounts } from "./pricing.js";
+import { isUiEventType, type UiEventType } from "./portal-tools.js";
 
 /** Days a day-bucket is kept before it expires out of KV. */
 const RETENTION_DAYS = 120;
@@ -113,6 +114,50 @@ export interface Rollup {
   cost: number | null;
 }
 
+/** UI activity for one tool — the "how many clicks which tool has" rollup. */
+export interface ToolRollup {
+  key: string;
+  views: number;
+  clicks: number;
+  actions: number;
+  total: number;
+}
+
+/** One UI interaction: which tool, and what kind. Content-free by design. */
+export interface UiEvent {
+  tool: string;
+  type: UiEventType;
+}
+
+/**
+ * Record a batch of UI interactions (views / clicks / actions), one pipelined
+ * write. Aggregate and content-free: it counts that a tool was used, never who
+ * used it or what they typed. No-op and non-throwing without a store, exactly
+ * like the AI meter.
+ */
+export async function recordUiEvents(events: UiEvent[], at: Date = new Date()): Promise<void> {
+  if (!usageMeterEnabled() || events.length === 0) return;
+  const key = dayKey(at);
+  const date = at.toISOString().slice(0, 10);
+  // Fold the batch into per-(tool,type) increments so a burst of clicks is a few
+  // HINCRBYs, not one per click.
+  const counts = new Map<string, number>();
+  for (const e of events) {
+    if (!isUiEventType(e.type)) continue;
+    const field = `u:${seg(e.tool)}:${e.type}`;
+    counts.set(field, (counts.get(field) ?? 0) + 1);
+  }
+  if (counts.size === 0) return;
+  const commands: (string | number)[][] = [];
+  for (const [field, by] of counts) commands.push(["HINCRBY", key, field, by]);
+  commands.push(["EXPIRE", key, RETENTION_SECONDS], ["SADD", "usage:days", date]);
+  try {
+    await kvPipeline(commands);
+  } catch {
+    /* telemetry must never break a page */
+  }
+}
+
 export interface DailyPoint {
   date: string;
   calls: number;
@@ -126,9 +171,11 @@ export interface UsageReport {
   days: number;
   from: string;
   to: string;
-  totals: { calls: number; input: number; output: number; cacheRead: number; cacheWrite: number; cost: number | null };
+  totals: { calls: number; input: number; output: number; cacheRead: number; cacheWrite: number; cost: number | null; views: number; clicks: number };
   byFeature: Rollup[];
   byModel: Rollup[];
+  /** UI activity per tool — the human-interface half of the picture. */
+  byTool: ToolRollup[];
   daily: DailyPoint[];
   /** True when at least one model in the window isn't in the pricing table, so
    *  the total is a floor, not the whole bill. */
@@ -162,6 +209,20 @@ function accumulate(into: Map<string, Rollup>, kind: "f" | "m", fields: Map<stri
   }
 }
 
+function accumulateTools(into: Map<string, ToolRollup>, fields: Map<string, number>): void {
+  for (const [field, value] of fields) {
+    const m = /^u:(.+):(view|click|action)$/.exec(field);
+    if (!m) continue;
+    const name = m[1]!;
+    const row = into.get(name) ?? { key: name, views: 0, clicks: 0, actions: 0, total: 0 };
+    if (m[2] === "view") row.views += value;
+    else if (m[2] === "click") row.clicks += value;
+    else row.actions += value;
+    row.total = row.views + row.clicks + row.actions;
+    into.set(name, row);
+  }
+}
+
 /** The last `days` day-strings ending at `to` (inclusive), oldest first. */
 function dateRange(days: number, to: Date): string[] {
   const out: string[] = [];
@@ -184,9 +245,10 @@ export async function readUsage(days = 30, to: Date = new Date()): Promise<Usage
     days,
     from: dates[0]!,
     to: dates[dates.length - 1]!,
-    totals: { calls: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0 },
+    totals: { calls: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, views: 0, clicks: 0 },
     byFeature: [],
     byModel: [],
+    byTool: [],
     daily: dates.map((date) => ({ date, calls: 0, input: 0, output: 0, cost: 0 })),
     hasUnpriced: false,
   };
@@ -202,12 +264,14 @@ export async function readUsage(days = 30, to: Date = new Date()): Promise<Usage
 
   const featureRoll = new Map<string, Rollup>();
   const modelRoll = new Map<string, Rollup>();
+  const toolRoll = new Map<string, ToolRollup>();
   const daily: DailyPoint[] = [];
 
   dates.forEach((date, i) => {
     const fields = dayMaps[i]!;
     accumulate(featureRoll, "f", fields);
     accumulate(modelRoll, "m", fields);
+    accumulateTools(toolRoll, fields);
     // Per-day point: sum the feature rows for this single day's fields.
     const dayFeat = new Map<string, Rollup>();
     accumulate(dayFeat, "f", fields);
@@ -235,6 +299,7 @@ export async function readUsage(days = 30, to: Date = new Date()): Promise<Usage
   const sum = (rows: Iterable<Rollup>, k: keyof Rollup) => [...rows].reduce((a, r) => a + (r[k] as number), 0);
   const byFeature = [...featureRoll.values()].sort((a, b) => b.calls - a.calls);
   const byModel = [...modelRoll.values()].sort((a, b) => (b.cost ?? 0) - (a.cost ?? 0));
+  const byTool = [...toolRoll.values()].sort((a, b) => b.total - a.total);
 
   return {
     enabled: true,
@@ -248,9 +313,12 @@ export async function readUsage(days = 30, to: Date = new Date()): Promise<Usage
       cacheRead: sum(byModel, "cacheRead"),
       cacheWrite: sum(byModel, "cacheWrite"),
       cost: totalCost,
+      views: byTool.reduce((a, t) => a + t.views, 0),
+      clicks: byTool.reduce((a, t) => a + t.clicks, 0),
     },
     byFeature,
     byModel,
+    byTool,
     daily,
     hasUnpriced,
   };

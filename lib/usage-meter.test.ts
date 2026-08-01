@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { recordUsage, readUsage, usageMeterEnabled, FEATURES } from "./usage-meter.js";
+import { recordUsage, recordUiEvents, readUsage, usageMeterEnabled, FEATURES } from "./usage-meter.js";
 
 const AT = new Date("2026-08-01T12:00:00.000Z");
 
@@ -104,5 +104,43 @@ describe("with a store", () => {
     expect(r.hasUnpriced).toBe(true);
     expect(r.byModel[0]!.cost).toBeNull();
     expect(r.byModel[0]!.input).toBe(1_000_000); // still counted as volume
+  });
+
+  it("folds a batch of UI events into per-(tool,type) increments", async () => {
+    let sent: unknown[][] = [];
+    vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+      sent = JSON.parse(String(init.body));
+      return new Response(JSON.stringify(sent.map(() => ({ result: 1 }))), { status: 200 });
+    });
+    await recordUiEvents(
+      [
+        { tool: "process", type: "view" },
+        { tool: "process", type: "click" },
+        { tool: "process", type: "click" },
+        { tool: "champions", type: "view" },
+      ],
+      AT,
+    );
+    const flat = sent.map((c) => c.join(" "));
+    // Three process events collapse to two HINCRBYs (view +1, click +2), not four.
+    expect(flat).toContain("HINCRBY usage:d:2026-08-01 u:process:view 1");
+    expect(flat).toContain("HINCRBY usage:d:2026-08-01 u:process:click 2");
+    expect(flat).toContain("HINCRBY usage:d:2026-08-01 u:champions:view 1");
+  });
+
+  it("aggregates UI activity per tool alongside the AI rollups", async () => {
+    const dayHash = [
+      "u:process:view", "10", "u:process:click", "25",
+      "u:champions:view", "4",
+      "m:claude-opus-5:calls", "1", "m:claude-opus-5:in", "0", "m:claude-opus-5:out", "0",
+    ];
+    const RESULTS: unknown[] = [dayHash];
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify(RESULTS.map((r) => ({ result: r }))), { status: 200 }));
+    const r = await readUsage(1, AT);
+    expect(r.totals.views).toBe(14);
+    expect(r.totals.clicks).toBe(25);
+    // Sorted by total activity: process (35) before champions (4).
+    expect(r.byTool.map((t) => t.key)).toEqual(["process", "champions"]);
+    expect(r.byTool[0]).toMatchObject({ key: "process", views: 10, clicks: 25, total: 35 });
   });
 });

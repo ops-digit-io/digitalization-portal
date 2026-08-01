@@ -93,6 +93,8 @@ const DE: Strings = {
   "tile.traces.subtitle": "Wiederholbare KI-Läufe",
   "tile.digest.title": "Review-Digest",
   "tile.digest.subtitle": "Fällige Termine & Stillstand",
+  "tile.usage.title": "Nutzung & Kosten",
+  "tile.usage.subtitle": "KI-Kosten und Portal-Nutzung je Tool (Admin)",
   "tile.settings.title": "Administration",
   "tile.settings.subtitle": "Rollen, Skills, Playbooks",
 };
