@@ -5,6 +5,11 @@ The reference map. Three of the four files here are **generated from the source 
 quietly go stale — a hand-maintained diagram is wrong within a fortnight and, being
 wrong, is worse than none, because a reader trusts a diagram.
 
+Two repositories carry what this one deliberately does not:
+**`du-agent-registry`** (playbooks · skills · contracts) and **`du-templates`**
+(artefact templates). Populate them locally with `npm run content:pull`; without
+them the portal still runs, and says so — see §5.
+
 | File | What it covers | Kept true by |
 |---|---|---|
 | **MAP.md** (this file) | how the pieces fit, and the journeys through them | reviewed by hand |
