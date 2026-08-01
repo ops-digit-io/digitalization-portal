@@ -200,7 +200,12 @@ export async function create(
 }
 
 export async function writeMeta(slug: string, patch: Partial<EngagementMeta>, now: string): Promise<EngagementMeta> {
-  const current = (await meta(slug)) ?? ({ slug: slugify(slug), gates: {}, components: [] } as unknown as EngagementMeta);
+  // Refuse to fabricate: if the meta cannot be read, writing `patch` over a
+  // synthesised empty one would wipe the engagement's title, scores and filled
+  // index — the patch would survive, everything else would not. `create()` is
+  // the only place a meta comes into being.
+  const current = await meta(slug);
+  if (!current) throw Object.assign(new Error(`no such engagement: ${slugify(slug)}`), { status: 404 });
   const m = { ...current, ...patch, updatedAt: now } as EngagementMeta;
   await putRaw(`${relDir(slug)}/${META}`, JSON.stringify(m, null, 2), `Update process engagement ${slug}`);
   return m;
