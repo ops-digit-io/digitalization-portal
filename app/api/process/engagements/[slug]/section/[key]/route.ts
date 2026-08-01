@@ -3,6 +3,7 @@ import { sectionByKey } from "@/lib/process/sections";
 import { grade } from "@/lib/process/grader";
 import { schemaOf } from "@/lib/process/schemas";
 import * as store from "@/lib/process/store";
+import { sectionTemplate } from "@/lib/process/templates";
 import { deny, now } from "@/lib/process/guard";
 
 export const runtime = "nodejs";
@@ -15,8 +16,10 @@ export async function GET(_req: Request, { params }: { params: { slug: string; k
   if (!sectionByKey[key]) return NextResponse.json({ error: "no such section" }, { status: 404 });
   if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
   // The template ships with the section, not with /config: it is large and only
-  // the section actually being worked needs it.
-  return NextResponse.json({ template: sectionByKey[key]!.template, content: await store.readSection(slug, key) });
+  // the section actually being worked needs it. It comes from `du-templates`, so
+  // `templateAvailable` tells the UI whether "Load template" can do anything.
+  const [template, content] = await Promise.all([sectionTemplate(key), store.readSection(slug, key)]);
+  return NextResponse.json({ template, content, templateAvailable: template !== "" });
 }
 
 export async function PUT(req: Request, { params }: { params: { slug: string; key: string } }) {

@@ -16,6 +16,7 @@ import { sectionByKey, SECTIONS, groupById } from "./sections";
 import * as store from "./store";
 import { shared, dimensionCoach, sectionCoach, agentPrompt } from "./prompts";
 import { render } from "./render";
+import { MISSING_TEMPLATE, sectionTemplate } from "./templates";
 import * as C from "./content";
 import type { Locale } from "../i18n";
 
@@ -91,7 +92,9 @@ export async function buildSection(slug: string, key: string, locale: Locale = "
   if (!sec) throw new Error(`unknown section ${key}`);
   const group = groupById[sec.group];
   const m = (await store.meta(slug))!;
-  const [sharedText, stance, current] = await Promise.all([shared(), sectionCoach(key), store.readSection(slug, key)]);
+  const [sharedText, stance, current, tpl] = await Promise.all([
+    shared(), sectionCoach(key), store.readSection(slug, key), sectionTemplate(key),
+  ]);
 
   // Prior context: the sections earlier in the sequence that already have content.
   const priorParts: string[] = [];
@@ -122,7 +125,7 @@ export async function buildSection(slug: string, key: string, locale: Locale = "
     sharedText,
     // How to run THIS interview — the section's own coaching prompt.
     stance ? `<coaching-prompt>\n${stance}\n</coaching-prompt>` : "",
-    `<target-template>\n${sec.template}\n</target-template>`,
+    `<target-template>\n${tpl || MISSING_TEMPLATE}\n</target-template>`,
     priorParts.length ? `<earlier-sections>\n${priorParts.join("\n\n")}\n</earlier-sections>` : "",
     current.trim() ? `<current-draft>\nBuild on this; discard nothing that is evidenced.\n\n${current}\n</current-draft>` : "",
     tail,

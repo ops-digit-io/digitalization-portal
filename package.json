@@ -2,16 +2,19 @@
   "name": "digitalization-portal",
   "version": "0.1.0",
   "private": true,
-  "description": "Digital Unit Portal — control plane for enterprise change demand. Git is the system of record; every artifact is markdown.",
+  "description": "Digital Unit Portal \u2014 control plane for enterprise change demand. Git is the system of record; every artifact is markdown.",
   "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "content:pull": "node scripts/content-pull.mjs",
+    "content:check": "node scripts/content-pull.mjs --check",
+    "docs": "node scripts/gen-docs.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "check": "npm run typecheck && npm run test && npm run build"
+    "check": "npm run content:pull && npm run typecheck && npm run test && npm run build"
   },
   "engines": {
     "node": ">=20"

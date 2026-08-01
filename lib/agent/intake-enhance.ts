@@ -28,7 +28,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { INTAKE_FIELDS, type DemandAnswers } from "../demand.js";
-import { readEntryFile } from "../registry-store.js";
+import { loadGoverning } from "./governing.js";
 import { getProvider, type ModelProvider } from "./provider.js";
 
 /** The git-managed playbook that governs this agent's behaviour. */
@@ -198,10 +198,10 @@ Include a field key ONLY if the requester provided that field. openQuestions: ma
  * yet, so a fresh deployment still runs on the full playbook rather than the stub.
  */
 async function loadEnhanceGuidance(): Promise<string> {
-  const fromRegistry = await readEntryFile("playbook", ENHANCE_PLAYBOOK).catch(() => undefined);
-  if (fromRegistry && fromRegistry.trim()) return fromRegistry.trim();
-  const bundled = await readFile(join(process.cwd(), "playbooks", `${ENHANCE_PLAYBOOK}.md`), "utf8").catch(() => undefined);
-  return (bundled ?? "").trim() || FALLBACK_GUIDANCE;
+  // Registry only — there is no bundled copy in this repo. The stub below is a
+  // last resort that keeps intake usable, and it says what it is.
+  const fromRegistry = await loadGoverning("playbook", ENHANCE_PLAYBOOK).catch(() => "");
+  return fromRegistry.trim() || FALLBACK_GUIDANCE;
 }
 
 /** Compose the system prompt: playbook behaviour + the code-owned output contract. */

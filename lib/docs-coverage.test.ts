@@ -13,6 +13,7 @@ import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
+import { registryRepo } from "./content-repo";
 
 const ROOT = process.cwd();
 
@@ -61,19 +62,29 @@ describe("every surface is on a map", () => {
   });
 
   it("every playbook, skill and contract appears in docs/governance.md", async () => {
+    // The library is in du-agent-registry, mirrored locally — not in this repo.
+    const REG = registryRepo().mirrorDir;
     const md = await readFile(join(ROOT, "docs", "governance.md"), "utf8");
-    const playbooks = (await readdir(join(ROOT, "playbooks")))
+    const playbooks = (await readdir(join(REG, "playbooks")))
       .filter((f) => f.endsWith(".md") && f.toLowerCase() !== "readme.md")
       .map((f) => f.replace(/\.md$/, ""));
-    const skills = (await readdir(join(ROOT, "skills"), { withFileTypes: true }))
+    const skills = (await readdir(join(REG, "skills"), { withFileTypes: true }))
       .filter((e) => e.isDirectory())
       .map((e) => e.name);
-    const contracts = (await readdir(join(ROOT, "contracts")))
+    const contracts = (await readdir(join(REG, "contracts")))
       .filter((f) => f.endsWith(".md"))
       .map((f) => f.replace(/\.md$/, ""));
 
     const missing = [...playbooks, ...skills, ...contracts].filter((n) => !md.includes(n));
     expect(missing).toEqual([]);
+  });
+
+  it("neither the library nor the templates are in this repository any more", async () => {
+    // The whole point of the move: the app repo carries machinery, not method.
+    for (const dir of ["playbooks", "skills", "contracts", "templates", "lib/process/advisory-templates"]) {
+      const present = await readdir(join(ROOT, dir)).then(() => true).catch(() => false);
+      expect(present, `${dir}/ is back in the app repo`).toBe(false);
+    }
   });
 
   it("the hand-written map names every journey the portal actually runs", async () => {

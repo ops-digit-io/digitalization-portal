@@ -19,12 +19,11 @@
  * the same idea comes back a year later.
  */
 
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { SECTIONS } from "./sections";
 import * as store from "./store";
 import { shared, advisoryPrompt, playbook, agentPrompt } from "./prompts";
 import { render } from "./render";
+import { advisoryTemplate, MISSING_TEMPLATE } from "./templates";
 
 export interface AdvisoryItem {
   key: string;
@@ -144,9 +143,9 @@ export async function decide(
 }
 
 // ------------------------------------------------------------------- prompt
+/** The pass's target document shape, from `du-templates`. */
 async function template(key: string): Promise<string> {
-  const p = path.join(process.cwd(), "lib", "process", "advisory-templates", `${key}.md`);
-  return readFile(p, "utf8").catch(() => "");
+  return advisoryTemplate(key);
 }
 
 /** The complete anamnesis, for advisory passes that must see everything at once. */
@@ -192,7 +191,7 @@ export async function build(slug: string, key: string): Promise<string> {
       ? `<caution>\nThese sections this pass depends on are still empty: ${missing.join(", ")}.\nSay so in your output and keep the affected proposals explicitly provisional.\n</caution>`
       : "",
     `<guidance>\n${guidance || "(no advisory prompt on disk yet)"}\n</guidance>`,
-    `<target-template>\n${targetTemplate || "(no template on disk yet)"}\n</target-template>`,
+    `<target-template>\n${targetTemplate || MISSING_TEMPLATE}\n</target-template>`,
     book
       ? `<tool-playbook>\nThis is the organisation's tool playbook. Propose from it by preference. If you\npropose something outside it, say why the playbook does not cover the case.\n\n${book}\n</tool-playbook>`
       : "",

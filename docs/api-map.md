@@ -2,7 +2,7 @@
 
 # API map
 
-Every HTTP endpoint the portal exposes: **55 routes**, grouped by area.
+Every HTTP endpoint the portal exposes: **54 routes**, grouped by area.
 Generated from `app/api/**/route.ts`, so it cannot drift from the code.
 
 ```mermaid
@@ -81,7 +81,6 @@ graph LR
     _api_registry["/<br/><i>GET</i>"]
     _api_registry_save["/save<br/><i>POST</i>"]
     _api_registry_search["/search<br/><i>POST</i>"]
-    _api_registry_sync["/sync<br/><i>POST</i>"]
   end
   subgraph requirements["/api/requirements"]
     _api_requirements["/<br/><i>POST</i>"]
@@ -147,7 +146,6 @@ graph LR
 | `/api/registry` | GET | `app/api/registry/route.ts` |
 | `/api/registry/save` | POST | `app/api/registry/save/route.ts` |
 | `/api/registry/search` | POST | `app/api/registry/search/route.ts` |
-| `/api/registry/sync` | POST | `app/api/registry/sync/route.ts` |
 | `/api/requirements` | POST | `app/api/requirements/route.ts` |
 | `/api/status` | GET | `app/api/status/route.ts` |
 | `/api/webhooks/github` | POST | `app/api/webhooks/github/route.ts` |

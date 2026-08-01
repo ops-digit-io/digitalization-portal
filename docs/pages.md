@@ -22,7 +22,6 @@ graph LR
   _catalog__type___name_ --> _api_registry_save["/api/registry/save"]
   _catalog_new(["/catalog/new"])
   _catalog(["/catalog"])
-  _catalog --> _api_registry_sync["/api/registry/sync"]
   _champions(["/champions"])
   _champions --> _api_champions["/api/champions"]
   _champions --> _api_champions_analyse["/api/champions/analyse"]
@@ -86,7 +85,7 @@ graph LR
 | `/build` | `/api/poc` |
 | `/catalog/[type]/[name]` | `/api/registry`<br/>`/api/registry/item`<br/>`/api/registry/save` |
 | `/catalog/new` | _server-rendered_ |
-| `/catalog` | `/api/registry/sync` |
+| `/catalog` | _server-rendered_ |
 | `/champions` | `/api/champions`<br/>`/api/champions/analyse` |
 | `/demands` | _server-rendered_ |
 | `/digest` | _server-rendered_ |

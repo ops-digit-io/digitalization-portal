@@ -11,6 +11,7 @@ import { probeProvider } from "@/lib/agent/health";
 import { hasGitHubCredentials } from "@/lib/git/host";
 import { getGitHost } from "@/lib/git";
 import { getCurrentUser } from "@/lib/auth/current";
+import { contentReachable, registryRepo, templatesRepo } from "@/lib/content-repo";
 
 /**
  * Does the git system-of-record actually answer? Presence of credentials says
@@ -53,6 +54,15 @@ export async function GET(req: Request) {
       roles: cu.session.roles,
     },
   };
+  // The library and the templates are in their own repos now, so "can we reach
+  // them" is a first-class status question: unreachable governance surfaces here
+  // rather than later as every agent mysteriously losing its playbook.
+  const [registry, templates] = await Promise.all([
+    contentReachable(registryRepo()),
+    contentReachable(templatesRepo()),
+  ]);
+  body.content = { registry, templates };
+
   if (probe) {
     const [health, git] = await Promise.all([probeProvider(), probeGit()]);
     body.health = health;
