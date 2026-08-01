@@ -8,19 +8,21 @@
  * analysis agent additionally has a deterministic offline proposer.
  */
 
-import { getProvider, describeProvider, type ModelMessage } from "../agent/provider";
+import { type ModelMessage } from "../agent/provider";
+import { resolveProvider, resolveStatus } from "../model-settings";
 
-export function provider(): string {
-  return describeProvider().provider;
+export async function provider(): Promise<string> {
+  return (await resolveStatus()).provider;
 }
 
-export function model(): string | null {
-  return describeProvider().model ?? null;
+export async function model(): Promise<string | null> {
+  return (await resolveStatus()).model ?? null;
 }
 
-/** True when a live model key is configured. Offline (no key) is export-only. */
-export function available(): boolean {
-  return describeProvider().live;
+/** True when a live model provider is active. Offline (no key) is export-only.
+ *  Async because the active provider now honours the admin's stored choice. */
+export async function available(): Promise<boolean> {
+  return (await resolveStatus()).live;
 }
 
 export interface ChatResult {
@@ -53,9 +55,9 @@ export async function chat(
   messages: { role: "user" | "assistant"; content: string }[],
   opts: { maxTokens?: number } = {},
 ): Promise<ChatResult> {
-  const status = describeProvider();
+  const status = await resolveStatus();
   if (!status.live) throw new NoKeyError();
-  const p = getProvider();
+  const p = await resolveProvider();
   const res = await p.complete({
     system,
     messages: messages as ModelMessage[],

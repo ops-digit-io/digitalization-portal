@@ -6,7 +6,8 @@
  * demands from the profile so it also works with no model key (offline).
  */
 
-import { getProvider, type ToolSpec } from "../agent/provider";
+import { type ToolSpec } from "../agent/provider";
+import { resolveProvider } from "../model-settings";
 import { loadGoverning, stripFrontmatter } from "../agent/governing";
 import { composeSystemPrompt, governedBy, resolveGovernance } from "../agent/compose";
 import { agentPrompt } from "./prompts";
@@ -197,7 +198,7 @@ export async function analyse(
   const assessed = profile.ratedCount > 0;
   if (!assessed) return { demands: [], live: false, assessed };
 
-  const provider = getProvider();
+  const provider = await resolveProvider();
   const speak = locale === "de" ? "Antworte auf Deutsch." : "Respond in English.";
   // The pre-funnel's demand split runs on the composed library like every other
   // agent: the playbook names `demand-splitting`, which itself composes

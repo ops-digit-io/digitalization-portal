@@ -35,8 +35,8 @@ export async function GET() {
     confidenceLadder: CONFIDENCE_LADDER,
     anflug: ANFLUG,
     directionRules: DIRECTION_RULES,
-    liveCoaching: llm.available(),
-    provider: llm.provider(),
-    model: llm.available() ? llm.model() : null,
+    liveCoaching: await llm.available(),
+    provider: await llm.provider(),
+    model: (await llm.available()) ? await llm.model() : null,
   });
 }

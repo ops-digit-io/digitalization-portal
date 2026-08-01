@@ -10,7 +10,7 @@
 
 import type { DemandAnswers } from "../demand.js";
 import { seedResearchBrief, buildResearchMarkdown, type ResearchMeta } from "../research.js";
-import { getProvider } from "./provider.js";
+import { resolveProvider } from "../model-settings.js";
 import { loadGoverning } from "./governing.js";
 
 /** The library playbook that governs this agent's behaviour. */
@@ -47,7 +47,7 @@ function researchTask(answers: DemandAnswers): string {
 
 /** Produce research.md for a demand — live public research when possible, else the seed. */
 export async function runResearch(answers: DemandAnswers, meta: ResearchMeta): Promise<{ markdown: string; live: boolean }> {
-  const provider = getProvider();
+  const provider = await resolveProvider();
   if (provider.live) {
     try {
       const playbook = await loadResearchPlaybook();

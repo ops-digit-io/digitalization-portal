@@ -55,6 +55,7 @@ graph LR
   _requirements(["/requirements"])
   _requirements --> _api_requirements["/api/requirements"]
   _settings(["/settings"])
+  _settings --> _api_model_settings["/api/model-settings"]
   _settings --> _api_status["/api/status"]
   _simulate(["/simulate"])
   _skill_library(["/skill-library"])
@@ -105,7 +106,7 @@ graph LR
 | `/process` | _server-rendered_ |
 | `/requirements/[id]` | `/api/demands/${encodeURIComponent`<br/>`/api/demands/[id]/verification` |
 | `/requirements` | `/api/requirements` |
-| `/settings` | `/api/status` |
+| `/settings` | `/api/model-settings`<br/>`/api/status` |
 | `/simulate` | _server-rendered_ |
 | `/skill-library` | `/api/registry/import`<br/>`/api/registry/search` |
 | `/triage` | `/api/demands/${encodeURIComponent`<br/>`/api/demands/[id]/advance`<br/>`/api/demands/[id]/triage` |

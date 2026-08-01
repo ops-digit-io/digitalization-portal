@@ -2,7 +2,7 @@
 
 # API map
 
-Every HTTP endpoint the portal exposes: **54 routes**, grouped by area.
+Every HTTP endpoint the portal exposes: **55 routes**, grouped by area.
 Generated from `app/api/**/route.ts`, so it cannot drift from the code.
 
 ```mermaid
@@ -43,6 +43,9 @@ graph LR
     _api_intake["/<br/><i>POST</i>"]
     _api_intake_similar["/similar<br/><i>GET</i>"]
     _api_intake_turn["/turn<br/><i>POST</i>"]
+  end
+  subgraph model_settings["/api/model-settings"]
+    _api_model_settings["/<br/><i>GET POST</i>"]
   end
   subgraph personas["/api/personas"]
     _api_personas_library__id_["/library/[id]<br/><i>GET PUT DELETE</i>"]
@@ -116,6 +119,7 @@ graph LR
 | `/api/intake` | POST | `app/api/intake/route.ts` |
 | `/api/intake/similar` | GET | `app/api/intake/similar/route.ts` |
 | `/api/intake/turn` | POST | `app/api/intake/turn/route.ts` |
+| `/api/model-settings` | GET, POST | `app/api/model-settings/route.ts` |
 | `/api/personas/library/[id]` | GET, PUT, DELETE | `app/api/personas/library/[id]/route.ts` |
 | `/api/personas/library` | GET, POST | `app/api/personas/library/route.ts` |
 | `/api/poc` | POST | `app/api/poc/route.ts` |

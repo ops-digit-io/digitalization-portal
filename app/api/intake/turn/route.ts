@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac";
 import { getSession } from "@/lib/auth/current";
-import { getProvider } from "@/lib/agent/provider";
+import { resolveProvider } from "@/lib/model-settings";
 import { loadIntakeGuideline, intakeSystemPrompt, SAVE_DEMAND_TOOL, INTAKE_PLAYBOOK, INTAKE_SKILLS } from "@/lib/agent/intake-guideline";
 import { startIntake, submitAnswer, type ChatMessage, type IntakeState } from "@/lib/intake-agent";
 import { INTAKE_FIELDS, EMPTY_ANSWERS, missingRequired, type DemandAnswers } from "@/lib/demand";
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     return { ...submitAnswer(body.state, String(body.userText ?? "")), mode: "offline", governedBy: GOVERNED_BY };
   };
 
-  const provider = getProvider();
+  const provider = await resolveProvider();
   if (!provider.live) return NextResponse.json(runOffline());
 
   // Live: the model runs the interview, governed by the playbook system prompt.

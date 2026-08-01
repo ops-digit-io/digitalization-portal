@@ -17,7 +17,7 @@ export async function POST(req: Request, { params }: { params: { slug: string; k
   const { slug, key } = params;
   if (!sectionByKey[key]) return NextResponse.json({ error: "no such section" }, { status: 404 });
   if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
-  if (!llm.available()) return NextResponse.json({ error: "live generation disabled", code: "NO_KEY" }, { status: 503 });
+  if (!(await llm.available())) return NextResponse.json({ error: "live generation disabled", code: "NO_KEY" }, { status: 503 });
   const locale = new URL(req.url).searchParams.get("lang") === "de" ? "de" : "en";
   const prompt = locale === "de" ? "Erzeuge den Abschnitt jetzt." : "Produce the section now.";
   try {

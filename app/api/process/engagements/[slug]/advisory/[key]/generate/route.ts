@@ -14,7 +14,7 @@ export async function POST(_req: Request, { params }: { params: { slug: string; 
   const { slug, key } = params;
   if (!advisoryByKey[key]) return NextResponse.json({ error: "no such advisory pass" }, { status: 404 });
   if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
-  if (!llm.available()) return NextResponse.json({ error: "live generation disabled", code: "NO_KEY" }, { status: 503 });
+  if (!(await llm.available())) return NextResponse.json({ error: "live generation disabled", code: "NO_KEY" }, { status: 503 });
   try {
     const out = await llm.chat(await build(slug, key), [{ role: "user", content: "Run the pass now." }], { maxTokens: 8000 });
     const doc = llm.extractArtefact(out.text) || out.text;

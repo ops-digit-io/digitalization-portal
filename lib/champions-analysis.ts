@@ -15,7 +15,8 @@
  * to ask. The contract forbids it from contradicting the numbers.
  */
 
-import { getProvider, ModelError, type ToolSpec } from "./agent/provider.js";
+import { ModelError, type ToolSpec } from "./agent/provider.js";
+import { resolveProvider } from "./model-settings.js";
 import { composeSystemPrompt, governedBy, resolveGovernance } from "./agent/compose.js";
 import {
   buildCoverage, buildLoads, findCandidates, isActive,
@@ -274,7 +275,7 @@ export async function analyseNetwork(input: AnalysisInput, now: string): Promise
     generatedAt: now,
   };
 
-  const provider = getProvider();
+  const provider = await resolveProvider();
   if (!provider.live) return { ...base, fallback: "no model key is configured" };
 
   const system = composeSystemPrompt(

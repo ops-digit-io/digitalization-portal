@@ -114,10 +114,23 @@ graph LR
 
 ## 2b. How a call reaches the model
 
-One class, `AnthropicProvider`, is the only thing in the portal that knows the
-Messages API exists. Everything else asks `complete()` and gets back the same
-shape whichever provider answered — which is what lets the whole product run
-with no key at all.
+Everything asks `complete()` and gets back the same shape whichever provider
+answered — which is what lets the whole product run with no key at all, and what
+makes it **provider-agnostic**. A `PROVIDERS` catalogue (`lib/agent/provider.ts`)
+is the single source of truth for what the portal can talk to: Anthropic natively
+over the Messages API, OpenAI over Chat Completions, and — the same wire protocol
+pointed at any base URL — **any OpenAI-compatible endpoint** (OpenRouter, Groq,
+Together, Azure OpenAI, Ollama, vLLM, a local runtime). Adding one is a catalogue
+entry, not code.
+
+Which provider and model are active is resolved in three layers, most specific
+first: an **admin's runtime choice** (persisted in KV, set from the options page
+with no redeploy — `lib/model-settings.ts`), then the **environment**
+(`MODEL_PROVIDER`, the per-provider key/base-URL/model vars), then automatic
+selection by priority among whatever is configured, and finally offline. Keys and
+base URLs stay in the environment and never pass through the browser; the options
+picker moves only the *choice*, and offers only providers whose credentials are
+already present.
 
 ```mermaid
 graph TB
@@ -140,9 +153,11 @@ graph TB
 
 Five decisions, each of which is load-bearing:
 
-1. **`claude-opus-5` is the default**, and the model name is what selects the
-   server-tool versions — the older web-search tool is a 400 on a current model
-   and the current one is a 400 on an older one.
+1. **`claude-opus-5` is the default** for the Anthropic provider, and the model
+   name is what selects the server-tool versions — the older web-search tool is a
+   400 on a current model and the current one is a 400 on an older one. Each
+   catalogue provider carries its own default, so there is always a default model
+   whatever the active provider.
 2. **The system prompt is the cache breakpoint.** Render order is tools → system
    → messages, so a marker on the system block caches both. The composed
    governance prompts run to tens of thousands of characters and are

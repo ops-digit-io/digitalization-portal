@@ -29,7 +29,8 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { INTAKE_FIELDS, type DemandAnswers } from "../demand.js";
 import { loadGoverning } from "./governing.js";
-import { getProvider, type ModelProvider } from "./provider.js";
+import { type ModelProvider } from "./provider.js";
+import { resolveProvider } from "../model-settings.js";
 
 /** The git-managed playbook that governs this agent's behaviour. */
 export const ENHANCE_PLAYBOOK = "s1-intake-enhance";
@@ -283,8 +284,11 @@ function fromModelJson(answers: DemandAnswers, parsed: unknown, providerName: st
  */
 export async function enhanceDemand(
   answers: DemandAnswers,
-  provider: ModelProvider = getProvider(),
+  providerArg?: ModelProvider,
 ): Promise<EnhancementResult> {
+  // Resolve the active provider (honouring the admin's stored default) unless a
+  // caller injected one — the test does, to run without a key.
+  const provider = providerArg ?? (await resolveProvider());
   if (!provider.live) return enhanceOffline(answers);
   try {
     const guidance = await loadEnhanceGuidance();

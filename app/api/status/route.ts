@@ -6,7 +6,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { describeProvider } from "@/lib/agent/provider";
+import { resolveStatus } from "@/lib/model-settings";
 import { probeProvider } from "@/lib/agent/health";
 import { hasGitHubCredentials } from "@/lib/git/host";
 import { getGitHost } from "@/lib/git";
@@ -44,7 +44,7 @@ export async function GET(req: Request) {
   const probe = new URL(req.url).searchParams.get("probe") === "1";
   const cu = await getCurrentUser();
   const body: Record<string, unknown> = {
-    model: describeProvider(),
+    model: await resolveStatus(),
     git: { live: hasGitHubCredentials() },
     user: {
       name: cu.name ?? cu.session.user,

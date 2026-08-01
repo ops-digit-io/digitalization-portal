@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { describeConfig, type IntegrationItem, type Level } from "@/lib/config-status";
+import { modelOptions } from "@/lib/model-settings";
+import { getSession } from "@/lib/auth/current";
+import { can } from "@/lib/rbac";
 import { Card } from "@/components/ui/card";
 import { ProviderProbe } from "./probe";
+import { ModelPicker } from "./model-picker";
 
 export const dynamic = "force-dynamic";
 
@@ -39,9 +43,15 @@ function Row({ item }: { item: IntegrationItem }) {
   );
 }
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
   const cfg = describeConfig();
-  const providerLabel = PROVIDER_LABEL[cfg.model.provider] ?? cfg.model.provider;
+  const [options, session] = await Promise.all([modelOptions(), getSession()]);
+  const isAdmin = can(session, "all");
+  // The active model reflects any admin-selected default, not just the env.
+  const activeProviderLabel =
+    options.providers.find((p) => p.id === options.active.provider)?.label ??
+    PROVIDER_LABEL[options.active.provider] ??
+    options.active.provider;
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6">
@@ -72,11 +82,11 @@ export default function SettingsPage() {
         <Card className="p-4">
           <div className="text-xs uppercase tracking-wide text-muted-foreground">Active model</div>
           <div className="mt-1 flex items-center gap-2">
-            <span className="size-2 rounded-full" style={{ background: cfg.model.live ? "hsl(var(--ok))" : "hsl(var(--muted-foreground))" }} aria-hidden />
-            <span className="text-base font-semibold">{providerLabel}</span>
-            {cfg.model.model && <span className="text-xs text-muted-foreground">{cfg.model.model}</span>}
+            <span className="size-2 rounded-full" style={{ background: options.active.live ? "hsl(var(--ok))" : "hsl(var(--muted-foreground))" }} aria-hidden />
+            <span className="text-base font-semibold">{activeProviderLabel}</span>
+            {options.active.model && <span className="text-xs text-muted-foreground">{options.active.model}</span>}
           </div>
-          <div className="mt-0.5 text-xs text-muted-foreground">{cfg.model.live ? "Live reasoning enabled." : "Deterministic offline engine — add a model key to go live."}</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">{options.active.live ? "Live reasoning enabled." : "Deterministic offline engine — add a model key to go live."}</div>
           <ProviderProbe />
         </Card>
         <Card className="p-4">
@@ -88,6 +98,24 @@ export default function SettingsPage() {
           <div className="mt-0.5 text-xs text-muted-foreground">{cfg.gitLive ? "Reads and writes the org repos live." : "Using the bundled workspace — add the App to go live."}</div>
         </Card>
       </div>
+
+      {/* Default model — provider-agnostic runtime selection */}
+      <Card className="mt-5 p-4">
+        <h2 className="text-sm font-semibold">Default model</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          The provider and model every agent uses. Anthropic and OpenAI are built in; any
+          OpenAI-compatible endpoint (OpenRouter, Groq, Together, Azure OpenAI, Ollama, a local
+          runtime) works by setting its base URL, key and model in the environment. Selecting one
+          here overrides the environment default without a redeploy.
+        </p>
+        <ModelPicker
+          providers={options.providers}
+          active={options.active}
+          override={options.override}
+          editable={options.editable}
+          isAdmin={isAdmin}
+        />
+      </Card>
 
       {/* Integration groups */}
       <div className="mt-6 space-y-5">

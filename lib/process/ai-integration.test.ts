@@ -173,8 +173,8 @@ async function mods() {
 describe("every AI module, over the wire", () => {
   it("the provider goes live the moment the key is present", async () => {
     const { llm } = await mods();
-    expect(llm.available()).toBe(true);
-    expect(llm.provider()).toBe("anthropic");
+    expect(await llm.available()).toBe(true);
+    expect(await llm.provider()).toBe("anthropic");
   });
 
   it("section generation: prompt → model → artefact → grade → store", async () => {

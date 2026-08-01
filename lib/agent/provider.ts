@@ -645,7 +645,13 @@ export class OfflineProvider implements ModelProvider {
   }
 }
 
-export type ProviderName = "anthropic" | "openai" | "offline";
+/**
+ * A provider name is now open-ended — the catalogue decides what exists, not a
+ * union in this file. `offline` and the two built-ins are still guaranteed, but
+ * an OpenAI-compatible gateway is just another catalogue entry, which is what
+ * makes the portal genuinely provider-agnostic: adding one is data, not code.
+ */
+export type ProviderName = string;
 
 export interface ProviderStatus {
   provider: ProviderName;
@@ -654,50 +660,158 @@ export interface ProviderStatus {
   model?: string;
 }
 
+/** The wire protocol a provider speaks. Two cover the field: Anthropic's own
+ *  Messages API, and the OpenAI Chat Completions shape that nearly every other
+ *  vendor and local runtime (OpenRouter, Groq, Together, Azure, Ollama, vLLM…)
+ *  also implements. */
+export type ProviderProtocol = "anthropic" | "openai";
+
+export interface ProviderDef {
+  id: string;
+  label: string;
+  protocol: ProviderProtocol;
+  /** Env var holding the API key. Absent only for offline. */
+  keyEnv?: string;
+  /** Env var overriding the base URL. */
+  baseUrlEnv?: string;
+  /** Env var overriding the model. */
+  modelEnv?: string;
+  /** Base URL used when the env var is absent. */
+  defaultBaseUrl?: string;
+  /** Model used when the env var is absent. Absent for a pure gateway whose
+   *  model is whatever you point it at. */
+  defaultModel?: string;
+  /** The base URL is the whole identity of the provider — it must be set for the
+   *  provider to be usable (the generic OpenAI-compatible gateway). */
+  requiresBaseUrl?: boolean;
+  /** Suggested models for the picker. Never a hard allow-list — a compatible
+   *  gateway serves arbitrary names, so free text is always accepted too. */
+  suggestedModels: string[];
+  /** Auto-selection order when nothing is forced; lower wins. */
+  priority: number;
+  /** One line for the options page. */
+  blurb: string;
+}
+
+/**
+ * The provider catalogue — the single source of truth for what the portal can
+ * talk to. Anthropic is native; `openai` is the vendor; `openai-compatible` is
+ * the same wire protocol pointed at any base URL, which is how one entry covers
+ * OpenRouter, Groq, Together, Azure OpenAI, Ollama, vLLM and anything else that
+ * speaks Chat Completions. `offline` is always present and needs no key.
+ */
+export const PROVIDERS: readonly ProviderDef[] = [
+  {
+    id: "anthropic",
+    label: "Anthropic (Claude)",
+    protocol: "anthropic",
+    keyEnv: "ANTHROPIC_API_KEY",
+    baseUrlEnv: "ANTHROPIC_BASE_URL",
+    modelEnv: "ANTHROPIC_MODEL",
+    defaultBaseUrl: "https://api.anthropic.com",
+    defaultModel: DEFAULT_MODEL,
+    suggestedModels: ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5", "claude-opus-4-8"],
+    priority: 1,
+    blurb: "Claude, called natively over the Messages API. The portal's default.",
+  },
+  {
+    id: "openai",
+    label: "OpenAI (GPT)",
+    protocol: "openai",
+    keyEnv: "OPENAI_API_KEY",
+    baseUrlEnv: "OPENAI_BASE_URL",
+    modelEnv: "OPENAI_MODEL",
+    defaultBaseUrl: "https://api.openai.com/v1",
+    defaultModel: DEFAULT_OPENAI_MODEL,
+    suggestedModels: ["gpt-4o", "gpt-4o-mini", "o3", "o3-mini"],
+    priority: 2,
+    blurb: "OpenAI's own endpoint over Chat Completions.",
+  },
+  {
+    id: "openai-compatible",
+    label: "OpenAI-compatible endpoint",
+    protocol: "openai",
+    keyEnv: "OPENAI_COMPAT_API_KEY",
+    baseUrlEnv: "OPENAI_COMPAT_BASE_URL",
+    modelEnv: "OPENAI_COMPAT_MODEL",
+    requiresBaseUrl: true,
+    suggestedModels: [],
+    priority: 3,
+    blurb: "Any endpoint that speaks the OpenAI Chat Completions API — OpenRouter, Groq, Together, Azure OpenAI, Ollama, vLLM, a local runtime. Set its base URL, key and model.",
+  },
+  {
+    id: "offline",
+    label: "Offline (deterministic)",
+    protocol: "openai", // unused; offline never builds a transport
+    suggestedModels: [],
+    priority: 99,
+    blurb: "No key required. Deterministic rule-based engine — the honest demo, and the floor every live provider falls back to.",
+  },
+];
+
+export function providerById(id: string | undefined): ProviderDef | undefined {
+  return PROVIDERS.find((p) => p.id === id);
+}
+
 function has(v: string | undefined): boolean {
   return typeof v === "string" && v.trim() !== "";
 }
 
+/** Is this provider usable in the given environment? Offline always is; the
+ *  rest need their key, and a gateway also needs its base URL. */
+export function providerAvailable(def: ProviderDef, env: Record<string, string | undefined> = process.env): boolean {
+  if (def.id === "offline") return true;
+  if (def.keyEnv && !has(env[def.keyEnv])) return false;
+  if (def.requiresBaseUrl && !has(def.baseUrlEnv ? env[def.baseUrlEnv] : undefined)) return false;
+  return true;
+}
+
+/** The provider chosen for the environment — the forced one if it is available,
+ *  else the highest-priority available non-offline provider, else offline. */
+function selectProvider(env: Record<string, string | undefined>): ProviderDef {
+  const offline = providerById("offline")!;
+  const forcedId = env.MODEL_PROVIDER?.trim().toLowerCase();
+  if (forcedId) {
+    const forced = providerById(forcedId);
+    if (forced && providerAvailable(forced, env)) return forced;
+    if (forcedId === "offline") return offline;
+    // A forced-but-unavailable provider falls through to auto-selection rather
+    // than silently going offline behind the operator's back — but if nothing
+    // else is available they still land on offline, which is honest.
+  }
+  const auto = [...PROVIDERS]
+    .filter((p) => p.id !== "offline" && providerAvailable(p, env))
+    .sort((a, b) => a.priority - b.priority)[0];
+  return auto ?? offline;
+}
+
+/** The model a provider would use in this environment. */
+export function modelFor(def: ProviderDef, env: Record<string, string | undefined> = process.env): string | undefined {
+  if (def.id === "offline") return undefined;
+  const fromEnv = def.modelEnv ? env[def.modelEnv]?.trim() : undefined;
+  return fromEnv || def.defaultModel;
+}
+
 /**
  * Decide which provider is active WITHOUT constructing it or touching a key —
- * safe to call from a server component to render the status chip. Selection:
- * `MODEL_PROVIDER` override (anthropic|openai|offline) if its key is present,
- * else Anthropic if keyed, else OpenAI if keyed, else offline.
+ * safe to call from a server component to render the status chip. Catalogue-
+ * driven: `MODEL_PROVIDER` forces a choice when that provider is available, else
+ * the highest-priority keyed provider wins, else offline.
  */
 export function describeProvider(env: Record<string, string | undefined> = process.env): ProviderStatus {
-  const forced = env.MODEL_PROVIDER?.trim().toLowerCase() as ProviderName | undefined;
-  const hasA = has(env.ANTHROPIC_API_KEY);
-  const hasO = has(env.OPENAI_API_KEY);
-
-  let provider: ProviderName;
-  if (forced === "offline") provider = "offline";
-  else if (forced === "anthropic" && hasA) provider = "anthropic";
-  else if (forced === "openai" && hasO) provider = "openai";
-  else if (hasA) provider = "anthropic";
-  else if (hasO) provider = "openai";
-  else provider = "offline";
-
-  if (provider === "anthropic") return { provider, live: true, model: env.ANTHROPIC_MODEL ?? DEFAULT_MODEL };
-  if (provider === "openai") return { provider, live: true, model: env.OPENAI_MODEL ?? DEFAULT_OPENAI_MODEL };
-  return { provider, live: false };
+  const def = selectProvider(env);
+  if (def.id === "offline") return { provider: "offline", live: false };
+  return { provider: def.id, live: true, model: modelFor(def, env) };
 }
 
 /** Construct the active provider from the environment. */
 export function getProvider(env: Record<string, string | undefined> = process.env): ModelProvider {
-  const status = describeProvider(env);
-  if (status.provider === "anthropic") {
-    return new AnthropicProvider({
-      apiKey: env.ANTHROPIC_API_KEY!,
-      baseUrl: env.ANTHROPIC_BASE_URL,
-      model: env.ANTHROPIC_MODEL,
-    });
-  }
-  if (status.provider === "openai") {
-    return new OpenAIProvider({
-      apiKey: env.OPENAI_API_KEY!,
-      baseUrl: env.OPENAI_BASE_URL,
-      model: env.OPENAI_MODEL,
-    });
-  }
-  return new OfflineProvider();
+  const def = selectProvider(env);
+  if (def.id === "offline") return new OfflineProvider();
+  const opts = {
+    apiKey: (def.keyEnv ? env[def.keyEnv] : undefined) ?? "",
+    baseUrl: (def.baseUrlEnv ? env[def.baseUrlEnv]?.trim() : undefined) || def.defaultBaseUrl,
+    model: modelFor(def, env),
+  };
+  return def.protocol === "anthropic" ? new AnthropicProvider(opts) : new OpenAIProvider(opts);
 }
