@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { DEFAULT_LOCALE, translate, type Locale } from "@/lib/i18n";
+import { DEFAULT_LOCALE, translate, isLocale, type Locale } from "@/lib/i18n";
 
 /* ---------------- Theme ---------------- */
 
@@ -16,6 +16,14 @@ export const useTheme = () => useContext(ThemeContext);
 function applyTheme(theme: Theme) {
   const root = document.documentElement;
   root.classList.toggle("dark", theme === "dark");
+}
+
+/** Reflect the chosen locale on <html lang> so browsers and screen readers know
+ *  the page's language. Applied client-side, the same way the theme class is —
+ *  the interface strings are translated in the client, so the attribute follows
+ *  the same path rather than forcing every route into dynamic rendering. */
+function applyLocale(locale: Locale) {
+  document.documentElement.lang = locale;
 }
 
 /* ---------------- Locale ---------------- */
@@ -47,7 +55,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     applyTheme(initialTheme);
 
     const storedLocale = localStorage.getItem("du-locale") as Locale | null;
-    if (storedLocale) setLocaleState(storedLocale);
+    const initialLocale = storedLocale && isLocale(storedLocale) ? storedLocale : DEFAULT_LOCALE;
+    setLocaleState(initialLocale);
+    applyLocale(initialLocale);
   }, []);
 
   const toggle = () => {
@@ -61,6 +71,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   const setLocale = (l: Locale) => {
     setLocaleState(l);
+    applyLocale(l);
     localStorage.setItem("du-locale", l);
   };
 
