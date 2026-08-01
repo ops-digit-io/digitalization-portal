@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useI18n } from "@/components/providers";
 
 interface ProviderOption {
   id: string;
@@ -32,6 +33,7 @@ interface Props {
  * non-admin, this renders read-only.
  */
 export function ModelPicker({ providers, active, override, editable, isAdmin }: Props) {
+  const { t } = useI18n();
   const [provider, setProvider] = useState(override.provider ?? active.provider);
   const [model, setModel] = useState(override.model ?? "");
   const [busy, setBusy] = useState(false);
@@ -55,16 +57,16 @@ export function ModelPicker({ providers, active, override, editable, isAdmin }: 
       });
       const data = (await res.json()) as { ok: boolean; error?: string; active?: Active; override?: Override };
       if (!data.ok) {
-        setErr(data.error ?? "Could not save.");
+        setErr(data.error ?? t("mp.couldNotSave", "Could not save."));
         return;
       }
       if (data.active) setCurrent(data.active);
       setOv(data.override ?? {});
       setModel(data.override?.model ?? "");
       setProvider(data.override?.provider ?? data.active?.provider ?? provider);
-      setMsg(payload.action === "reset" ? "Reset to the environment default." : "Saved. Every agent uses this now.");
+      setMsg(payload.action === "reset" ? t("mp.resetMsg", "Reset to the environment default.") : t("mp.savedMsg", "Saved. Every agent uses this now."));
     } catch {
-      setErr("Request failed.");
+      setErr(t("error.requestFailed", "Request failed."));
     } finally {
       setBusy(false);
     }
@@ -80,22 +82,22 @@ export function ModelPicker({ providers, active, override, editable, isAdmin }: 
         </span>
         {current.model && <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] text-muted-foreground">{current.model}</span>}
         <span className="text-xs text-muted-foreground">
-          {ov.provider || ov.model ? "selected here" : "environment default"}
+          {ov.provider || ov.model ? t("mp.selectedHere", "selected here") : t("mp.environmentDefault", "environment default")}
         </span>
       </div>
 
       {!canEdit && (
         <p className="mt-2 text-xs text-muted-foreground">
           {!editable
-            ? "The default is set by the environment (MODEL_PROVIDER / *_MODEL). To choose it here without a redeploy, configure a durable store (KV_REST_API_URL / KV_REST_API_TOKEN)."
-            : "Only an administrator can change the default model."}
+            ? t("mp.readonlyEnv", "The default is set by the environment (MODEL_PROVIDER / *_MODEL). To choose it here without a redeploy, configure a durable store (KV_REST_API_URL / KV_REST_API_TOKEN).")
+            : t("mp.readonlyAdmin", "Only an administrator can change the default model.")}
         </p>
       )}
 
       {canEdit && (
         <div className="mt-3 space-y-3 border-t pt-3">
           <div>
-            <label className="text-xs font-medium text-muted-foreground" htmlFor="mp-provider">Provider</label>
+            <label className="text-xs font-medium text-muted-foreground" htmlFor="mp-provider">{t("mp.provider", "Provider")}</label>
             <select
               id="mp-provider"
               className="mt-1 block w-full rounded-md border bg-background px-2 py-1.5 text-sm"
@@ -105,14 +107,14 @@ export function ModelPicker({ providers, active, override, editable, isAdmin }: 
             >
               {providers.map((p) => (
                 <option key={p.id} value={p.id} disabled={!p.available}>
-                  {p.label}{p.available ? "" : " — not configured"}
+                  {p.label}{p.available ? "" : ` — ${t("mp.notConfigured", "not configured")}`}
                 </option>
               ))}
             </select>
             {selected && <p className="mt-1 text-xs text-muted-foreground">{selected.blurb}</p>}
             {selected && !selected.available && (
               <p className="mt-1 text-xs text-warn">
-                Set this provider's key{selected.requiresBaseUrl ? " and base URL" : ""} in the environment before selecting it.
+                {t("mp.setKeyPrefix", "Set this provider's key")}{selected.requiresBaseUrl ? ` ${t("mp.andBaseUrl", "and base URL")}` : ""} {t("mp.setKeySuffix", "in the environment before selecting it.")}
               </p>
             )}
           </div>
@@ -120,13 +122,13 @@ export function ModelPicker({ providers, active, override, editable, isAdmin }: 
           {provider !== "offline" && (
             <div>
               <label className="text-xs font-medium text-muted-foreground" htmlFor="mp-model">
-                Model {selected?.defaultModel && <span className="font-normal">· default {selected.defaultModel}</span>}
+                {t("mp.model", "Model")} {selected?.defaultModel && <span className="font-normal">· {t("mp.default", "default")} {selected.defaultModel}</span>}
               </label>
               <input
                 id="mp-model"
                 list="mp-model-list"
                 className="mt-1 block w-full rounded-md border bg-background px-2 py-1.5 text-sm"
-                placeholder={selected?.defaultModel ?? "model name"}
+                placeholder={selected?.defaultModel ?? t("mp.modelNamePlaceholder", "model name")}
                 value={model}
                 disabled={busy}
                 onChange={(e) => setModel(e.target.value)}
@@ -135,7 +137,7 @@ export function ModelPicker({ providers, active, override, editable, isAdmin }: 
                 {(selected?.suggestedModels ?? []).map((m) => <option key={m} value={m} />)}
               </datalist>
               <p className="mt-1 text-xs text-muted-foreground">
-                Leave blank for the provider's default. Any model the endpoint serves is accepted.
+                {t("mp.modelHint", "Leave blank for the provider's default. Any model the endpoint serves is accepted.")}
               </p>
             </div>
           )}
@@ -147,7 +149,7 @@ export function ModelPicker({ providers, active, override, editable, isAdmin }: 
               onClick={() => send({ action: "save", provider, model: model.trim() || undefined })}
               className="rounded-md border bg-foreground px-3 py-1.5 text-xs font-medium text-background hover:opacity-90 disabled:opacity-50"
             >
-              {busy ? "Saving…" : "Save default"}
+              {busy ? t("common.saving", "Saving…") : t("mp.saveDefault", "Save default")}
             </button>
             <button
               type="button"
@@ -155,7 +157,7 @@ export function ModelPicker({ providers, active, override, editable, isAdmin }: 
               onClick={() => send({ action: "reset" })}
               className="rounded-md border px-3 py-1.5 text-xs font-medium hover:border-foreground/40 disabled:opacity-50"
             >
-              Reset to environment
+              {t("mp.resetToEnv", "Reset to environment")}
             </button>
             {msg && <span className="text-xs text-ok">{msg}</span>}
             {err && <span className="text-xs text-destructive">{err}</span>}

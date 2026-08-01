@@ -2,10 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { useI18n } from "@/components/providers";
 
 /** Range links + reset for the cost overview. The page itself is server-rendered;
  *  this only changes the window (a query param) and clears the counters. */
 export function UsageControls({ days, canReset }: { days: number; canReset: boolean }) {
+  const { t } = useI18n();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
@@ -14,7 +16,7 @@ export function UsageControls({ days, canReset }: { days: number; canReset: bool
   const ranges = [7, 30, 90];
 
   async function reset() {
-    if (!confirm("Clear all recorded usage? This cannot be undone.")) return;
+    if (!confirm(t("usage.confirmReset", "Clear all recorded usage? This cannot be undone."))) return;
     setBusy(true);
     setErr(null);
     try {
@@ -24,10 +26,10 @@ export function UsageControls({ days, canReset }: { days: number; canReset: bool
         body: JSON.stringify({ action: "reset" }),
       });
       const data = (await res.json()) as { ok: boolean; error?: string };
-      if (!data.ok) setErr(data.error ?? "Reset failed.");
+      if (!data.ok) setErr(data.error ?? t("usage.resetFailed", "Reset failed."));
       else startTransition(() => router.refresh());
     } catch {
-      setErr("Request failed.");
+      setErr(t("error.requestFailed", "Request failed."));
     } finally {
       setBusy(false);
     }
@@ -55,7 +57,7 @@ export function UsageControls({ days, canReset }: { days: number; canReset: bool
           disabled={busy}
           className="rounded-md border px-2.5 py-1 text-xs hover:border-destructive/50 hover:text-destructive disabled:opacity-50"
         >
-          {busy ? "Clearing…" : "Reset counters"}
+          {busy ? t("usage.clearing", "Clearing…") : t("usage.resetCounters", "Reset counters")}
         </button>
       )}
       {err && <span className="text-xs text-destructive">{err}</span>}

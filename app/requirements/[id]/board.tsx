@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/components/providers";
 import type { RequirementsDoc, UserStory, Epic } from "@/lib/requirements";
 import type { Provenance } from "@/lib/requirements-overrides";
 
@@ -50,6 +51,7 @@ export function RequirementsBoard({
   provenance?: Record<string, Provenance>;
   removed?: { id: string; kind: "epic" | "story"; title: string }[];
 }) {
+  const { t } = useI18n();
   const router = useRouter();
   const [checked, setChecked] = useState<Set<string>>(() => new Set(verified));
   const [, startTransition] = useTransition();
@@ -81,13 +83,13 @@ export function RequirementsBoard({
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
         setChecked((prev) => { const s = new Set(prev); if (next) s.delete(key); else s.add(key); return s; });
-        setError(data.error ?? `Couldn't save (${res.status}).`);
+        setError(data.error ?? `${t("board.couldntSave", "Couldn't save")} (${res.status}).`);
       } else {
         startTransition(() => router.refresh());
       }
     } catch {
       setChecked((prev) => { const s = new Set(prev); if (next) s.delete(key); else s.add(key); return s; });
-      setError("Network error — the tick wasn't saved.");
+      setError(t("board.tickNotSaved", "Network error — the tick wasn't saved."));
     } finally {
       setBusyKey(null);
     }
@@ -104,12 +106,12 @@ export function RequirementsBoard({
         body: JSON.stringify(payload),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) { setEditError(data.error ?? `Couldn't save (${res.status}).`); return false; }
+      if (!res.ok || !data.ok) { setEditError(data.error ?? `${t("board.couldntSave", "Couldn't save")} (${res.status}).`); return false; }
       setTarget(null);
       startTransition(() => router.refresh());
       return true;
     } catch {
-      setEditError("Network error — the change wasn't saved.");
+      setEditError(t("board.changeNotSaved", "Network error — the change wasn't saved."));
       return false;
     } finally {
       setSaving(false);
@@ -117,7 +119,7 @@ export function RequirementsBoard({
   }, [id, router]);
 
   const confirmRemove = useCallback(async (kind: "epic" | "story", itemId: string) => {
-    if (!confirm(`Remove ${itemId}? It can be restored afterwards.`)) return;
+    if (!confirm(`${t("board.confirmRemove", "Remove")} ${itemId}? ${t("board.confirmRemoveRestorable", "It can be restored afterwards.")}`)) return;
     await edit(kind === "epic" ? { action: "remove-epic", epicId: itemId } : { action: "remove-story", storyId: itemId });
   }, [edit]);
 
@@ -133,9 +135,9 @@ export function RequirementsBoard({
       {/* Progress header */}
       <div className="rounded-lg border p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">PoC / pilot verification</h2>
+          <h2 className="text-sm font-semibold">{t("board.verification.title", "PoC / pilot verification")}</h2>
           <span className="text-sm text-muted-foreground">
-            {doneStories}/{totalStories} features · {doneCriteria}/{allCriteria.length} acceptance criteria
+            {doneStories}/{totalStories} {t("board.features", "features")} · {doneCriteria}/{allCriteria.length} {t("board.acceptanceCriteria", "acceptance criteria")}
           </span>
         </div>
         <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-secondary">
@@ -143,17 +145,17 @@ export function RequirementsBoard({
         </div>
         {canEdit ? (
           <p className="mt-2 text-xs text-muted-foreground">
-            You can add, edit, or remove epics and features below — your changes are kept as a human overlay and survive re-analysis.
+            {t("board.editableNote", "You can add, edit, or remove epics and features below — your changes are kept as a human overlay and survive re-analysis.")}
           </p>
         ) : (
-          <p className="mt-2 text-xs text-muted-foreground">Read-only — you don&apos;t have rights to change this demand.</p>
+          <p className="mt-2 text-xs text-muted-foreground">{t("board.readOnly", "Read-only — you don't have rights to change this demand.")}</p>
         )}
         {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
       </div>
 
       {/* Epics + features */}
       {doc.epics.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No epics yet.</p>
+        <p className="text-sm text-muted-foreground">{t("board.noEpics", "No epics yet.")}</p>
       ) : (
         doc.epics.map((epic) => {
           const stories = doc.stories.filter((s) => s.epic === epic.id);
@@ -173,7 +175,7 @@ export function RequirementsBoard({
                     <h3 className="text-sm font-semibold">{epic.title}</h3>
                     <ProvenanceBadge p={provenance[epic.id]} />
                     {stories.length > 0 && (
-                      <span className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground">{done}/{stories.length} features</span>
+                      <span className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground">{done}/{stories.length} {t("board.features", "features")}</span>
                     )}
                   </div>
                   {epic.description && <p className="mt-1 text-sm text-muted-foreground">{epic.description}</p>}
@@ -202,16 +204,16 @@ export function RequirementsBoard({
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-mono text-xs text-muted-foreground">{s.id}</span>
                             <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${PRIORITY[s.priority].cls}`}>
-                              {PRIORITY[s.priority].label}
+                              {t(`board.priority.${s.priority}`, PRIORITY[s.priority].label)}
                             </span>
                             <ProvenanceBadge p={provenance[s.id]} />
                           </div>
                           <p className={`mt-1 text-sm ${isOn(s.id) ? "text-muted-foreground line-through" : "text-foreground"}`}>
-                            As a <strong>{s.persona}</strong>, I want {s.capability}, so that {s.benefit}.
+                            {t("board.story.asA", "As a")} <strong>{s.persona}</strong>, {t("board.story.iWant", "I want")} {s.capability}, {t("board.story.soThat", "so that")} {s.benefit}.
                           </p>
                           {s.acceptance.length > 0 && (
                             <div className="mt-2">
-                              <p className="text-xs font-medium text-muted-foreground">Acceptance criteria</p>
+                              <p className="text-xs font-medium text-muted-foreground">{t("board.acceptanceCriteriaTitle", "Acceptance criteria")}</p>
                               <ul className="mt-1 space-y-1">
                                 {s.acceptance.map((a, i) => {
                                   const k = acceptanceKey(s.id, i);
@@ -247,7 +249,7 @@ export function RequirementsBoard({
                     ) : (
                       <button type="button" className="text-xs font-medium text-muted-foreground hover:text-foreground"
                         onClick={() => { setEditError(null); setTarget({ kind: "add-story", epicId: epic.id }); }}>
-                        + Add a feature
+                        + {t("board.addFeature", "Add a feature")}
                       </button>
                     )}
                   </li>
@@ -266,7 +268,7 @@ export function RequirementsBoard({
         ) : (
           <button type="button" className="rounded-lg border border-dashed px-4 py-2 text-sm text-muted-foreground hover:border-foreground/40 hover:text-foreground"
             onClick={() => { setEditError(null); setTarget({ kind: "add-epic" }); }}>
-            + Add an epic
+            + {t("board.addEpic", "Add an epic")}
           </button>
         )
       )}
@@ -274,14 +276,14 @@ export function RequirementsBoard({
       {/* Restore removed items */}
       {canEdit && removed.length > 0 && (
         <div className="rounded-lg border border-dashed p-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Removed</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("board.removed", "Removed")}</h3>
           <ul className="mt-2 space-y-1.5">
             {removed.map((r) => (
               <li key={`${r.kind}-${r.id}`} className="flex items-center gap-2 text-sm">
                 <span className="font-mono text-xs text-muted-foreground">{r.id}</span>
                 <span className="text-muted-foreground line-through">{r.title}</span>
                 <button type="button" className="text-xs font-medium text-foreground underline hover:no-underline"
-                  onClick={() => edit({ action: "restore", kind: r.kind, id: r.id })}>restore</button>
+                  onClick={() => edit({ action: "restore", kind: r.kind, id: r.id })}>{t("board.restore", "restore")}</button>
               </li>
             ))}
           </ul>
@@ -291,7 +293,7 @@ export function RequirementsBoard({
       {/* Non-functional requirements */}
       {doc.nfrs.length > 0 && (
         <section className="rounded-lg border p-4">
-          <h3 className="mb-2 text-sm font-semibold">Non-functional requirements</h3>
+          <h3 className="mb-2 text-sm font-semibold">{t("board.nfr.title", "Non-functional requirements")}</h3>
           <ul className="space-y-1.5">
             {doc.nfrs.map((n) => (
               <li key={n.id} className="flex gap-2 text-sm">
@@ -306,28 +308,30 @@ export function RequirementsBoard({
 
       {/* Supporting lists */}
       <div className="grid gap-4 sm:grid-cols-2">
-        <ListCard title="Assumptions" items={doc.assumptions} />
-        <ListCard title="Risks" items={doc.risks} />
-        <ListCard title="Open questions" items={doc.openQuestions} />
-        <ListCard title="Out of scope" items={doc.outOfScope} />
+        <ListCard title={t("board.assumptions", "Assumptions")} items={doc.assumptions} />
+        <ListCard title={t("board.risks", "Risks")} items={doc.risks} />
+        <ListCard title={t("board.openQuestions", "Open questions")} items={doc.openQuestions} />
+        <ListCard title={t("board.outOfScope", "Out of scope")} items={doc.outOfScope} />
       </div>
     </div>
   );
 }
 
 function ProvenanceBadge({ p }: { p?: Provenance }) {
-  if (p === "added") return <span className="rounded-full border border-ok/40 bg-ok/10 px-2 py-0.5 text-[10px] font-medium text-ok">added by human</span>;
-  if (p === "edited") return <span className="rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-[10px] font-medium text-warn">human-edited</span>;
-  return <span className="rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground">AI</span>;
+  const { t } = useI18n();
+  if (p === "added") return <span className="rounded-full border border-ok/40 bg-ok/10 px-2 py-0.5 text-[10px] font-medium text-ok">{t("board.prov.added", "added by human")}</span>;
+  if (p === "edited") return <span className="rounded-full border border-warn/40 bg-warn/10 px-2 py-0.5 text-[10px] font-medium text-warn">{t("board.prov.edited", "human-edited")}</span>;
+  return <span className="rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground">{t("board.prov.ai", "AI")}</span>;
 }
 
 function RowActions({ onEdit, onRemove }: { onEdit: () => void; onRemove: () => void }) {
+  const { t } = useI18n();
   return (
     <div className="flex shrink-0 gap-1">
-      <button type="button" onClick={onEdit} aria-label="Edit"
-        className="rounded border px-2 py-1 text-xs text-muted-foreground hover:text-foreground">Edit</button>
-      <button type="button" onClick={onRemove} aria-label="Remove"
-        className="rounded border px-2 py-1 text-xs text-muted-foreground hover:border-destructive/50 hover:text-destructive">Remove</button>
+      <button type="button" onClick={onEdit} aria-label={t("common.edit", "Edit")}
+        className="rounded border px-2 py-1 text-xs text-muted-foreground hover:text-foreground">{t("common.edit", "Edit")}</button>
+      <button type="button" onClick={onRemove} aria-label={t("board.remove", "Remove")}
+        className="rounded border px-2 py-1 text-xs text-muted-foreground hover:border-destructive/50 hover:text-destructive">{t("board.remove", "Remove")}</button>
     </div>
   );
 }
@@ -346,13 +350,14 @@ function EpicForm({ initial, saving, error, onCancel, onSubmit }: {
   initial?: Partial<Epic>; saving: boolean; error: string | null;
   onCancel: () => void; onSubmit: (fields: { title: string; description: string }) => void;
 }) {
+  const { t } = useI18n();
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   return (
     <div className="rounded-lg border border-foreground/20 p-4">
       <div className="space-y-3">
-        <Field label="Epic title"><input className={inputCls} value={title} disabled={saving} onChange={(e) => setTitle(e.target.value)} autoFocus /></Field>
-        <Field label="Description"><textarea className={inputCls} rows={2} value={description} disabled={saving} onChange={(e) => setDescription(e.target.value)} /></Field>
+        <Field label={t("board.form.epicTitle", "Epic title")}><input className={inputCls} value={title} disabled={saving} onChange={(e) => setTitle(e.target.value)} autoFocus /></Field>
+        <Field label={t("board.form.description", "Description")}><textarea className={inputCls} rows={2} value={description} disabled={saving} onChange={(e) => setDescription(e.target.value)} /></Field>
         {error && <p className="text-xs text-destructive">{error}</p>}
         <FormButtons saving={saving} onCancel={onCancel} onSave={() => onSubmit({ title, description })} />
       </div>
@@ -364,6 +369,7 @@ function StoryForm({ initial, epicIds, saving, error, onCancel, onSubmit }: {
   initial?: Partial<UserStory>; epicIds: string[]; saving: boolean; error: string | null;
   onCancel: () => void; onSubmit: (fields: Partial<UserStory>) => void;
 }) {
+  const { t } = useI18n();
   const [epic, setEpic] = useState(initial?.epic ?? epicIds[0] ?? "");
   const [persona, setPersona] = useState(initial?.persona ?? "");
   const [capability, setCapability] = useState(initial?.capability ?? "");
@@ -374,21 +380,21 @@ function StoryForm({ initial, epicIds, saving, error, onCancel, onSubmit }: {
     <div className="rounded-lg border border-foreground/20 p-4">
       <div className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Epic">
+          <Field label={t("board.form.epic", "Epic")}>
             <select className={inputCls} value={epic} disabled={saving} onChange={(e) => setEpic(e.target.value)}>
               {epicIds.map((eid) => <option key={eid} value={eid}>{eid}</option>)}
             </select>
           </Field>
-          <Field label="Priority">
+          <Field label={t("board.form.priority", "Priority")}>
             <select className={inputCls} value={priority} disabled={saving} onChange={(e) => setPriority(e.target.value as UserStory["priority"])}>
-              <option value="must">must</option><option value="should">should</option><option value="could">could</option>
+              <option value="must">{t("board.priority.must", "must")}</option><option value="should">{t("board.priority.should", "should")}</option><option value="could">{t("board.priority.could", "could")}</option>
             </select>
           </Field>
         </div>
-        <Field label="As a … (persona)"><input className={inputCls} value={persona} disabled={saving} onChange={(e) => setPersona(e.target.value)} placeholder="e.g. Maintenance Planner" /></Field>
-        <Field label="I want … (capability)"><input className={inputCls} value={capability} disabled={saving} onChange={(e) => setCapability(e.target.value)} autoFocus /></Field>
-        <Field label="so that … (benefit)"><input className={inputCls} value={benefit} disabled={saving} onChange={(e) => setBenefit(e.target.value)} /></Field>
-        <Field label="Acceptance criteria (one per line)"><textarea className={inputCls} rows={3} value={acceptance} disabled={saving} onChange={(e) => setAcceptance(e.target.value)} /></Field>
+        <Field label={t("board.form.persona", "As a … (persona)")}><input className={inputCls} value={persona} disabled={saving} onChange={(e) => setPersona(e.target.value)} placeholder={t("board.form.personaPlaceholder", "e.g. Maintenance Planner")} /></Field>
+        <Field label={t("board.form.capability", "I want … (capability)")}><input className={inputCls} value={capability} disabled={saving} onChange={(e) => setCapability(e.target.value)} autoFocus /></Field>
+        <Field label={t("board.form.benefit", "so that … (benefit)")}><input className={inputCls} value={benefit} disabled={saving} onChange={(e) => setBenefit(e.target.value)} /></Field>
+        <Field label={t("board.form.acceptance", "Acceptance criteria (one per line)")}><textarea className={inputCls} rows={3} value={acceptance} disabled={saving} onChange={(e) => setAcceptance(e.target.value)} /></Field>
         {error && <p className="text-xs text-destructive">{error}</p>}
         <FormButtons saving={saving} onCancel={onCancel}
           onSave={() => onSubmit({ epic, persona, capability, benefit, priority, acceptance: acceptance.split("\n").map((s) => s.trim()).filter(Boolean) })} />
@@ -398,14 +404,15 @@ function StoryForm({ initial, epicIds, saving, error, onCancel, onSubmit }: {
 }
 
 function FormButtons({ saving, onCancel, onSave }: { saving: boolean; onCancel: () => void; onSave: () => void }) {
+  const { t } = useI18n();
   return (
     <div className="flex gap-2">
       <button type="button" disabled={saving} onClick={onSave}
         className="rounded-md border bg-foreground px-3 py-1.5 text-xs font-medium text-background hover:opacity-90 disabled:opacity-50">
-        {saving ? "Saving…" : "Save"}
+        {saving ? t("common.saving", "Saving…") : t("common.save", "Save")}
       </button>
       <button type="button" disabled={saving} onClick={onCancel}
-        className="rounded-md border px-3 py-1.5 text-xs font-medium hover:border-foreground/40 disabled:opacity-50">Cancel</button>
+        className="rounded-md border px-3 py-1.5 text-xs font-medium hover:border-foreground/40 disabled:opacity-50">{t("common.cancel", "Cancel")}</button>
     </div>
   );
 }
@@ -416,13 +423,14 @@ function Check({
   k: string; on: boolean; busy: boolean; canVerify: boolean;
   onToggle: (k: string) => void; big?: boolean; small?: boolean;
 }) {
+  const { t } = useI18n();
   const size = big ? "h-5 w-5 text-[13px]" : small ? "h-4 w-4 text-[10px]" : "h-4 w-4 text-[11px]";
   return (
     <button
       type="button"
       role="checkbox"
       aria-checked={on}
-      aria-label={`Verify ${k}`}
+      aria-label={`${t("board.verify", "Verify")} ${k}`}
       disabled={!canVerify || busy}
       onClick={() => onToggle(k)}
       className={`mt-0.5 inline-flex shrink-0 items-center justify-center rounded border transition-colors ${size} ${

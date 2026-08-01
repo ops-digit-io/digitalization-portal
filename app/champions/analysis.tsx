@@ -12,6 +12,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useI18n } from "@/components/providers";
 
 interface NetworkAction {
   kind: string;
@@ -56,6 +57,7 @@ const KIND_TONE: Record<string, string> = {
 };
 
 export function ChampionsAnalysis() {
+  const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Analysis | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -77,15 +79,15 @@ export function ChampionsAnalysis() {
 
   return (
     <section className="mb-5">
-      <h2 className="mb-2 text-[10.5px] font-bold uppercase tracking-[0.13em] text-muted-foreground">Network analysis</h2>
+      <h2 className="mb-2 text-[10.5px] font-bold uppercase tracking-[0.13em] text-muted-foreground">{t("championAnalysis.title", "Network analysis")}</h2>
 
       <div className="mb-2 flex flex-wrap items-center gap-3">
-        <Button size="sm" disabled={busy} onClick={run}>{busy ? "…" : result ? "Run again" : "Analyse the network"}</Button>
+        <Button size="sm" disabled={busy} onClick={run}>{busy ? "…" : result ? t("championAnalysis.runAgain", "Run again") : t("championAnalysis.analyse", "Analyse the network")}</Button>
         {result && (
           <span className="text-xs text-muted-foreground">
             {/* "no model key" and "your key was rejected" produce identical
                 actions and call for opposite responses — so say which. */}
-            {result.live ? "model-refined" : `rule-based — ${result.fallback ?? "no model key"}`} · {String(result.generatedAt).slice(0, 16).replace("T", " ")}
+            {result.live ? t("championAnalysis.modelRefined", "model-refined") : `${t("championAnalysis.ruleBased", "rule-based")} — ${result.fallback ?? t("championAnalysis.noModelKey", "no model key")}`} · {String(result.generatedAt).slice(0, 16).replace("T", " ")}
           </span>
         )}
         {err && <span className="text-xs text-destructive">{err}</span>}
@@ -96,41 +98,41 @@ export function ChampionsAnalysis() {
           {/* What produced this. Above the results, because it is how you judge them. */}
           <Card className={`mb-2 p-3 ${result.governance.healthy ? "" : "border-destructive/40 bg-destructive/5"}`}>
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              <span className="font-semibold text-foreground">Governed by</span>{" "}
-              playbook <code className="rounded bg-secondary px-1">{result.governance.playbook}</code>
+              <span className="font-semibold text-foreground">{t("championAnalysis.governedBy", "Governed by")}</span>{" "}
+              {t("championAnalysis.playbook", "playbook")} <code className="rounded bg-secondary px-1">{result.governance.playbook}</code>
               {result.governance.skills.length > 0 && (
-                <> · skills {result.governance.skills.map((s) => <code key={s} className="mx-0.5 rounded bg-secondary px-1">{s}</code>)}</>
+                <> · {t("championAnalysis.skills", "skills")} {result.governance.skills.map((s) => <code key={s} className="mx-0.5 rounded bg-secondary px-1">{s}</code>)}</>
               )}
               {result.governance.contract && (
-                <> · contract <code className="rounded bg-secondary px-1">{result.governance.contract}</code></>
+                <> · {t("championAnalysis.contract", "contract")} <code className="rounded bg-secondary px-1">{result.governance.contract}</code></>
               )}
             </p>
             {!result.governance.healthy && (
               <p className="mt-1 text-[11px] text-destructive">
-                Governance incomplete{result.governance.missing.length ? `: ${result.governance.missing.join(", ")} could not be loaded` : ""}.
-                Treat these results as partial.
+                {t("championAnalysis.incomplete", "Governance incomplete")}{result.governance.missing.length ? `: ${result.governance.missing.join(", ")} ${t("championAnalysis.couldNotLoad", "could not be loaded")}` : ""}.
+                {" "}{t("championAnalysis.treatPartial", "Treat these results as partial.")}
               </p>
             )}
           </Card>
 
           {result.actions.length === 0 ? (
-            <Card className="p-3 text-sm text-muted-foreground">No actions — the network has no holes the portal can see.</Card>
+            <Card className="p-3 text-sm text-muted-foreground">{t("championAnalysis.noActions", "No actions — the network has no holes the portal can see.")}</Card>
           ) : (
             <div className="space-y-2">
               {result.actions.map((a, i) => (
                 <Card key={i} className="p-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${KIND_TONE[a.kind] ?? "border-border text-muted-foreground"}`}>
-                      {KIND_LABEL[a.kind] ?? a.kind}
+                      {t(`championAnalysis.kind.${a.kind}`, KIND_LABEL[a.kind] ?? a.kind)}
                     </span>
-                    {a.blocked && <span className="text-[11px] text-muted-foreground">blocks: {a.blocked}</span>}
+                    {a.blocked && <span className="text-[11px] text-muted-foreground">{t("championAnalysis.blocks", "blocks")}: {a.blocked}</span>}
                   </div>
                   <p className="mt-1.5 text-sm">{a.finding}</p>
                   <p className="mt-1 text-xs">
-                    <span className="font-medium">Approach:</span> {a.approach}
+                    <span className="font-medium">{t("championAnalysis.approach", "Approach")}:</span> {a.approach}
                   </p>
                   <p className="mt-0.5 text-xs">
-                    <span className="font-medium">Ask for:</span> {a.ask}
+                    <span className="font-medium">{t("championAnalysis.askFor", "Ask for")}:</span> {a.ask}
                   </p>
                   <p className="mt-1 text-[11px] text-muted-foreground">{a.basis}</p>
                 </Card>
@@ -138,7 +140,7 @@ export function ChampionsAnalysis() {
             </div>
           )}
           <p className="mt-1.5 text-[11px] text-muted-foreground">
-            Proposals, not decisions. Nothing here is written to the register — a human makes every appointment.
+            {t("championAnalysis.footer", "Proposals, not decisions. Nothing here is written to the register — a human makes every appointment.")}
           </p>
         </>
       )}

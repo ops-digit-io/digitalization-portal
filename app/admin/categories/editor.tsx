@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { CategoryKind } from "@/lib/category-store";
+import { useI18n } from "@/components/providers";
 
 /**
  * Admin editor for a selectable category (plants, domains). Add / remove values and
@@ -30,6 +31,7 @@ export function CategoryEditor({
    *  function) so it can cross the server→client boundary. */
   scopeGroups?: Record<string, string>;
 }) {
+  const { t } = useI18n();
   const router = useRouter();
   const lockedSet = new Set((locked ?? []).map((x) => x.toLowerCase()));
   const isLocked = (v: string) => lockedSet.has(v.toLowerCase());
@@ -67,13 +69,13 @@ export function CategoryEditor({
         body: JSON.stringify(body),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; values?: string[] };
-      if (!res.ok || !data.ok) { setError(data.error ?? `Save failed (${res.status}).`); setBusy(false); return; }
+      if (!res.ok || !data.ok) { setError(data.error ?? `${t("cat.saveFailed", "Save failed")} (${res.status}).`); setBusy(false); return; }
       if (data.values) setValues(data.values);
       setSaved(true);
       setBusy(false);
       startTransition(() => router.refresh());
     } catch {
-      setError("Network error — nothing was saved.");
+      setError(t("error.network", "Network error — nothing was saved."));
       setBusy(false);
     }
   }
@@ -82,7 +84,7 @@ export function CategoryEditor({
     <section className="rounded-lg border p-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold">{label}</h2>
-        <span className="text-xs text-muted-foreground">{values.length} value{values.length === 1 ? "" : "s"}</span>
+        <span className="text-xs text-muted-foreground">{values.length} {values.length === 1 ? t("cat.valueUnit", "value") : t("cat.valuesUnit", "values")}</span>
       </div>
 
       <ul className="mt-3 flex flex-wrap gap-1.5">
@@ -90,25 +92,25 @@ export function CategoryEditor({
           <li
             key={v}
             className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-sm"
-            title={scopeGroups?.[v] ? `RBAC scope group: ${scopeGroups[v]}` : undefined}
+            title={scopeGroups?.[v] ? `${t("cat.rbacScopeGroup", "RBAC scope group")}: ${scopeGroups[v]}` : undefined}
           >
             <span>{v}</span>
             {editable && (isLocked(v) ? (
-              <span className="text-muted-foreground" title="In use by demands, or protected — can't be removed" aria-label={`${v} is locked`}>🔒</span>
+              <span className="text-muted-foreground" title={t("cat.lockedTitle", "In use by demands, or protected — can't be removed")} aria-label={`${v} ${t("cat.isLocked", "is locked")}`}>🔒</span>
             ) : (
               <button
                 type="button"
                 onClick={() => remove(v)}
                 disabled={working}
                 className="text-muted-foreground hover:text-destructive disabled:opacity-50"
-                aria-label={`Remove ${v}`}
+                aria-label={`${t("cat.remove", "Remove")} ${v}`}
               >
                 ✕
               </button>
             ))}
           </li>
         ))}
-        {values.length === 0 && <li className="text-sm text-muted-foreground">None.</li>}
+        {values.length === 0 && <li className="text-sm text-muted-foreground">{t("common.none", "None.")}</li>}
       </ul>
       {note && <p className="mt-2 text-xs text-muted-foreground">{note}</p>}
 
@@ -119,12 +121,12 @@ export function CategoryEditor({
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
-              placeholder={`Add a ${kind}…`}
+              placeholder={`${t("cat.addPrefix", "Add a")} ${kind}…`}
               disabled={working}
               className="w-56 rounded-md border bg-transparent px-2.5 py-1.5 text-sm outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
             />
             <button type="button" onClick={add} disabled={working || draft.trim() === ""} className="rounded-md border px-3 py-1.5 text-sm font-medium hover:border-foreground/40 disabled:opacity-50">
-              Add
+              {t("cat.add", "Add")}
             </button>
           </div>
 
@@ -135,7 +137,7 @@ export function CategoryEditor({
               disabled={working || !dirty}
               className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
             >
-              {busy ? "Saving…" : "Save"}
+              {busy ? t("common.saving", "Saving…") : t("common.save", "Save")}
             </button>
             <button
               type="button"
@@ -143,15 +145,15 @@ export function CategoryEditor({
               disabled={working}
               className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
             >
-              Reset to defaults
+              {t("cat.resetDefaults", "Reset to defaults")}
             </button>
-            {saved && !dirty && <span className="text-xs text-ok">Saved.</span>}
-            {dirty && <span className="text-xs text-muted-foreground">Unsaved changes.</span>}
+            {saved && !dirty && <span className="text-xs text-ok">{t("common.saved", "Saved.")}</span>}
+            {dirty && <span className="text-xs text-muted-foreground">{t("cat.unsavedChanges", "Unsaved changes.")}</span>}
           </div>
         </>
       ) : (
         <p className="mt-3 text-xs text-muted-foreground">
-          Read-only — set <span className="font-mono">KV_REST_API_URL</span> / <span className="font-mono">KV_REST_API_TOKEN</span> to manage these values.
+          {t("cat.readonlyPrefix", "Read-only — set")} <span className="font-mono">KV_REST_API_URL</span> / <span className="font-mono">KV_REST_API_TOKEN</span> {t("cat.readonlySuffix", "to manage these values.")}
         </p>
       )}
 

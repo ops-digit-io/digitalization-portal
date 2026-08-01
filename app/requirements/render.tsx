@@ -4,6 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useI18n } from "@/components/providers";
+
+type TFn = (key: string, fallback?: string) => string;
 
 /** Render standardized requirement/analysis markdown. */
 export function Md({ body }: { body: string }) {
@@ -14,7 +17,7 @@ export function Md({ body }: { body: string }) {
   );
 }
 
-async function analyse(id: string): Promise<string | null> {
+async function analyse(id: string, t: TFn): Promise<string | null> {
   const res = await fetch("/api/requirements", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -22,20 +25,21 @@ async function analyse(id: string): Promise<string | null> {
   });
   if (!res.ok) {
     const d = (await res.json().catch(() => ({}))) as { error?: string };
-    return d.error ?? "Analysis failed.";
+    return d.error ?? t("requirements.analysisFailed", "Analysis failed.");
   }
   return null;
 }
 
 /** Analyse one case and refresh. */
-export function AnalyseButton({ id, label = "Analyse", small }: { id: string; label?: string; small?: boolean }) {
+export function AnalyseButton({ id, label, small }: { id: string; label?: string; small?: boolean }) {
+  const { t } = useI18n();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   async function run() {
     setBusy(true);
     setErr(null);
-    const e = await analyse(id);
+    const e = await analyse(id, t);
     setBusy(false);
     if (e) setErr(e);
     else router.refresh();
@@ -47,7 +51,7 @@ export function AnalyseButton({ id, label = "Analyse", small }: { id: string; la
         disabled={busy}
         className={`rounded-md bg-primary font-medium text-primary-foreground disabled:opacity-50 ${small ? "px-2.5 py-1 text-xs" : "px-4 py-2 text-sm"}`}
       >
-        {busy ? "Analysing…" : label}
+        {busy ? t("requirements.analysing", "Analysing…") : (label ?? t("requirements.analyse", "Analyse"))}
       </button>
       {err && <span className="text-xs text-destructive">{err}</span>}
     </span>
@@ -56,6 +60,7 @@ export function AnalyseButton({ id, label = "Analyse", small }: { id: string; la
 
 /** Analyse every listed case, then refresh. */
 export function AnalyseAll({ ids }: { ids: string[] }) {
+  const { t } = useI18n();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(0);
@@ -63,7 +68,7 @@ export function AnalyseAll({ ids }: { ids: string[] }) {
     setBusy(true);
     setDone(0);
     for (const id of ids) {
-      await analyse(id);
+      await analyse(id, t);
       setDone((d) => d + 1);
     }
     setBusy(false);
@@ -71,7 +76,7 @@ export function AnalyseAll({ ids }: { ids: string[] }) {
   }
   return (
     <button onClick={run} disabled={busy || ids.length === 0} className="rounded-md border px-3 py-1.5 text-sm disabled:opacity-40">
-      {busy ? `Analysing ${done}/${ids.length}…` : `Analyse all (${ids.length})`}
+      {busy ? `${t("requirements.analysingProgress", "Analysing")} ${done}/${ids.length}…` : `${t("requirements.analyseAll", "Analyse all")} (${ids.length})`}
     </button>
   );
 }

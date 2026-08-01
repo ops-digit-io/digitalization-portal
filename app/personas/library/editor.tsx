@@ -17,6 +17,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useI18n } from "@/components/providers";
 import { AUTHORITIES, PERSONA_KINDS, type Authority, type PersonaKind } from "@/lib/persona-library";
 
 const INPUT = "mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring";
@@ -49,6 +50,7 @@ function Chips({ options, selected, onChange }: { options: string[]; selected: s
 }
 
 export function PersonaEditor({ domains, plants }: { domains: string[]; plants: string[] }) {
+  const { t } = useI18n();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -101,78 +103,78 @@ export function PersonaEditor({ domains, plants }: { domains: string[]; plants: 
     }
   }
 
-  if (!open) return <Button size="sm" variant="outline" onClick={() => setOpen(true)}>Describe a persona</Button>;
+  if (!open) return <Button size="sm" variant="outline" onClick={() => setOpen(true)}>{t("personaEditor.describe", "Describe a persona")}</Button>;
 
   return (
     <Card className="p-4">
       <div className="flex items-start justify-between gap-3">
-        <h2 className="text-sm font-semibold">Describe a persona</h2>
-        <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Close</Button>
+        <h2 className="text-sm font-semibold">{t("personaEditor.describe", "Describe a persona")}</h2>
+        <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>{t("common.close", "Close")}</Button>
       </div>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div>
-          <label className={LABEL} htmlFor="p-name">Role, as the business says it</label>
-          <input id="p-name" value={name} onChange={(e) => setName(e.target.value)} className={INPUT} placeholder="Maintenance Planner" />
+          <label className={LABEL} htmlFor="p-name">{t("personaEditor.role", "Role, as the business says it")}</label>
+          <input id="p-name" value={name} onChange={(e) => setName(e.target.value)} className={INPUT} placeholder={t("personaEditor.rolePlaceholder", "Maintenance Planner")} />
         </div>
         <div>
-          <label className={LABEL} htmlFor="p-source">Where this came from</label>
-          <input id="p-source" value={sourcedFrom} onChange={(e) => setSourcedFrom(e.target.value)} className={INPUT} placeholder="Interview, 12 June, Hamburg" />
+          <label className={LABEL} htmlFor="p-source">{t("personaEditor.source", "Where this came from")}</label>
+          <input id="p-source" value={sourcedFrom} onChange={(e) => setSourcedFrom(e.target.value)} className={INPUT} placeholder={t("personaEditor.sourcePlaceholder", "Interview, 12 June, Hamburg")} />
         </div>
       </div>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div>
-          <span className={LABEL}>Kind</span>
+          <span className={LABEL}>{t("personaEditor.kind", "Kind")}</span>
           <Chips options={[...PERSONA_KINDS]} selected={[kind]} onChange={(v) => setKind((v.find((x) => x !== kind) as PersonaKind) ?? kind)} />
         </div>
         <div>
-          <span className={LABEL}>Authority</span>
+          <span className={LABEL}>{t("personaEditor.authority", "Authority")}</span>
           <Chips options={[...AUTHORITIES]} selected={[authority]} onChange={(v) => setAuthority((v.find((x) => x !== authority) as Authority) ?? authority)} />
         </div>
       </div>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div>
-          <span className={LABEL}>Domains <span className="font-normal">(none = every domain)</span></span>
+          <span className={LABEL}>{t("field.domains", "Domains")} <span className="font-normal">{t("personaEditor.domainsHint", "(none = every domain)")}</span></span>
           <Chips options={domains} selected={selDomains} onChange={setSelDomains} />
         </div>
         <div>
-          <span className={LABEL}>Plants <span className="font-normal">(none = organisation-wide)</span></span>
+          <span className={LABEL}>{t("field.plants", "Plants")} <span className="font-normal">{t("personaEditor.plantsHint", "(none = organisation-wide)")}</span></span>
           <Chips options={plants} selected={selPlants} onChange={setSelPlants} />
         </div>
       </div>
 
       <div className="mt-3">
-        <label className={LABEL} htmlFor="p-summary">One sentence: who they are and what they answer for</label>
+        <label className={LABEL} htmlFor="p-summary">{t("personaEditor.summary", "One sentence: who they are and what they answer for")}</label>
         <input id="p-summary" value={summary} onChange={(e) => setSummary(e.target.value)} className={INPUT} />
       </div>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div>
-          <label className={LABEL} htmlFor="p-goals">Goals — one per line</label>
+          <label className={LABEL} htmlFor="p-goals">{t("personaEditor.goals", "Goals — one per line")}</label>
           <textarea id="p-goals" value={goals} onChange={(e) => setGoals(e.target.value)} className={AREA} />
         </div>
         <div>
-          <label className={LABEL} htmlFor="p-frictions">Frictions — what gets in the way today</label>
+          <label className={LABEL} htmlFor="p-frictions">{t("personaEditor.frictions", "Frictions — what gets in the way today")}</label>
           <textarea id="p-frictions" value={frictions} onChange={(e) => setFrictions(e.target.value)} className={AREA} />
         </div>
         <div>
-          <label className={LABEL} htmlFor="p-success">Success looks like — in their words, not the project&apos;s</label>
+          <label className={LABEL} htmlFor="p-success">{t("personaEditor.success", "Success looks like — in their words, not the project's")}</label>
           <textarea id="p-success" value={success} onChange={(e) => setSuccess(e.target.value)} className={AREA} />
         </div>
         <div>
-          <label className={LABEL} htmlFor="p-systems">Systems they work in</label>
+          <label className={LABEL} htmlFor="p-systems">{t("personaEditor.systems", "Systems they work in")}</label>
           <textarea id="p-systems" value={systems} onChange={(e) => setSystems(e.target.value)} className={AREA} />
         </div>
         {buyerish && (
           <>
             <div>
-              <label className={LABEL} htmlFor="p-triggers">Triggers — why now rather than next year</label>
+              <label className={LABEL} htmlFor="p-triggers">{t("personaEditor.triggers", "Triggers — why now rather than next year")}</label>
               <textarea id="p-triggers" value={triggers} onChange={(e) => setTriggers(e.target.value)} className={AREA} />
             </div>
             <div>
-              <label className={LABEL} htmlFor="p-objections">Objections — cheapest to hear here</label>
+              <label className={LABEL} htmlFor="p-objections">{t("personaEditor.objections", "Objections — cheapest to hear here")}</label>
               <textarea id="p-objections" value={objections} onChange={(e) => setObjections(e.target.value)} className={AREA} />
             </div>
           </>
@@ -180,13 +182,13 @@ export function PersonaEditor({ domains, plants }: { domains: string[]; plants: 
       </div>
 
       <div className="mt-3">
-        <label className={LABEL} htmlFor="p-quote">Something they actually said (quoted, never invented)</label>
+        <label className={LABEL} htmlFor="p-quote">{t("personaEditor.quote", "Something they actually said (quoted, never invented)")}</label>
         <input id="p-quote" value={quote} onChange={(e) => setQuote(e.target.value)} className={INPUT} />
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <Button size="sm" disabled={busy || name.trim() === "" || summary.trim() === "" || lines(goals).length === 0} onClick={save}>
-          {busy ? "…" : "Add to the library"}
+          {busy ? "…" : t("personaEditor.add", "Add to the library")}
         </Button>
         {err && <span className="text-xs text-destructive">{err}</span>}
       </div>
