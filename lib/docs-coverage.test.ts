@@ -14,8 +14,14 @@ import { execFileSync } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { registryRepo } from "./content-repo";
+import { hasRegistryMirror, warnNoMirror } from "./testing/mirror";
 
 const ROOT = process.cwd();
+
+// The governance map and the generator read the registry mirror. Where it is
+// absent (this repo's CI, which carries machinery not method) those specific
+// checks skip; the route/page/hand-map checks below need no mirror and run always.
+warnNoMirror("docs-coverage (governance-map checks)");
 
 async function walk(dir: string, hit: (n: string) => boolean, out: string[] = []): Promise<string[]> {
   const ents = await readdir(dir, { withFileTypes: true }).catch(() => []);
@@ -36,7 +42,9 @@ const pagePath = (f: string) => {
 };
 
 describe("the generated maps are current", () => {
-  it("regenerating produces no change — otherwise the map has drifted from the code", () => {
+  // gen-docs reads the registry mirror to build the governance map; skip when it
+  // is absent (see hasMirror). The route/page maps below are checked regardless.
+  it.skipIf(!hasRegistryMirror)("regenerating produces no change — otherwise the map has drifted from the code", () => {
     // Throws (exit 1) and prints which file is stale.
     expect(() => execFileSync("node", ["scripts/gen-docs.mjs", "--check"], { cwd: ROOT })).not.toThrow();
   });
@@ -61,7 +69,7 @@ describe("every surface is on a map", () => {
     expect(missing).toEqual([]);
   });
 
-  it("every playbook, skill and contract appears in docs/governance.md", async () => {
+  it.skipIf(!hasRegistryMirror)("every playbook, skill and contract appears in docs/governance.md", async () => {
     // The library is in du-agent-registry, mirrored locally — not in this repo.
     const REG = registryRepo().mirrorDir;
     const md = await readFile(join(ROOT, "docs", "governance.md"), "utf8");

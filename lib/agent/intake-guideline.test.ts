@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { hasRegistryMirror } from "../testing/mirror";
 import { loadIntakeGuideline, intakeSystemPrompt, SAVE_DEMAND_TOOL } from "./intake-guideline.js";
 import { INTAKE_FIELDS } from "../demand.js";
 
-describe("intake guideline", () => {
+describe.skipIf(!hasRegistryMirror)("intake guideline", () => {
   it("loads the playbook and interview guide that define the agent's behaviour", async () => {
     const g = await loadIntakeGuideline();
     expect(g.playbook).toContain("s1-intake");

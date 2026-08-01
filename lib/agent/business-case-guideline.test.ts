@@ -1,9 +1,10 @@
 import { describe, it, expect } from "vitest";
+import { hasRegistryMirror } from "../testing/mirror";
 import { loadBusinessCaseGuideline, businessCaseSystemPrompt } from "./business-case-guideline.js";
 
 /** Reads the bundled playbook + skills from the working tree — doubles as a contract
  *  that the business-case library files exist, parse, and carry the honesty frame. */
-describe("business-case guideline", () => {
+describe.skipIf(!hasRegistryMirror)("business-case guideline", () => {
   it("loads the playbook and composes its method skills", async () => {
     const g = await loadBusinessCaseGuideline();
     expect(g.playbook).toContain("business-case");

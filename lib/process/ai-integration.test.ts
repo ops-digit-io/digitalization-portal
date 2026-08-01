@@ -16,6 +16,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
+import { hasContentMirror } from "../testing/mirror";
 import { createServer, type Server } from "node:http";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -170,7 +171,7 @@ async function mods() {
   };
 }
 
-describe("every AI module, over the wire", () => {
+describe.skipIf(!hasContentMirror)("every AI module, over the wire", () => {
   it("the provider goes live the moment the key is present", async () => {
     const { llm } = await mods();
     expect(await llm.available()).toBe(true);

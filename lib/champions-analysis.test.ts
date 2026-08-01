@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { hasRegistryMirror } from "./testing/mirror";
 import { analyseNetwork, buildFacts, deterministicActions, type AnalysisInput } from "./champions-analysis";
 import { completeChampion, type Champion, type EngagementRef } from "./champions";
 
@@ -175,7 +176,7 @@ function sseFetch(msg: Record<string, any>) {
   return () => Promise.resolve(new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } }));
 }
 
-describe("always returns results", () => {
+describe.skipIf(!hasRegistryMirror)("always returns results", () => {
   const withRegister = input({ champions: [ch({ id: "C-01", role: "champion", plants: ["DE-ALD"] })] });
 
   it("offline: returns the deterministic floor and says it was not live", async () => {
