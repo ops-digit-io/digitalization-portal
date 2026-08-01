@@ -58,6 +58,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     const initialLocale = storedLocale && isLocale(storedLocale) ? storedLocale : DEFAULT_LOCALE;
     setLocaleState(initialLocale);
     applyLocale(initialLocale);
+    // Converge the cookie for users who chose a locale before the cookie existed,
+    // so the next server render matches what the client already shows.
+    document.cookie = `du-locale=${initialLocale};path=/;max-age=31536000;samesite=lax`;
   }, []);
 
   const toggle = () => {
@@ -73,6 +76,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     setLocaleState(l);
     applyLocale(l);
     localStorage.setItem("du-locale", l);
+    // Mirror the choice to a cookie so server components (getT) render in the
+    // same language on the next request — keeps SSR and the client in sync.
+    document.cookie = `du-locale=${l};path=/;max-age=31536000;samesite=lax`;
   };
 
   const t = (key: string, fallback?: string) => translate(locale, key, fallback);
