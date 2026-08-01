@@ -7,6 +7,7 @@ import { analyseIntake, buildRequirementsMarkdown, buildAnalysisMarkdown } from 
 import { runResearch } from "@/lib/agent/research-runner";
 import { readDemand, saveArtifact } from "@/lib/demands-store";
 import { listPersonas } from "@/lib/persona-library-store";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,21 +20,22 @@ export const dynamic = "force-dynamic";
  * model would follow the same playbook.
  */
 export async function POST(req: Request) {
+  const t = getT();
   const session = await getSession(); // real deployment resolves this from the OIDC session
   if (!can(session, "draft")) {
-    return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
+    return NextResponse.json({ error: t("api.requirements.missingDraftCapability", "missing capability: draft") }, { status: 403 });
   }
 
   let body: { id?: string; action?: "generate" | "preview" };
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: t("api.invalidJson", "invalid JSON") }, { status: 400 });
   }
-  if (!body.id) return NextResponse.json({ error: "id is required" }, { status: 400 });
+  if (!body.id) return NextResponse.json({ error: t("api.idRequired", "id is required") }, { status: 400 });
 
   const md = await readDemand(body.id);
-  if (md === undefined) return NextResponse.json({ error: `demand ${body.id} not found in the funnel` }, { status: 404 });
+  if (md === undefined) return NextResponse.json({ error: `${t("api.requirements.demand", "demand")} ${body.id} ${t("api.requirements.notFoundInFunnel", "not found in the funnel")}` }, { status: 404 });
 
   const answers = parseDemandToAnswers(md);
   const title = parseUseCase(md).title?.replace(/^UC-\d{4}-\d+\s*·\s*/, "") ?? body.id;

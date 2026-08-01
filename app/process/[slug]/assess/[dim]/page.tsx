@@ -130,7 +130,7 @@ export default function AssessDimension() {
   return (
     <main className="mx-auto max-w-[1100px] px-4 py-6">
       <nav className="mb-2 text-sm text-muted-foreground">
-        <Link href="/process" className="hover:text-foreground">Process Funnel</Link>
+        <Link href="/process" className="hover:text-foreground">{C.pc(locale, "funnel.title")}</Link>
         <span className="mx-1.5" aria-hidden>›</span>
         <Link href={`/process/${slug}`} className="hover:text-foreground">{slug}</Link>
         <span className="mx-1.5" aria-hidden>›</span>

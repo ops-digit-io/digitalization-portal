@@ -3,6 +3,7 @@
 import { useState, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { Attachment } from "@/lib/attachments";
+import { useI18n } from "@/components/providers";
 
 /**
  * The demand's supporting files. Binaries never enter git (constraint #4): when a
@@ -23,6 +24,7 @@ export function AttachmentsCard({
   uploadEnabled: boolean;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -47,10 +49,10 @@ export function AttachmentsCard({
       form.append("file", file);
       const res = await fetch(base, { method: "POST", body: form });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) { setError(data.error ?? `Upload failed (${res.status}).`); done(false); return; }
+      if (!res.ok || !data.ok) { setError(data.error ?? `${t("attachments.uploadFailed", "Upload failed")} (${res.status}).`); done(false); return; }
       done(true);
     } catch {
-      setError("Network error — nothing was uploaded.");
+      setError(t("errors.networkNothingUploaded", "Network error — nothing was uploaded."));
       done(false);
     }
   }
@@ -65,24 +67,24 @@ export function AttachmentsCard({
       done(true);
       return true;
     } catch {
-      setError("Network error — nothing was saved.");
+      setError(t("errors.networkNothingSaved", "Network error — nothing was saved."));
       done(false);
       return false;
     }
   }
 
   async function addLink() {
-    if (url.trim() === "") { setError("Paste a URL first."); return; }
-    const ok = await send({ action: "link", url: url.trim(), label: label.trim() || url.trim() }, "Attach failed");
+    if (url.trim() === "") { setError(t("attachments.pasteUrlFirst", "Paste a URL first.")); return; }
+    const ok = await send({ action: "link", url: url.trim(), label: label.trim() || url.trim() }, t("attachments.attachFailed", "Attach failed"));
     if (ok) { setLinking(false); setUrl(""); setLabel(""); }
   }
 
   return (
     <div>
-      <h2 className="mb-2 text-sm font-semibold">Attachments</h2>
+      <h2 className="mb-2 text-sm font-semibold">{t("attachments.heading", "Attachments")}</h2>
 
       {attachments.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No files attached.</p>
+        <p className="text-sm text-muted-foreground">{t("attachments.none", "No files attached.")}</p>
       ) : (
         <ul className="space-y-1.5 text-sm">
           {attachments.map((a) => (
@@ -93,11 +95,11 @@ export function AttachmentsCard({
               {canEdit && (
                 <button
                   type="button"
-                  onClick={() => void send({ action: "remove", url: a.url }, "Remove failed")}
+                  onClick={() => void send({ action: "remove", url: a.url }, t("attachments.removeFailed", "Remove failed"))}
                   disabled={working}
                   className="shrink-0 text-xs text-muted-foreground hover:text-destructive disabled:opacity-50"
-                  title="Remove attachment"
-                  aria-label={`Remove ${a.label}`}
+                  title={t("attachments.removeTitle", "Remove attachment")}
+                  aria-label={`${t("attachments.remove", "Remove")} ${a.label}`}
                 >
                   ✕
                 </button>
@@ -123,7 +125,7 @@ export function AttachmentsCard({
                 disabled={working}
                 className="w-full rounded-md border border-dashed px-3 py-2 text-xs font-medium text-muted-foreground hover:border-foreground/40 hover:text-foreground disabled:opacity-50"
               >
-                {busy ? "Uploading…" : "⬆ Upload a file (Excel, PPT, PDF…)"}
+                {busy ? t("attachments.uploading", "Uploading…") : `⬆ ${t("attachments.uploadFile", "Upload a file (Excel, PPT, PDF…)")}`}
               </button>
             </>
           )}
@@ -134,13 +136,13 @@ export function AttachmentsCard({
                 autoFocus
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://… (link to the file)"
+                placeholder={t("attachments.urlPlaceholder", "https://… (link to the file)")}
                 className="w-full rounded-md border bg-transparent px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-ring"
               />
               <input
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
-                placeholder="Label (optional)"
+                placeholder={t("attachments.labelPlaceholder", "Label (optional)")}
                 className="w-full rounded-md border bg-transparent px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-ring"
               />
               <div className="flex gap-1.5">
@@ -150,7 +152,7 @@ export function AttachmentsCard({
                   disabled={working || url.trim() === ""}
                   className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
                 >
-                  {busy ? "Attaching…" : "Attach link"}
+                  {busy ? t("attachments.attaching", "Attaching…") : t("attachments.attachLink", "Attach link")}
                 </button>
                 <button
                   type="button"
@@ -158,7 +160,7 @@ export function AttachmentsCard({
                   disabled={working}
                   className="rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
                 >
-                  Cancel
+                  {t("common.cancel", "Cancel")}
                 </button>
               </div>
             </div>
@@ -169,13 +171,13 @@ export function AttachmentsCard({
               disabled={working}
               className="w-full rounded-md border px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
             >
-              🔗 Paste a link
+              🔗 {t("attachments.pasteLink", "Paste a link")}
             </button>
           )}
 
           {!uploadEnabled && (
             <p className="text-[11px] text-muted-foreground">
-              File upload isn&apos;t configured — attach files by link. (Set <span className="font-mono">BLOB_READ_WRITE_TOKEN</span> to enable uploads.)
+              {t("attachments.uploadNotConfigured", "File upload isn't configured — attach files by link. (Set")} <span className="font-mono">BLOB_READ_WRITE_TOKEN</span>{t("attachments.toEnableUploads", " to enable uploads.)")}
             </p>
           )}
         </div>

@@ -21,6 +21,7 @@ import { wrapExternal } from "@/lib/agent/wrap";
 import { parseBusinessCase, toSimulationInput } from "@/lib/businesscase";
 import { listDemandRowsWithValue, readArtifact } from "@/lib/demands-store";
 import { getSession } from "@/lib/auth/current";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 
@@ -32,11 +33,12 @@ type Body = {
 };
 
 export async function POST(req: Request) {
+  const t = getT();
   let body: Body;
   try {
     body = (await req.json()) as Body;
   } catch {
-    return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: t("api.invalidJson", "invalid JSON") }, { status: 400 });
   }
 
   // Authentication/authorization is the session's (constraint #3): getSession resolves
@@ -45,7 +47,7 @@ export async function POST(req: Request) {
   // each tool then enforces its own capability inside the loop.
   const session = await getSession();
   if (!can(session, "view_board")) {
-    return NextResponse.json({ error: "authentication required" }, { status: 401 });
+    return NextResponse.json({ error: t("api.authRequired", "authentication required") }, { status: 401 });
   }
   const provider = await resolveProvider();
   // Real funnel rows (with real business-case value), never seed.
@@ -61,7 +63,7 @@ export async function POST(req: Request) {
 
   if (task === "simulate" && body.useCaseId) {
     const bc = await readArtifact(body.useCaseId, "business-case");
-    if (!bc) return NextResponse.json({ error: "no business case for that use case" }, { status: 404 });
+    if (!bc) return NextResponse.json({ error: t("api.agent.noBusinessCase", "no business case for that use case") }, { status: 404 });
     const facts = parseBusinessCase(bc);
     toolNames = ["simulate-value"];
     userMessage = [

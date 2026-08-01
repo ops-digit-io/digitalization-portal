@@ -2,6 +2,7 @@
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useI18n } from "@/components/providers";
 
 /**
  * Renders an artifact section with an edit affordance. Editing now happens in the
@@ -12,7 +13,7 @@ export function MarkdownDoc({
   title,
   body,
   editHref,
-  editLabel = "Edit on GitHub",
+  editLabel,
   defaultOpen = false,
 }: {
   title: string;
@@ -21,6 +22,8 @@ export function MarkdownDoc({
   editLabel?: string;
   defaultOpen?: boolean;
 }) {
+  const { t } = useI18n();
+  const resolvedEditLabel = editLabel ?? t("markdownDoc.editOnGithub", "Edit on GitHub");
   return (
     <details open={defaultOpen} className="group border-b py-3">
       <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium">
@@ -32,7 +35,7 @@ export function MarkdownDoc({
             className="ml-auto text-xs font-normal text-info hover:underline"
             onClick={(e) => e.stopPropagation()}
           >
-            {editLabel}
+            {resolvedEditLabel}
           </a>
         )}
       </summary>

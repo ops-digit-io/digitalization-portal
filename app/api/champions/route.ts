@@ -6,6 +6,7 @@ import { createChampion, listChampions } from "@/lib/champions-store";
 import { getAllCategories } from "@/lib/category-store";
 import { listDemandRows } from "@/lib/demands-store";
 import * as process_ from "@/lib/process/store";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,8 +22,9 @@ export const dynamic = "force-dynamic";
  * answer this endpoint exists to give.
  */
 export async function GET() {
+  const t = getT();
   const session = await getSession();
-  if (!can(session, "view_board")) return NextResponse.json({ error: "not authenticated" }, { status: 401 });
+  if (!can(session, "view_board")) return NextResponse.json({ error: t("api.notAuthenticated", "not authenticated") }, { status: 401 });
 
   const [champions, categories, engagements, requesters] = await Promise.all([
     listChampions(),
@@ -48,8 +50,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const t = getT();
   const session = await getSession();
-  if (!can(session, "draft")) return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
+  if (!can(session, "draft")) return NextResponse.json({ error: `${t("api.missingCapability", "missing capability:")} draft` }, { status: 403 });
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 
   const check = validateChampion(body);

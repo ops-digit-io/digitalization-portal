@@ -1,4 +1,5 @@
 import type { Share } from "@/lib/persona";
+import { getT } from "@/lib/i18n-server";
 
 /** A labelled share bar (percentage of the requestor's demands). Presentational. */
 export function ShareBars({ items, empty = "—" }: { items: Share[]; empty?: string }) {
@@ -36,11 +37,12 @@ export function Chips({ items, empty = "—" }: { items: string[]; empty?: strin
 
 /** The standing ethics note shown on every persona surface. */
 export function EthicsNote() {
+  const t = getT();
   return (
     <p className="rounded-md border border-info/30 bg-info/5 px-3 py-2 text-xs text-muted-foreground">
-      A service view to help serve requestors better. It is <strong>descriptive, not a score</strong>,
-      never ranks or compares individuals, and is not for performance assessment. Cohort patterns are
-      aggregate (≥2 requestors).
+      {t("personaEthics.pre", "A service view to help serve requestors better. It is")}{" "}
+      <strong>{t("personaEthics.strong", "descriptive, not a score")}</strong>
+      {t("personaEthics.post", ", never ranks or compares individuals, and is not for performance assessment. Cohort patterns are aggregate (≥2 requestors).")}
     </p>
   );
 }

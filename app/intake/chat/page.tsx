@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { buildDemand, classifyDemand } from "@/lib/demand";
 import type { ChatMessage, IntakeState } from "@/lib/intake-agent";
+import { useI18n } from "@/components/providers";
 import { ToolHeader, SavedLinks, useIntakeSave } from "../shared";
 import { IntakeEnhancer } from "../enhancer";
 import { SimilarDemands } from "../similar";
@@ -32,6 +33,7 @@ function Bubble({ m }: { m: ChatMessage }) {
 }
 
 export default function ChatTool() {
+  const { t } = useI18n();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [state, setState] = useState<IntakeState | null>(null);
   const [input, setInput] = useState("");
@@ -58,7 +60,7 @@ export default function ChatTool() {
       if (data.governedBy) setGovernedBy(data.governedBy);
       setMessages((prev) => [...prev, ...(data.messages ?? [])]);
     } catch {
-      setMessages((prev) => [...prev, { role: "assistant", text: "Sorry — something went wrong. Try again." }]);
+      setMessages((prev) => [...prev, { role: "assistant", text: t("intake.chat.error", "Sorry — something went wrong. Try again.") }]);
     } finally {
       setBusy(false);
     }
@@ -125,7 +127,7 @@ export default function ChatTool() {
   async function doSave() {
     if (!state) return;
     const data = await save({ answers: state.answers });
-    if (data) setMessages((prev) => [...prev, { role: "assistant", text: `Saved as ${data.id}. It's on the demands list now, at S1 with G1 open — a human accepts it at triage.` }]);
+    if (data) setMessages((prev) => [...prev, { role: "assistant", text: `${t("intake.chat.savedAs", "Saved as")} ${data.id}. ${t("intake.chat.savedTail", "It's on the demands list now, at S1 with G1 open — a human accepts it at triage.")}` }]);
   }
 
   function restart() {
@@ -139,21 +141,21 @@ export default function ChatTool() {
 
   return (
     <main className="mx-auto flex h-[calc(100vh-3.5rem)] max-w-2xl flex-col overflow-hidden px-4 py-3">
-      <ToolHeader active="chat" blurb="An AI interview — one short question at a time, strictly governed by a playbook and skills." />
+      <ToolHeader active="chat" blurb={t("intake.chat.blurb", "An AI interview — one short question at a time, strictly governed by a playbook and skills.")} />
 
       {/* Governance strip — what drives this interview, editable in the catalog. */}
       <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
         {mode && (
           <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ${mode === "live" ? "bg-ok/10 text-ok" : "bg-secondary text-muted-foreground"}`}>
-            {mode === "live" ? "● live model" : "○ offline engine"}
+            {mode === "live" ? `● ${t("intake.chat.liveModel", "live model")}` : `○ ${t("intake.chat.offlineEngine", "offline engine")}`}
           </span>
         )}
         {governedBy && (
           <span>
-            Governed by{" "}
+            {t("intake.chat.governedBy", "Governed by")}{" "}
             <Link href={`/catalog/playbook/${governedBy.playbook}`} className="underline hover:text-foreground">{governedBy.playbook}</Link>
             {governedBy.skills.length > 0 && (
-              <> · skills: {governedBy.skills.map((s, i) => (
+              <> · {t("intake.chat.skillsLabel", "skills:")} {governedBy.skills.map((s, i) => (
                 <span key={s}>
                   {i > 0 && ", "}
                   <Link href={`/catalog/skill/${s}`} className="underline hover:text-foreground">{s}</Link>
@@ -172,8 +174,8 @@ export default function ChatTool() {
           {done && classification && (
             <div className="pt-2">
               <div className="mb-2 flex flex-wrap items-center gap-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Demand page</span>
-                <Badge variant="secondary" className="font-normal">{LANE_LABEL[classification.lane] ?? classification.lane}</Badge>
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("intake.demandPage", "Demand page")}</span>
+                <Badge variant="secondary" className="font-normal">{t(`lane.${classification.lane}`, LANE_LABEL[classification.lane] ?? classification.lane)}</Badge>
                 {classification.domain && <Badge variant="outline" className="font-normal">{classification.domain}</Badge>}
               </div>
               <pre className="whitespace-pre-wrap rounded-lg border bg-secondary/20 p-3 text-xs leading-relaxed">{preview}</pre>
@@ -205,19 +207,19 @@ export default function ChatTool() {
               autoFocus rows={1} value={input} disabled={busy}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-              placeholder="Type your answer…  (Enter to send · try 'back' or 'why')"
+              placeholder={t("intake.chat.inputPlaceholder", "Type your answer…  (Enter to send · try 'back' or 'why')")}
               className="max-h-32 min-h-[2.25rem] flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-60"
             />
-            <button onClick={send} disabled={busy} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">Send</button>
+            <button onClick={send} disabled={busy} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">{t("intake.chat.send", "Send")}</button>
           </div>
         ) : (
           <div className="border-t px-4 py-2.5">
             {error && <div className="mb-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-1.5 text-xs text-destructive">{error}</div>}
             {!saved ? (
               <div className="flex items-center justify-between">
-                <button onClick={restart} className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Start over</button>
+                <button onClick={restart} className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">{t("intake.startOver", "Start over")}</button>
                 <button onClick={doSave} disabled={saving} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
-                  {saving ? "Saving…" : "Save demand"}
+                  {saving ? t("common.saving", "Saving…") : t("intake.saveDemand", "Save demand")}
                 </button>
               </div>
             ) : (

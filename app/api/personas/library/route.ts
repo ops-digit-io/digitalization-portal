@@ -3,6 +3,7 @@ import { can } from "@/lib/rbac";
 import { getSession } from "@/lib/auth/current";
 import { validatePersona } from "@/lib/persona-library";
 import { createPersona, isRetired, listPersonas } from "@/lib/persona-library-store";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,8 +15,9 @@ export const dynamic = "force-dynamic";
  * `draft` holders.
  */
 export async function GET() {
+  const t = getT();
   const session = await getSession();
-  if (!can(session, "view_board")) return NextResponse.json({ error: "not authenticated" }, { status: 401 });
+  if (!can(session, "view_board")) return NextResponse.json({ error: t("api.notAuthenticated", "not authenticated") }, { status: 401 });
   const personas = await listPersonas();
   return NextResponse.json({
     personas: personas.map((p) => ({ ...p, retired: isRetired(p) })),
@@ -24,8 +26,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const t = getT();
   const session = await getSession();
-  if (!can(session, "draft")) return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
+  if (!can(session, "draft")) return NextResponse.json({ error: `${t("api.missingCapability", "missing capability:")} draft` }, { status: 403 });
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 
   const check = validatePersona(body);

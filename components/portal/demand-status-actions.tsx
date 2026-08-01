@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/components/providers";
 
 /**
  * Lifecycle status controls beyond the gate flow — Kill (with a required reason) and
@@ -22,6 +23,7 @@ export function DemandStatusActions({
   canReactivate: boolean;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -41,19 +43,19 @@ export function DemandStatusActions({
         body: JSON.stringify(body),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) { setError(data.error ?? `Request failed (${res.status}).`); setBusy(false); return false; }
+      if (!res.ok || !data.ok) { setError(data.error ?? `${t("errors.requestFailed", "Request failed")} (${res.status}).`); setBusy(false); return false; }
       setBusy(false);
       startTransition(() => router.refresh());
       return true;
     } catch {
-      setError("Network error — nothing was saved.");
+      setError(t("errors.networkNothingSaved", "Network error — nothing was saved."));
       setBusy(false);
       return false;
     }
   }
 
   async function kill() {
-    if (reason.trim() === "") { setError("A kill needs a reason."); return; }
+    if (reason.trim() === "") { setError(t("demandStatus.killNeedsReason", "A kill needs a reason.")); return; }
     const ok = await post({ action: "kill", reason });
     if (ok) { setKilling(false); setReason(""); }
   }
@@ -64,10 +66,10 @@ export function DemandStatusActions({
 
   return (
     <div>
-      <h2 className="mb-2 text-sm font-semibold">Status</h2>
+      <h2 className="mb-2 text-sm font-semibold">{t("demandStatus.heading", "Status")}</h2>
       {stopped && (
         <p className="mb-2 text-xs text-muted-foreground">
-          This demand is <span className="font-medium text-foreground">{status}</span>.
+          {t("demandStatus.isPrefix", "This demand is")} <span className="font-medium text-foreground">{status}</span>.
         </p>
       )}
 
@@ -79,7 +81,7 @@ export function DemandStatusActions({
             disabled={working}
             className="w-full rounded-md border px-3 py-2 text-xs font-medium hover:border-foreground/40 disabled:opacity-50"
           >
-            {busy ? "Working…" : "↻ Reactivate"}
+            {busy ? t("demand.working", "Working…") : `↻ ${t("demand.reactivate", "Reactivate")}`}
           </button>
         )}
 
@@ -91,7 +93,7 @@ export function DemandStatusActions({
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") void kill(); }}
-                placeholder="Reason (required)"
+                placeholder={t("demand.reasonRequired", "Reason (required)")}
                 className="w-full rounded-md border bg-transparent px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-ring"
               />
               <div className="flex gap-1.5">
@@ -101,7 +103,7 @@ export function DemandStatusActions({
                   disabled={working || reason.trim() === ""}
                   className="rounded-md bg-destructive px-2.5 py-1 text-xs font-medium text-destructive-foreground disabled:opacity-50"
                 >
-                  {busy ? "Killing…" : "Confirm kill"}
+                  {busy ? t("demand.killing", "Killing…") : t("demand.confirmKill", "Confirm kill")}
                 </button>
                 <button
                   type="button"
@@ -109,7 +111,7 @@ export function DemandStatusActions({
                   disabled={working}
                   className="rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
                 >
-                  Cancel
+                  {t("common.cancel", "Cancel")}
                 </button>
               </div>
             </div>
@@ -120,7 +122,7 @@ export function DemandStatusActions({
               disabled={working}
               className="w-full rounded-md border px-3 py-2 text-xs font-medium text-muted-foreground hover:border-destructive/40 hover:text-destructive disabled:opacity-50"
             >
-              ✕ Kill demand
+              ✕ {t("demand.killDemand", "Kill demand")}
             </button>
           )
         )}

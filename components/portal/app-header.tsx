@@ -37,24 +37,24 @@ function initials(s: string): string {
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
-function UserMenu({ user }: { user?: UserStatus }) {
+function UserMenu({ user, t }: { user?: UserStatus; t: (k: string, f?: string) => string }) {
   if (!user) return null;
   // OIDC enabled but not signed in → offer sign-in.
   if (!user.authenticated && !user.demo) {
     return (
-      <Link href="/login" className="rounded-md border px-3 py-1.5 text-xs font-medium hover:border-foreground/40">Sign in</Link>
+      <Link href="/login" className="rounded-md border px-3 py-1.5 text-xs font-medium hover:border-foreground/40">{t("auth.signIn", "Sign in")}</Link>
     );
   }
-  const label = user.demo ? "Demo user" : user.name;
+  const label = user.demo ? t("auth.demoUser", "Demo user") : user.name;
   return (
     <div className="ml-1 flex items-center gap-2 text-xs text-muted-foreground">
       <span className="hidden md:inline" title={user.email}>{label}</span>
-      {user.demo && <span className="hidden rounded bg-secondary px-1.5 py-0.5 text-[10px] uppercase tracking-wide lg:inline">demo</span>}
+      {user.demo && <span className="hidden rounded bg-secondary px-1.5 py-0.5 text-[10px] uppercase tracking-wide lg:inline">{t("auth.demoBadge", "demo")}</span>}
       <span className="grid size-7 place-items-center rounded-full bg-secondary text-[11px] font-medium text-secondary-foreground" title={user.email}>
         {user.demo ? "DU" : initials(user.name || user.email)}
       </span>
       {user.authenticated && (
-        <a href="/api/auth/logout" className="rounded-md border px-2 py-1 text-[11px] hover:border-foreground/40" title="Sign out">Sign out</a>
+        <a href="/api/auth/logout" className="rounded-md border px-2 py-1 text-[11px] hover:border-foreground/40" title={t("auth.signOut", "Sign out")}>{t("auth.signOut", "Sign out")}</a>
       )}
     </div>
   );
@@ -66,7 +66,7 @@ const PROVIDER_LABEL: Record<ModelStatus["provider"], string> = {
   offline: "Offline",
 };
 
-function StatusChip({ status }: { status: AppStatus | null }) {
+function StatusChip({ status, t }: { status: AppStatus | null; t: (k: string, f?: string) => string }) {
   if (!status) return null;
   const { model, git, health } = status;
 
@@ -95,7 +95,7 @@ function StatusChip({ status }: { status: AppStatus | null }) {
       title={title}
     >
       <span className="size-2 rounded-full" style={{ background: dot }} aria-hidden />
-      <span>{model.live ? `${PROVIDER_LABEL[model.provider]}${mark}` : "Offline"}</span>
+      <span>{model.live ? `${PROVIDER_LABEL[model.provider]}${mark}` : t("status.offline", "Offline")}</span>
       {git.live && <span className="text-[10px] uppercase tracking-wide text-ok">· git</span>}
     </Link>
   );
@@ -153,7 +153,7 @@ export function AppHeader() {
 
         <div className="ml-auto flex items-center gap-1.5">
           {/* Model / integration status */}
-          <StatusChip status={status} />
+          <StatusChip status={status} t={t} />
 
           {/* Language dropdown */}
           <div className="relative">
@@ -205,7 +205,7 @@ export function AppHeader() {
           </button>
 
           {/* User / sign-in */}
-          <UserMenu user={status?.user} />
+          <UserMenu user={status?.user} t={t} />
         </div>
       </div>
 

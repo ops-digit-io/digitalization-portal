@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { INTAKE_FIELDS, FIELD_GROUPS, type DemandAnswers } from "@/lib/demand";
+import { useI18n } from "@/components/providers";
 
 /**
  * In-portal demand editor — the same field set the intake captures, prefilled from
@@ -28,6 +29,7 @@ export function EditForm({
   categories: { plant: string[]; domain: string[] };
 }) {
   const OPTIONS: Record<string, readonly string[]> = { plant: categories.plant, domain: categories.domain };
+  const { t } = useI18n();
   const router = useRouter();
   const [values, setValues] = useState<EditFormValues>(initial);
   const [busy, setBusy] = useState(false);
@@ -50,7 +52,7 @@ export function EditForm({
   async function save() {
     const patch = diff();
     if (Object.keys(patch).length === 0) {
-      setError("Nothing changed yet.");
+      setError(t("uc.edit.nothingChanged", "Nothing changed yet."));
       return;
     }
     setBusy(true);
@@ -63,7 +65,7 @@ export function EditForm({
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) {
-        setError(data.error ?? `Save failed (${res.status}).`);
+        setError(data.error ?? `${t("uc.edit.saveFailed", "Save failed")} (${res.status}).`);
         setBusy(false);
         return;
       }
@@ -72,7 +74,7 @@ export function EditForm({
         router.refresh();
       });
     } catch {
-      setError("Network error — nothing was saved.");
+      setError(t("error.network", "Network error — nothing was saved."));
       setBusy(false);
     }
   }
@@ -83,16 +85,16 @@ export function EditForm({
     <div className="space-y-6">
       {FIELD_GROUPS.map((group) => (
         <fieldset key={group} className="space-y-4 rounded-lg border p-4">
-          <legend className="px-1 text-sm font-semibold">{group}</legend>
+          <legend className="px-1 text-sm font-semibold">{t(`demandGroup.${group}`, group)}</legend>
           {INTAKE_FIELDS.filter((f) => f.group === group).map((f) => {
             const value = values[f.key as keyof EditFormValues] ?? "";
             return (
               <label key={f.key} className="block">
                 <span className="text-sm font-medium">
-                  {f.label}
+                  {t(`demandField.${f.key}.label`, f.label)}
                   {f.required && <span className="ml-1 text-destructive" aria-hidden>*</span>}
                 </span>
-                <span className="mt-0.5 block text-xs text-muted-foreground">{f.hint}</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">{t(`demandField.${f.key}.hint`, f.hint)}</span>
                 {f.input === "textarea" ? (
                   <textarea
                     value={value}
@@ -128,27 +130,27 @@ export function EditForm({
       ))}
 
       <fieldset className="space-y-4 rounded-lg border p-4">
-        <legend className="px-1 text-sm font-semibold">Owners</legend>
+        <legend className="px-1 text-sm font-semibold">{t("uc.edit.owners", "Owners")}</legend>
         <p className="text-xs text-muted-foreground">
-          Named accountable people. These don&apos;t change the demand&apos;s stage or gates.
+          {t("uc.edit.ownersNote", "Named accountable people. These don't change the demand's stage or gates.")}
         </p>
         <label className="block">
-          <span className="text-sm font-medium">Sponsor</span>
+          <span className="text-sm font-medium">{t("uc.edit.sponsor", "Sponsor")}</span>
           <input
             value={values.sponsor}
             onChange={(e) => set("sponsor", e.target.value)}
             disabled={working}
-            placeholder="Name or e-mail"
+            placeholder={t("uc.edit.namePlaceholder", "Name or e-mail")}
             className="mt-1.5 w-full rounded-md border bg-transparent px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
           />
         </label>
         <label className="block">
-          <span className="text-sm font-medium">Value owner</span>
+          <span className="text-sm font-medium">{t("uc.edit.valueOwner", "Value owner")}</span>
           <input
             value={values.value_owner}
             onChange={(e) => set("value_owner", e.target.value)}
             disabled={working}
-            placeholder="Name or e-mail"
+            placeholder={t("uc.edit.namePlaceholder", "Name or e-mail")}
             className="mt-1.5 w-full rounded-md border bg-transparent px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
           />
         </label>
@@ -167,13 +169,13 @@ export function EditForm({
           disabled={working}
           className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
         >
-          {working ? "Saving…" : "Save changes"}
+          {working ? t("common.saving", "Saving…") : t("uc.edit.saveChanges", "Save changes")}
         </button>
         <Link
           href={`/uc/${encodeURIComponent(id)}`}
           className="rounded-md border px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
         >
-          Cancel
+          {t("common.cancel", "Cancel")}
         </Link>
       </div>
     </div>

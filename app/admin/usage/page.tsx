@@ -4,6 +4,7 @@ import { can } from "@/lib/rbac";
 import { readUsage, type Rollup, type ToolRollup } from "@/lib/usage-meter";
 import { isPriced } from "@/lib/pricing";
 import { toolLabel } from "@/lib/portal-tools";
+import { getT } from "@/lib/i18n-server";
 import { Card } from "@/components/ui/card";
 import { UsageControls } from "./controls";
 
@@ -44,13 +45,14 @@ function Bar({ value, max }: { value: number; max: number }) {
 }
 
 export default async function UsagePage({ searchParams }: { searchParams: { days?: string } }) {
+  const t = getT();
   const session = await getSession();
   if (!can(session, "all")) {
     return (
       <main className="mx-auto max-w-[820px] px-6 py-10">
-        <h1 className="text-lg font-semibold">Administration · Cost &amp; usage</h1>
-        <p className="mt-2 text-sm text-muted-foreground">This page is for administrators only.</p>
-        <Link href="/" className="mt-3 inline-block text-sm underline">← Home</Link>
+        <h1 className="text-lg font-semibold">{t("usage.adminHeading", "Administration · Cost & usage")}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{t("admin.adminOnly", "This page is for administrators only.")}</p>
+        <Link href="/" className="mt-3 inline-block text-sm underline">{t("admin.backHome", "← Home")}</Link>
       </main>
     );
   }
@@ -65,19 +67,19 @@ export default async function UsagePage({ searchParams }: { searchParams: { days
   return (
     <main className="mx-auto max-w-[980px] px-6 py-6">
       <nav className="mb-2 text-sm text-muted-foreground">
-        <Link href="/" className="hover:text-foreground">Home</Link>
+        <Link href="/" className="hover:text-foreground">{t("nav.home", "Home")}</Link>
         <span className="mx-1.5" aria-hidden>›</span>
-        <Link href="/settings" className="hover:text-foreground">Settings</Link>
+        <Link href="/settings" className="hover:text-foreground">{t("settings.title", "Settings")}</Link>
         <span className="mx-1.5" aria-hidden>›</span>
-        <span className="text-foreground">Cost &amp; usage</span>
+        <span className="text-foreground">{t("usage.breadcrumb", "Cost & usage")}</span>
       </nav>
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold">Usage &amp; cost</h1>
+          <h1 className="text-lg font-semibold">{t("usage.title", "Usage & cost")}</h1>
           <p className="text-sm text-muted-foreground">
-            How the portal is used and what it costs — AI calls and human interaction — over the last {days} days ({u.from} → {u.to}).
-            Costs are estimates from list prices; interaction counts are aggregate, never per-person.
+            {t("usage.introA", "How the portal is used and what it costs — AI calls and human interaction — over the last")} {days} {t("usage.daysUnit", "days")} ({u.from} → {u.to}).{" "}
+            {t("usage.introB", "Costs are estimates from list prices; interaction counts are aggregate, never per-person.")}
           </p>
         </div>
         <UsageControls days={days} canReset={u.enabled} />
@@ -85,60 +87,59 @@ export default async function UsagePage({ searchParams }: { searchParams: { days
 
       {!u.enabled && (
         <Card className="mt-5 border-warn/30 bg-warn/5 p-4 text-sm">
-          <span className="font-medium">Metering needs a durable store.</span> Usage is counted in KV so it survives
-          restarts. Set <code className="rounded border px-1 py-0.5">KV_REST_API_URL</code> and{" "}
-          <code className="rounded border px-1 py-0.5">KV_REST_API_TOKEN</code> to start recording. Everything below reads zero until then.
+          <span className="font-medium">{t("usage.metering.title", "Metering needs a durable store.")}</span> {t("usage.metering.body1", "Usage is counted in KV so it survives restarts. Set")} <code className="rounded border px-1 py-0.5">KV_REST_API_URL</code> {t("usage.and", "and")}{" "}
+          <code className="rounded border px-1 py-0.5">KV_REST_API_TOKEN</code> {t("usage.metering.body2", "to start recording. Everything below reads zero until then.")}
         </Card>
       )}
 
       {/* Totals — AI cost on the left, human activity on the right */}
       <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Card className="p-4">
-          <div className="text-xs uppercase tracking-wide text-muted-foreground">Estimated cost</div>
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">{t("usage.card.estimatedCost", "Estimated cost")}</div>
           <div className="mt-1 text-2xl font-semibold">{usd(u.totals.cost)}</div>
-          {u.hasUnpriced && <div className="mt-0.5 text-[11px] text-warn">excludes unpriced models</div>}
+          {u.hasUnpriced && <div className="mt-0.5 text-[11px] text-warn">{t("usage.card.excludesUnpriced", "excludes unpriced models")}</div>}
         </Card>
         <Card className="p-4">
-          <div className="text-xs uppercase tracking-wide text-muted-foreground">AI calls</div>
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">{t("usage.card.aiCalls", "AI calls")}</div>
           <div className="mt-1 text-2xl font-semibold">{fmt.format(u.totals.calls)}</div>
-          <div className="mt-0.5 text-[11px] text-muted-foreground">messages &amp; analyses</div>
+          <div className="mt-0.5 text-[11px] text-muted-foreground">{t("usage.card.messagesAnalyses", "messages & analyses")}</div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs uppercase tracking-wide text-muted-foreground">Input tokens</div>
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">{t("usage.card.inputTokens", "Input tokens")}</div>
           <div className="mt-1 text-2xl font-semibold">{tokens(u.totals.input)}</div>
-          {u.totals.cacheRead > 0 && <div className="mt-0.5 text-[11px] text-muted-foreground">{tokens(u.totals.cacheRead)} cached</div>}
+          {u.totals.cacheRead > 0 && <div className="mt-0.5 text-[11px] text-muted-foreground">{tokens(u.totals.cacheRead)} {t("usage.card.cached", "cached")}</div>}
         </Card>
         <Card className="p-4">
-          <div className="text-xs uppercase tracking-wide text-muted-foreground">Output tokens</div>
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">{t("usage.card.outputTokens", "Output tokens")}</div>
           <div className="mt-1 text-2xl font-semibold">{tokens(u.totals.output)}</div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs uppercase tracking-wide text-muted-foreground">Page views</div>
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">{t("usage.card.pageViews", "Page views")}</div>
           <div className="mt-1 text-2xl font-semibold">{fmt.format(u.totals.views)}</div>
-          <div className="mt-0.5 text-[11px] text-muted-foreground">human interface</div>
+          <div className="mt-0.5 text-[11px] text-muted-foreground">{t("usage.card.humanInterface", "human interface")}</div>
         </Card>
         <Card className="p-4">
-          <div className="text-xs uppercase tracking-wide text-muted-foreground">Clicks</div>
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">{t("usage.card.clicks", "Clicks")}</div>
           <div className="mt-1 text-2xl font-semibold">{fmt.format(u.totals.clicks)}</div>
         </Card>
       </div>
 
       {/* By tool — the human-interface view: how the portal is actually used */}
       <Card className="mt-5 p-4">
-        <h2 className="text-sm font-semibold">By tool · human interface</h2>
+        <h2 className="text-sm font-semibold">{t("usage.byTool.heading", "By tool · human interface")}</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Views and clicks per portal tool — which tools people actually reach for. Aggregate counts only; no user is recorded.
+          {t("usage.byTool.desc", "Views and clicks per portal tool — which tools people actually reach for. Aggregate counts only; no user is recorded.")}
         </p>
         {u.byTool.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">No interaction recorded in this window.</p>
+          <p className="mt-3 text-sm text-muted-foreground">{t("usage.noInteraction", "No interaction recorded in this window.")}</p>
         ) : (
           <table className="mt-3 w-full text-sm">
             <thead>
               <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="pb-2 font-medium">Tool</th>
-                <th className="pb-2 text-right font-medium">Views</th>
-                <th className="pb-2 text-right font-medium">Clicks</th>
-                <th className="w-1/3 pb-2 pl-3 font-medium">Activity</th>
+                <th className="pb-2 font-medium">{t("usage.col.tool", "Tool")}</th>
+                <th className="pb-2 text-right font-medium">{t("usage.col.views", "Views")}</th>
+                <th className="pb-2 text-right font-medium">{t("usage.col.clicks", "Clicks")}</th>
+                <th className="w-1/3 pb-2 pl-3 font-medium">{t("usage.col.activity", "Activity")}</th>
               </tr>
             </thead>
             <tbody>
@@ -160,29 +161,28 @@ export default async function UsagePage({ searchParams }: { searchParams: { days
 
       {/* By feature — the AI "what to limit" view */}
       <Card className="mt-5 p-4">
-        <h2 className="text-sm font-semibold">By feature · AI calls</h2>
+        <h2 className="text-sm font-semibold">{t("usage.byFeature.heading", "By feature · AI calls")}</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Where the calls go. To cut cost, limit the busiest features — the agent-tools kill switch (AGENT_TOOLS) and
-          the model picker are the two blunt levers; per-feature limits can follow.
+          {t("usage.byFeature.desc", "Where the calls go. To cut cost, limit the busiest features — the agent-tools kill switch (AGENT_TOOLS) and the model picker are the two blunt levers; per-feature limits can follow.")}
         </p>
         {u.byFeature.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">No activity recorded in this window.</p>
+          <p className="mt-3 text-sm text-muted-foreground">{t("usage.noActivity", "No activity recorded in this window.")}</p>
         ) : (
           <table className="mt-3 w-full text-sm">
             <thead>
               <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="pb-2 font-medium">Feature</th>
-                <th className="pb-2 text-right font-medium">Calls</th>
-                <th className="w-1/3 pb-2 pl-3 font-medium">Share</th>
-                <th className="pb-2 text-right font-medium">In</th>
-                <th className="pb-2 text-right font-medium">Out</th>
+                <th className="pb-2 font-medium">{t("usage.col.feature", "Feature")}</th>
+                <th className="pb-2 text-right font-medium">{t("usage.col.calls", "Calls")}</th>
+                <th className="w-1/3 pb-2 pl-3 font-medium">{t("usage.col.share", "Share")}</th>
+                <th className="pb-2 text-right font-medium">{t("usage.col.in", "In")}</th>
+                <th className="pb-2 text-right font-medium">{t("usage.col.out", "Out")}</th>
               </tr>
             </thead>
             <tbody>
               {u.byFeature.map((f: Rollup) => (
                 <tr key={f.key} className="border-b last:border-0">
                   <td className="py-2">
-                    <div>{FEATURE_LABEL[f.key] ?? f.key}</div>
+                    <div>{t(`usage.feature.${f.key}`, FEATURE_LABEL[f.key] ?? f.key)}</div>
                     <code className="text-[11px] text-muted-foreground">{f.key}</code>
                   </td>
                   <td className="py-2 text-right tabular-nums">{fmt.format(f.calls)}</td>
@@ -198,18 +198,18 @@ export default async function UsagePage({ searchParams }: { searchParams: { days
 
       {/* By model — the "where the money is" view */}
       <Card className="mt-5 p-4">
-        <h2 className="text-sm font-semibold">By model · AI cost</h2>
-        <p className="mt-0.5 text-xs text-muted-foreground">Cost is priced per model. Switch the default model in the options to trade capability for cost.</p>
+        <h2 className="text-sm font-semibold">{t("usage.byModel.heading", "By model · AI cost")}</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">{t("usage.byModel.desc", "Cost is priced per model. Switch the default model in the options to trade capability for cost.")}</p>
         {u.byModel.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">No activity recorded in this window.</p>
+          <p className="mt-3 text-sm text-muted-foreground">{t("usage.noActivity", "No activity recorded in this window.")}</p>
         ) : (
           <table className="mt-3 w-full text-sm">
             <thead>
               <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="pb-2 font-medium">Model</th>
-                <th className="pb-2 text-right font-medium">Calls</th>
-                <th className="pb-2 text-right font-medium">Est. cost</th>
-                <th className="w-1/4 pb-2 pl-3 font-medium">Share</th>
+                <th className="pb-2 font-medium">{t("usage.col.model", "Model")}</th>
+                <th className="pb-2 text-right font-medium">{t("usage.col.calls", "Calls")}</th>
+                <th className="pb-2 text-right font-medium">{t("usage.col.estCost", "Est. cost")}</th>
+                <th className="w-1/4 pb-2 pl-3 font-medium">{t("usage.col.share", "Share")}</th>
               </tr>
             </thead>
             <tbody>
@@ -217,7 +217,7 @@ export default async function UsagePage({ searchParams }: { searchParams: { days
                 <tr key={m.key} className="border-b last:border-0">
                   <td className="py-2">
                     <code>{m.key}</code>
-                    {!isPriced(m.key) && <span className="ml-2 text-[11px] text-warn">unpriced</span>}
+                    {!isPriced(m.key) && <span className="ml-2 text-[11px] text-warn">{t("usage.unpriced", "unpriced")}</span>}
                   </td>
                   <td className="py-2 text-right tabular-nums">{fmt.format(m.calls)}</td>
                   <td className="py-2 text-right tabular-nums">{usd(m.cost)}</td>
@@ -231,10 +231,10 @@ export default async function UsagePage({ searchParams }: { searchParams: { days
 
       {/* Daily trend */}
       <Card className="mt-5 p-4">
-        <h2 className="text-sm font-semibold">Daily activity</h2>
+        <h2 className="text-sm font-semibold">{t("usage.dailyActivity", "Daily activity")}</h2>
         <div className="mt-3 flex items-end gap-0.5" style={{ height: 96 }}>
           {u.daily.map((d) => (
-            <div key={d.date} className="group relative flex-1" title={`${d.date}: ${fmt.format(d.calls)} calls · ${usd(d.cost)}`}>
+            <div key={d.date} className="group relative flex-1" title={`${d.date}: ${fmt.format(d.calls)} ${t("usage.callsUnit", "calls")} · ${usd(d.cost)}`}>
               <div
                 className="w-full rounded-t bg-foreground/60 transition-colors group-hover:bg-foreground"
                 style={{ height: `${Math.round((d.calls / maxDayCalls) * 88)}px` }}
@@ -249,8 +249,7 @@ export default async function UsagePage({ searchParams }: { searchParams: { days
       </Card>
 
       <p className="mt-4 text-xs text-muted-foreground">
-        Costs are estimates from published list prices (<code className="rounded border px-1 py-0.5">lib/pricing.ts</code>), not a billing feed.
-        Metering records only token counts and model names — never prompt or response content.
+        {t("usage.footer1", "Costs are estimates from published list prices")} (<code className="rounded border px-1 py-0.5">lib/pricing.ts</code>){t("usage.footer2", ", not a billing feed. Metering records only token counts and model names — never prompt or response content.")}
       </p>
     </main>
   );

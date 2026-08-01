@@ -18,14 +18,15 @@ import { getSession } from "@/lib/auth/current";
 import { canEditDemand } from "@/lib/demand-edit";
 import { can } from "@/lib/rbac";
 import { listAttachments } from "@/lib/attachments";
+import { getT, type TFn } from "@/lib/i18n-server";
 import type { Gate, Stage } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-const GATE_LABELS: Record<string, string> = {
-  G1: "Intake accepted", G2: "Prioritized", G3: "Business case", G4: "POC proven/stop",
-  G5: "Pilot proven", G6: "Scale readiness", G7: "Rollout complete",
-};
+const gateLabels = (t: TFn): Record<string, string> => ({
+  G1: t("uc.gate.G1", "Intake accepted"), G2: t("uc.gate.G2", "Prioritized"), G3: t("uc.gate.G3", "Business case"), G4: t("uc.gate.G4", "POC proven/stop"),
+  G5: t("uc.gate.G5", "Pilot proven"), G6: t("uc.gate.G6", "Scale readiness"), G7: t("uc.gate.G7", "Rollout complete"),
+});
 const ALL_GATES: Gate[] = ["G1", "G2", "G3", "G4", "G5", "G6", "G7"];
 
 /** Split README into H2 sections, excluding the ones rendered elsewhere. */
@@ -55,6 +56,8 @@ async function loadCase(id: string): Promise<{ markdown: string; live: boolean }
 }
 
 export default async function UseCasePage({ params }: { params: { id: string } }) {
+  const t = getT();
+  const GATE_LABELS = gateLabels(t);
   const loaded = await loadCase(params.id);
   if (!loaded) notFound();
   const { markdown, live } = loaded;
@@ -105,7 +108,7 @@ export default async function UseCasePage({ params }: { params: { id: string } }
     : `https://github.com/org/${params.id.toLowerCase()}/edit/main/README.md`;
   const portalEditHref = `/uc/${encodeURIComponent(params.id)}/edit`;
   const editHref = canEdit ? portalEditHref : githubEditHref;
-  const editLabel = canEdit ? "Edit" : "Edit on GitHub";
+  const editLabel = canEdit ? t("common.edit", "Edit") : t("uc.editOnGithub", "Edit on GitHub");
 
   const sections = proseSections(markdown);
   const title = uc.title?.split(" · ").slice(1).join(" · ") || uc.title || params.id;
@@ -113,7 +116,7 @@ export default async function UseCasePage({ params }: { params: { id: string } }
   return (
     <main className="mx-auto max-w-[1100px] px-4 py-6">
       <nav className="mb-3 text-sm text-muted-foreground">
-        <Link href="/board" className="hover:text-foreground">Portfolio</Link>
+        <Link href="/board" className="hover:text-foreground">{t("nav.portfolio", "Portfolio")}</Link>
         <span className="mx-1.5" aria-hidden>›</span>
         <span className="text-foreground">{params.id}</span>
       </nav>
@@ -122,16 +125,16 @@ export default async function UseCasePage({ params }: { params: { id: string } }
         <h1 className="text-xl font-semibold">{title}</h1>
         <span
           className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${live ? "bg-ok/10 text-ok" : "bg-secondary text-muted-foreground"}`}
-          title={live ? `Read live from ${demandsRepo}` : "Read from the local workspace"}
+          title={live ? `${t("uc.readLiveFrom", "Read live from")} ${demandsRepo}` : t("uc.readLocal", "Read from the local workspace")}
         >
-          {live ? `● live · ${demandsRepo}` : "○ local workspace"}
+          {live ? `● ${t("uc.live", "live")} · ${demandsRepo}` : t("uc.localWorkspace", "○ local workspace")}
         </span>
         {canEdit && (
           <Link
             href={portalEditHref}
             className="ml-auto rounded-md border px-3 py-1 text-xs font-medium hover:border-foreground/40"
           >
-            ✎ Edit demand
+            ✎ {t("uc.editDemand", "Edit demand")}
           </Link>
         )}
       </div>
@@ -142,13 +145,13 @@ export default async function UseCasePage({ params }: { params: { id: string } }
         {domain && <><span aria-hidden>·</span><span>{domain}</span></>}
         {uc.state.level && <LevelBadge level={uc.state.level} />}
         {uc.state.heat && <HeatDot heat={uc.state.heat} />}
-        {days !== undefined && <><span aria-hidden>·</span><span>{days} days in stage</span></>}
+        {days !== undefined && <><span aria-hidden>·</span><span>{days} {t("uc.daysInStage", "days in stage")}</span></>}
       </div>
 
       {uc.needsAttention && (
         <div className="mt-4 flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm">
           <span className="text-destructive" aria-hidden>⚠</span>
-          <span>This case's state couldn't be fully read. Fix the <span className="font-mono">## State</span> section in GitHub.</span>
+          <span>{t("uc.needsAttention1", "This case's state couldn't be fully read. Fix the")} <span className="font-mono">## State</span> {t("uc.needsAttention2", "section in GitHub.")}</span>
         </div>
       )}
 
@@ -159,7 +162,7 @@ export default async function UseCasePage({ params }: { params: { id: string } }
           </div>
           <div>
             {sections.length === 0 && (
-              <p className="text-sm text-muted-foreground">No prose sections in this case yet.</p>
+              <p className="text-sm text-muted-foreground">{t("uc.noProse", "No prose sections in this case yet.")}</p>
             )}
             {sections.map((s, i) => (
               <MarkdownDoc
@@ -187,7 +190,7 @@ export default async function UseCasePage({ params }: { params: { id: string } }
               reason={decision.permitted ? undefined : decision.reason}
             />
           ) : (
-            targetGate && <GateAction gate={targetGate} decision={decision} approvers="Portfolio forum" />
+            targetGate && <GateAction gate={targetGate} decision={decision} approvers={t("uc.portfolioForum", "Portfolio forum")} />
           )}
 
           {live && (
@@ -210,13 +213,13 @@ export default async function UseCasePage({ params }: { params: { id: string } }
           )}
 
           <div>
-            <h2 className="mb-2 text-sm font-semibold">People</h2>
+            <h2 className="mb-2 text-sm font-semibold">{t("uc.people", "People")}</h2>
             <dl className="space-y-1.5 text-sm">
               {[
-                ["Sponsor", people.sponsor],
-                ["Value owner", people.value_owner],
-                ["Lead", people.lead],
-                ["Requester", people.requester],
+                [t("uc.role.sponsor", "Sponsor"), people.sponsor],
+                [t("uc.role.valueOwner", "Value owner"), people.value_owner],
+                [t("uc.role.lead", "Lead"), people.lead],
+                [t("uc.role.requester", "Requester"), people.requester],
               ].map(([label, val]) => (
                 <div key={label} className="flex justify-between gap-2">
                   <dt className="text-muted-foreground">{label}</dt>
@@ -227,16 +230,16 @@ export default async function UseCasePage({ params }: { params: { id: string } }
           </div>
 
           <div>
-            <h2 className="mb-2 text-sm font-semibold">Documents</h2>
+            <h2 className="mb-2 text-sm font-semibold">{t("uc.documents", "Documents")}</h2>
             <ul className="space-y-1 text-sm">
               <li className="flex items-center justify-between gap-2">
                 <Link href={`/uc/${params.id}/business-case`} className="hover:underline">
-                  {uc.gates.find((g) => g.id === "G3")?.status === "passed" ? "✓" : hasBusinessCase ? "◐" : "–"} Business case
+                  {uc.gates.find((g) => g.id === "G3")?.status === "passed" ? "✓" : hasBusinessCase ? "◐" : "–"} {t("uc.businessCase", "Business case")}
                 </Link>
-                <span className="text-xs text-muted-foreground">{hasBusinessCase ? "drafted" : "draft →"}</span>
+                <span className="text-xs text-muted-foreground">{hasBusinessCase ? t("uc.drafted", "drafted") : t("uc.draftArrow", "draft →")}</span>
               </li>
-              <li>{uc.gates.find((g) => g.id === "G4")?.status === "passed" ? "✓" : "–"} POC evaluation</li>
-              <li>– Pilot KPI</li>
+              <li>{uc.gates.find((g) => g.id === "G4")?.status === "passed" ? "✓" : "–"} {t("uc.pocEvaluation", "POC evaluation")}</li>
+              <li>– {t("uc.pilotKpi", "Pilot KPI")}</li>
             </ul>
           </div>
 
@@ -252,7 +255,7 @@ export default async function UseCasePage({ params }: { params: { id: string } }
               href={`/uc/${params.id}/simulate`}
               className="flex items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-3 text-sm font-medium hover:border-foreground/40"
             >
-              ⚡ Simulate business case
+              ⚡ {t("uc.simulateBusinessCase", "Simulate business case")}
             </Link>
           )}
 
@@ -262,10 +265,10 @@ export default async function UseCasePage({ params }: { params: { id: string } }
           <div
             className="relative flex items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-3 text-sm font-medium text-muted-foreground opacity-60"
             aria-disabled
-            title="The agentic PoC builder is not yet wired to the real funnel"
+            title={t("uc.builderNotWired", "The agentic PoC builder is not yet wired to the real funnel")}
           >
-            🛠 Build PoC with agents
-            <span className="absolute right-3 text-[10px] uppercase tracking-wide">soon</span>
+            🛠 {t("uc.buildPoc", "Build PoC with agents")}
+            <span className="absolute right-3 text-[10px] uppercase tracking-wide">{t("uc.soon", "soon")}</span>
           </div>
         </aside>
       </div>

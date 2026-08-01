@@ -3,6 +3,7 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 import { AppHeader } from "@/components/portal/app-header";
 import { Telemetry } from "@/components/portal/telemetry";
+import { getLocale } from "@/lib/i18n-server";
 
 export const metadata: Metadata = {
   title: "Digitalization Portal",
@@ -13,8 +14,9 @@ export const metadata: Metadata = {
 const themeScript = `(function(){try{var t=localStorage.getItem('du-theme');if(!t){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}if(t==='dark')document.documentElement.classList.add('dark');}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = getLocale();
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>

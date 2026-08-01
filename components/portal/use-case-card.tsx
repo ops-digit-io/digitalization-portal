@@ -6,8 +6,10 @@ import { CardQuickActions, type QuickActionCaps } from "@/components/portal/card
 import { cn } from "@/lib/utils";
 import type { Lane } from "@/lib/types";
 import type { BoardCard } from "@/lib/board";
+import { getT } from "@/lib/i18n-server";
 
 export function UseCaseCard({ card, manage }: { card: BoardCard; manage?: QuickActionCaps }) {
+  const t = getT();
   const killed = card.status === "killed";
   const parked = card.status === "parked";
   const showMenu = manage && (manage.advance || manage.park || manage.kill || manage.reactivate);
@@ -26,28 +28,28 @@ export function UseCaseCard({ card, manage }: { card: BoardCard; manage?: QuickA
         <div className="flex items-center justify-between gap-2">
           <span className="text-[11px] font-medium text-muted-foreground">{card.id}</span>
           <div className="flex items-center gap-1.5">
-            {killed && <Badge variant="outline" className="border-destructive/50 px-1.5 py-0 text-[10px] font-normal text-destructive">killed</Badge>}
-            {parked && <Badge variant="outline" className="border-warn/50 px-1.5 py-0 text-[10px] font-normal text-warn">parked</Badge>}
+            {killed && <Badge variant="outline" className="border-destructive/50 px-1.5 py-0 text-[10px] font-normal text-destructive">{t("status.killed", "killed")}</Badge>}
+            {parked && <Badge variant="outline" className="border-warn/50 px-1.5 py-0 text-[10px] font-normal text-warn">{t("status.parked", "parked")}</Badge>}
             {showMenu && <CardQuickActions id={card.id} status={card.status} caps={manage!} />}
           </div>
         </div>
         <div className={cn("mt-0.5 line-clamp-2 text-sm font-medium leading-snug", killed && "line-through")}>{card.title}</div>
 
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          {card.lane && <LaneBadge lane={card.lane as Lane} />}
+          {card.lane && <LaneBadge lane={card.lane as Lane} t={t} />}
           {card.domain && <span className="text-xs text-muted-foreground">{card.domain}</span>}
         </div>
 
         <div className="mt-2 flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span>{card.plant ?? "—"}</span>
-            {card.level && <LevelBadge level={card.level} />}
-            {card.heat && <HeatDot heat={card.heat} />}
+            {card.level && <LevelBadge level={card.level} t={t} />}
+            {card.heat && <HeatDot heat={card.heat} t={t} />}
           </div>
           {card.daysInStage !== undefined && (
             <span
               className={cn("inline-flex items-center gap-0.5 text-xs tabular-nums", card.stalled ? "font-medium text-warn" : "text-muted-foreground")}
-              title={card.stalled ? "Stalled — over 30 days in stage" : "Days in stage"}
+              title={card.stalled ? t("useCaseCard.stalled", "Stalled — over 30 days in stage") : t("useCaseCard.daysInStage", "Days in stage")}
             >
               {card.stalled && <span aria-hidden>⏱</span>}
               {card.daysInStage}d

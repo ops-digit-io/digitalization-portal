@@ -6,6 +6,7 @@ import { recordUsage } from "@/lib/usage-meter";
 import { loadIntakeGuideline, intakeSystemPrompt, SAVE_DEMAND_TOOL, INTAKE_PLAYBOOK, INTAKE_SKILLS } from "@/lib/agent/intake-guideline";
 import { startIntake, submitAnswer, type ChatMessage, type IntakeState } from "@/lib/intake-agent";
 import { INTAKE_FIELDS, EMPTY_ANSWERS, missingRequired, type DemandAnswers } from "@/lib/demand";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,16 +35,17 @@ interface TurnResult {
  * failure), the deterministic agent that encodes the same rules runs instead.
  */
 export async function POST(req: Request) {
+  const t = getT();
   const session = await getSession(); // real deployment resolves this from the OIDC session
   if (!can(session, "draft")) {
-    return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
+    return NextResponse.json({ error: t("api.intake.draftCapabilityRequired", "missing capability: draft") }, { status: 403 });
   }
 
   let body: TurnBody;
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: t("api.invalidJson", "invalid JSON") }, { status: 400 });
   }
 
   // The deterministic agent — the offline path and the fallback.

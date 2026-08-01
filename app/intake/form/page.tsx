@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { classifyDemand, missingRequired, INTAKE_FIELDS, FIELD_GROUPS, EMPTY_ANSWERS, type DemandField, type DemandAnswers } from "@/lib/demand";
+import { useI18n } from "@/components/providers";
 import { ToolHeader, SavedLinks, useIntakeSave, useDraft } from "../shared";
 import { IntakeEnhancer } from "../enhancer";
 import { SimilarDemands } from "../similar";
@@ -20,18 +21,18 @@ const FIELD_CLASS = "mt-1 w-full rounded-md border bg-transparent px-2.5 py-1.5 
  * its element identity is stable across renders — otherwise React remounts the
  * input on every keystroke and it loses focus after one character.
  */
-function Field({ f, value, onChange, options }: { f: DemandField; value: string; onChange: (v: string) => void; options?: readonly string[] }) {
+function Field({ f, value, onChange, options, t }: { f: DemandField; value: string; onChange: (v: string) => void; options?: readonly string[]; t: (k: string, fb?: string) => string }) {
   // Managed options (from the admin category store) override the baked-in seed.
   const opts = options ?? f.options ?? [];
   return (
     <div>
-      <label htmlFor={f.key} className="text-sm font-medium">{f.label}{f.required && <span className="text-warn"> *</span>}</label>
-      <p className="text-xs text-muted-foreground">{f.hint}</p>
+      <label htmlFor={f.key} className="text-sm font-medium">{t(`demandField.${f.key}.label`, f.label)}{f.required && <span className="text-warn"> *</span>}</label>
+      <p className="text-xs text-muted-foreground">{t(`demandField.${f.key}.hint`, f.hint)}</p>
       {f.input === "textarea" ? (
         <textarea id={f.key} rows={f.key === "problem" ? 3 : 2} value={value} onChange={(e) => onChange(e.target.value)} className={`${FIELD_CLASS} resize-none`} />
       ) : f.input === "select" ? (
         <select id={f.key} value={value} onChange={(e) => onChange(e.target.value)} className={FIELD_CLASS}>
-          <option value="">{f.required ? "Select…" : "— none —"}</option>
+          <option value="">{f.required ? t("intake.form.selectPlaceholder", "Select…") : t("intake.form.noneOption", "— none —")}</option>
           {opts.map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
       ) : (
@@ -56,6 +57,7 @@ function useCategoryOptions(): Record<string, string[]> {
 }
 
 export default function FormTool() {
+  const { t } = useI18n();
   const [answers, setAnswers, clearDraft] = useDraft<DemandAnswers>("intake:form:v1", { ...EMPTY_ANSWERS });
   const { saving, saved, error, save, reset } = useIntakeSave();
   const categoryOptions = useCategoryOptions();
@@ -72,15 +74,15 @@ export default function FormTool() {
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-3">
-      <ToolHeader active="form" blurb="A plain form — fill the fields directly." />
+      <ToolHeader active="form" blurb={t("intake.form.blurb", "A plain form — fill the fields directly.")} />
 
       <Card className="p-5">
         <div className="space-y-6">
           {FIELD_GROUPS.map((g) => (
             <fieldset key={g} className="space-y-3.5">
-              <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{g}</legend>
+              <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t(`demandGroup.${g}`, g)}</legend>
               {INTAKE_FIELDS.filter((f) => f.group === g).map((f) => (
-                <Field key={f.key} f={f} value={answers[f.key]} onChange={(v) => set(f.key, v)} options={categoryOptions[f.key]} />
+                <Field key={f.key} f={f} value={answers[f.key]} onChange={(v) => set(f.key, v)} options={categoryOptions[f.key]} t={t} />
               ))}
             </fieldset>
           ))}
@@ -101,17 +103,17 @@ export default function FormTool() {
         <div className="mt-6 border-t pt-4">
           {error && <div className="mb-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-1.5 text-xs text-destructive">{error}</div>}
           <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span className="uppercase tracking-wide">Proposed lane</span>
-            <Badge variant="secondary" className="font-normal">{LANE_LABEL[classification.lane] ?? classification.lane}</Badge>
-            <span>· triage confirms it. {classification.rationale}</span>
+            <span className="uppercase tracking-wide">{t("intake.form.proposedLane", "Proposed lane")}</span>
+            <Badge variant="secondary" className="font-normal">{t(`lane.${classification.lane}`, LANE_LABEL[classification.lane] ?? classification.lane)}</Badge>
+            <span>· {t("intake.form.triageConfirms", "triage confirms it.")} {classification.rationale}</span>
           </div>
           {!saved ? (
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs text-muted-foreground">{canSave ? "Ready to save." : `Still needed: ${missing.map((m) => m.label).join(", ")}`}</span>
+              <span className="text-xs text-muted-foreground">{canSave ? t("intake.readyToSave", "Ready to save.") : `${t("intake.stillNeeded", "Still needed:")} ${missing.map((m) => t(`demandField.${m.key}.label`, m.label)).join(", ")}`}</span>
               <div className="flex gap-2">
-                <button onClick={restart} className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Clear</button>
+                <button onClick={restart} className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">{t("intake.form.clear", "Clear")}</button>
                 <button onClick={() => save({ answers })} disabled={!canSave || saving} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-40">
-                  {saving ? "Saving…" : "Save demand"}
+                  {saving ? t("common.saving", "Saving…") : t("intake.saveDemand", "Save demand")}
                 </button>
               </div>
             </div>

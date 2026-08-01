@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/components/providers";
 
 export interface FilterSelect {
   param: string;
@@ -28,6 +29,7 @@ export function FilterBar({
   search?: { param: string; placeholder?: string };
 }) {
   const router = useRouter();
+  const { t } = useI18n();
 
   function go(patch: Record<string, string | undefined>) {
     const merged = { ...current, ...patch };
@@ -61,7 +63,7 @@ export function FilterBar({
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder={search.placeholder ?? "Search…"}
+            placeholder={search.placeholder ?? t("common.search", "Search…")}
             className="h-9 w-full rounded-md border bg-transparent pl-8 pr-2.5 text-sm outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
           />
         </div>
@@ -74,7 +76,7 @@ export function FilterBar({
           onChange={(e) => go({ [s.param]: e.target.value || undefined })}
           className={`${selCls} ${current[s.param] ? "border-foreground font-medium" : "text-muted-foreground"}`}
         >
-          <option value="">{s.label}: All</option>
+          <option value="">{s.label}: {t("common.all", "All")}</option>
           {s.options.map((o) => (
             <option key={o} value={o}>{s.labels?.[o] ?? o}</option>
           ))}
@@ -82,7 +84,7 @@ export function FilterBar({
       ))}
       {activeCount > 0 && (
         <button onClick={() => { setQ(""); router.push(path); }} className="h-9 rounded-md px-2.5 text-sm text-muted-foreground hover:text-foreground">
-          Clear
+          {t("filter.clear", "Clear")}
         </button>
       )}
     </div>

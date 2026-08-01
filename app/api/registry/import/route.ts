@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth/current";
 import { saveEntry } from "@/lib/registry-store";
 import { slugify } from "@/lib/poc/scaffold";
 import { fetchReferenceSkill, ensureProvenance } from "@/lib/skill-import";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,20 +20,21 @@ export const dynamic = "force-dynamic";
  * governs an agent (constraint #5 / AI drafts, humans decide).
  */
 export async function POST(req: Request) {
+  const t = getT();
   const session = await getSession(); // real deployment resolves this from the OIDC session
   if (!can(session, "draft")) {
-    return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
+    return NextResponse.json({ error: t("api.registry.missingDraftCapability", "missing capability: draft") }, { status: 403 });
   }
 
   let body: { action?: string; url?: string; name?: string };
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: t("api.invalidJson", "invalid JSON") }, { status: 400 });
   }
 
   const url = (body.url ?? "").trim();
-  if (!url) return NextResponse.json({ error: "a skill URL is required" }, { status: 400 });
+  if (!url) return NextResponse.json({ error: t("api.registry.skillUrlRequired", "a skill URL is required") }, { status: 400 });
 
   try {
     const fetched = await fetchReferenceSkill(url);
@@ -51,7 +53,7 @@ export async function POST(req: Request) {
 
     if (body.action === "save") {
       const name = slugify(body.name?.trim() || fetched.name);
-      if (!name) return NextResponse.json({ error: "could not derive a skill name" }, { status: 400 });
+      if (!name) return NextResponse.json({ error: t("api.registry.couldNotDeriveName", "could not derive a skill name") }, { status: 400 });
       // Save the WHOLE bundle; stamp provenance into the SKILL.md.
       const files = fetched.files.map((f) =>
         /(^|\/)SKILL\.md$/i.test(f.path) ? { path: f.path, content: ensureProvenance(f.content, fetched.sourceUrl) } : f,
@@ -66,7 +68,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ name, sourceUrl: fetched.sourceUrl, files: files.map((f) => f.path), skipped: fetched.skipped, result });
     }
 
-    return NextResponse.json({ error: "action must be 'preview' or 'save'" }, { status: 400 });
+    return NextResponse.json({ error: t("api.registry.actionPreviewOrSave", "action must be 'preview' or 'save'") }, { status: 400 });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "import failed" }, { status: 400 });
   }

@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import type { Confidence } from "@/lib/types";
+import { getT } from "@/lib/i18n-server";
 
 /**
  * Encodes a specification rule in the component layer: an indicative figure
@@ -15,8 +16,9 @@ export function ValueFigure({
   confidence: Confidence;
   currency?: string;
 }) {
+  const t = getT();
   if (amount === null) {
-    return <span className="text-muted-foreground">Needs input</span>;
+    return <span className="text-muted-foreground">{t("valueFigure.needsInput", "Needs input")}</span>;
   }
 
   const formatted = new Intl.NumberFormat("de-DE", {

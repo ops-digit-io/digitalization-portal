@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { DemandAnswers } from "@/lib/demand";
+import { useI18n } from "@/components/providers";
 
 /** Mirrors lib/agent/intake-enhance EnhancementResult (kept local to avoid bundling server code). */
 interface FieldEnhancement {
@@ -39,6 +40,7 @@ export function IntakeEnhancer({
   answers: DemandAnswers;
   onApply: (patch: Partial<DemandAnswers>) => void;
 }) {
+  const { t } = useI18n();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<EnhancementResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,12 +59,12 @@ export function IntakeEnhancer({
       });
       const data = (await res.json()) as EnhancementResult & { error?: string };
       if (!res.ok) {
-        setError(data.error ?? "Enhancement failed.");
+        setError(data.error ?? t("intake.enhance.failed", "Enhancement failed."));
         return;
       }
       setResult(data);
     } catch {
-      setError("Request failed.");
+      setError(t("error.requestFailed", "Request failed."));
     } finally {
       setLoading(false);
     }
@@ -85,11 +87,11 @@ export function IntakeEnhancer({
     <div className="rounded-lg border border-dashed p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-sm font-semibold">✨ Review &amp; strengthen with AI</h2>
+          <h2 className="text-sm font-semibold">✨ {t("intake.enhance.heading", "Review & strengthen with AI")}</h2>
           <p className="text-xs text-muted-foreground">
-            Assesses the demand and, with a model configured, drafts clearer field text — you choose what to apply. Not requirements engineering.
+            {t("intake.enhance.intro", "Assesses the demand and, with a model configured, drafts clearer field text — you choose what to apply. Not requirements engineering.")}
             {result && (
-              <> Governed by the <a href={`/catalog/playbook/${result.playbook}`} className="underline hover:text-foreground">{result.playbook}</a> playbook.</>
+              <> {t("intake.enhance.governedBy", "Governed by the")} <a href={`/catalog/playbook/${result.playbook}`} className="underline hover:text-foreground">{result.playbook}</a> {t("intake.enhance.playbookSuffix", "playbook.")}</>
             )}
           </p>
         </div>
@@ -99,7 +101,7 @@ export function IntakeEnhancer({
           disabled={loading}
           className="rounded-md border px-3 py-1.5 text-sm font-medium hover:border-foreground/40 disabled:opacity-50"
         >
-          {loading ? "Working…" : result ? "Re-run" : "Review"}
+          {loading ? t("intake.enhance.working", "Working…") : result ? t("intake.enhance.rerun", "Re-run") : t("intake.enhance.review", "Review")}
         </button>
       </div>
 
@@ -109,7 +111,7 @@ export function IntakeEnhancer({
           say so, so an empty change-list doesn't read as "it did nothing". */}
       {result && !result.live && changed.length === 0 && (
         <div className="mt-3 rounded-md border border-info/40 bg-info/5 px-3 py-2 text-xs text-muted-foreground">
-          Offline mode reviews the demand and raises the questions below, but doesn't rewrite field text. Set <span className="font-mono">ANTHROPIC_API_KEY</span> (or <span className="font-mono">OPENAI_API_KEY</span>) to get AI-drafted rewrites you can apply.
+          {t("intake.enhance.offlineNote1", "Offline mode reviews the demand and raises the questions below, but doesn't rewrite field text. Set")} <span className="font-mono">ANTHROPIC_API_KEY</span> {t("intake.enhance.offlineNote2", "(or")} <span className="font-mono">OPENAI_API_KEY</span>{t("intake.enhance.offlineNote3", ") to get AI-drafted rewrites you can apply.")}
         </div>
       )}
 
@@ -119,13 +121,13 @@ export function IntakeEnhancer({
             <span className={`font-semibold uppercase tracking-wide ${SCORE_TONE[result.assessment.score]}`}>{result.assessment.score}</span>
             <span className="text-muted-foreground">{result.assessment.summary}</span>
             <span className="ml-auto rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
-              {result.live ? `● ${result.provider}` : "○ offline"}
+              {result.live ? `● ${result.provider}` : `○ ${t("status.offline", "offline")}`}
             </span>
           </div>
 
           {changed.length > 1 && (
             <button type="button" onClick={() => applyAll(changed)} className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground">
-              Apply all {changed.length} changes
+              {t("intake.enhance.applyAll", "Apply all")} {changed.length} {t("intake.enhance.changes", "changes")}
             </button>
           )}
 
@@ -138,9 +140,9 @@ export function IntakeEnhancer({
                   <span className="text-xs font-medium">{f.label}</span>
                   {f.changed && (
                     isApplied ? (
-                      <span className="text-[11px] text-ok">✓ applied</span>
+                      <span className="text-[11px] text-ok">✓ {t("intake.enhance.applied", "applied")}</span>
                     ) : (
-                      <button type="button" onClick={() => applyField(f)} className="rounded border px-2 py-0.5 text-[11px] hover:border-foreground/40">Apply</button>
+                      <button type="button" onClick={() => applyField(f)} className="rounded border px-2 py-0.5 text-[11px] hover:border-foreground/40">{t("intake.enhance.apply", "Apply")}</button>
                     )
                   )}
                 </div>
@@ -157,7 +159,7 @@ export function IntakeEnhancer({
 
           {result.openQuestions.length > 0 && (
             <div>
-              <h3 className="text-xs font-semibold text-muted-foreground">Open questions to strengthen the demand</h3>
+              <h3 className="text-xs font-semibold text-muted-foreground">{t("intake.enhance.openQuestions", "Open questions to strengthen the demand")}</h3>
               <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
                 {result.openQuestions.map((q, i) => <li key={i}>{q}</li>)}
               </ul>

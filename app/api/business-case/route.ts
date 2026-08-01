@@ -6,6 +6,7 @@ import { parseDemandToAnswers } from "@/lib/demand";
 import { draftBusinessCaseMarkdown, setBusinessCaseValue, setAssumptionTested, logBusinessCaseChange } from "@/lib/business-case-draft";
 import { parseBusinessCase } from "@/lib/businesscase";
 import { readDemand, readArtifact, saveArtifact } from "@/lib/demands-store";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,9 +18,10 @@ export const dynamic = "force-dynamic";
  * follow the same `business-case` playbook. Never states a value it can't support.
  */
 export async function POST(req: Request) {
+  const t = getT();
   const session = await getSession();
   if (!can(session, "draft")) {
-    return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
+    return NextResponse.json({ error: t("api.businessCase.missingDraftCapability", "missing capability: draft") }, { status: 403 });
   }
 
   let body: {
@@ -35,16 +37,16 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: t("api.invalidJson", "invalid JSON") }, { status: 400 });
   }
-  if (!body.id) return NextResponse.json({ error: "id is required" }, { status: 400 });
+  if (!body.id) return NextResponse.json({ error: t("api.idRequired", "id is required") }, { status: 400 });
 
   const date = new Date().toISOString().slice(0, 10);
 
   // Quantify an existing business case in place — the value/cost the human decides.
   if (body.action === "set-value") {
     const existing = await readArtifact(body.id, "business-case");
-    if (existing === undefined) return NextResponse.json({ error: "Draft the business case first." }, { status: 404 });
+    if (existing === undefined) return NextResponse.json({ error: t("api.businessCase.draftFirst", "Draft the business case first.") }, { status: 404 });
     let updated = setBusinessCaseValue(existing, {
       ...(body.annualGross !== undefined ? { annualGross: body.annualGross } : {}),
       ...(body.buildEstimate !== undefined ? { buildEstimate: String(body.buildEstimate) } : {}),
@@ -73,13 +75,13 @@ export async function POST(req: Request) {
   // Mark an assumption tested/untested — moves it out of (or into) the downside band.
   if (body.action === "set-assumption") {
     if (typeof body.index !== "number" || body.index < 0) {
-      return NextResponse.json({ error: "index must be a non-negative number" }, { status: 400 });
+      return NextResponse.json({ error: t("api.businessCase.indexNonNegative", "index must be a non-negative number") }, { status: 400 });
     }
     const existing = await readArtifact(body.id, "business-case");
-    if (existing === undefined) return NextResponse.json({ error: "Draft the business case first." }, { status: 404 });
+    if (existing === undefined) return NextResponse.json({ error: t("api.businessCase.draftFirst", "Draft the business case first.") }, { status: 404 });
     const tested = Boolean(body.tested);
     const before = parseBusinessCase(existing).assumptions[body.index];
-    if (before === undefined) return NextResponse.json({ error: `No assumption at index ${body.index}.` }, { status: 400 });
+    if (before === undefined) return NextResponse.json({ error: `${t("api.businessCase.noAssumptionAtIndex", "No assumption at index")} ${body.index}.` }, { status: 400 });
     let updated = setAssumptionTested(existing, body.index, tested);
     if (updated !== existing) {
       updated = logBusinessCaseChange(updated, {
@@ -97,7 +99,7 @@ export async function POST(req: Request) {
   }
 
   const md = await readDemand(body.id);
-  if (md === undefined) return NextResponse.json({ error: `demand ${body.id} not found in the funnel` }, { status: 404 });
+  if (md === undefined) return NextResponse.json({ error: `${t("api.businessCase.demand", "demand")} ${body.id} ${t("api.businessCase.notFoundInFunnel", "not found in the funnel")}` }, { status: 404 });
 
   const answers = parseDemandToAnswers(md);
   const title = parseUseCase(md).title?.replace(/^UC-\d{4}-\d+\s*·\s*/, "") ?? body.id;

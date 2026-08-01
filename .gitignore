@@ -19,3 +19,6 @@ tsconfig.tsbuildinfo
 
 # Interim buffer for demands captured before a git host is configured
 .pending-demands/
+
+# Claude scratchpad (local temp; never commit)
+scratchpad/

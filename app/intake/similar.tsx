@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useI18n } from "@/components/providers";
 
 interface Match {
   id: string;
@@ -17,6 +18,7 @@ interface Match {
  * there's a match. Reads the funnel through /api/intake/similar (committed + pending).
  */
 export function SimilarDemands({ query }: { query: string }) {
+  const { t } = useI18n();
   const [matches, setMatches] = useState<Match[]>([]);
 
   useEffect(() => {
@@ -45,7 +47,7 @@ export function SimilarDemands({ query }: { query: string }) {
 
   return (
     <div className="rounded-md border border-info/40 bg-info/5 p-2.5 text-xs">
-      <div className="font-medium text-foreground">Possibly already captured — open one instead of duplicating?</div>
+      <div className="font-medium text-foreground">{t("intake.similar.heading", "Possibly already captured — open one instead of duplicating?")}</div>
       <ul className="mt-1 space-y-0.5">
         {matches.map((m) => (
           <li key={m.id}>
@@ -53,7 +55,7 @@ export function SimilarDemands({ query }: { query: string }) {
             <span className="text-muted-foreground">
               {m.title}
               {m.stage ? ` · ${m.stage}` : ""}
-              {m.pending ? " · pending" : ""}
+              {m.pending ? ` · ${t("intake.similar.pending", "pending")}` : ""}
             </span>
           </li>
         ))}

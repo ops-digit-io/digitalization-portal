@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useI18n } from "@/components/providers";
 
 interface Health {
   provider: string;
@@ -11,6 +12,7 @@ interface Health {
 
 /** On-demand live API check — makes one minimal request and reports the result. */
 export function ProviderProbe() {
+  const { t } = useI18n();
   const [running, setRunning] = useState(false);
   const [health, setHealth] = useState<Health | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -24,7 +26,7 @@ export function ProviderProbe() {
       const data = (await res.json()) as { health?: Health };
       setHealth(data.health ?? null);
     } catch {
-      setErr("Request failed.");
+      setErr(t("error.requestFailed", "Request failed."));
     } finally {
       setRunning(false);
     }
@@ -39,19 +41,19 @@ export function ProviderProbe() {
           disabled={running}
           className="rounded-md border px-3 py-1.5 text-xs font-medium hover:border-foreground/40 disabled:opacity-50"
         >
-          {running ? "Testing…" : "Test connection"}
+          {running ? t("probe.testing", "Testing…") : t("probe.testConnection", "Test connection")}
         </button>
-        <span className="text-[11px] text-muted-foreground">Makes one minimal call to verify the key works.</span>
+        <span className="text-[11px] text-muted-foreground">{t("probe.hint", "Makes one minimal call to verify the key works.")}</span>
       </div>
       {err && <div className="mt-2 text-xs text-destructive">{err}</div>}
       {health && (
         <div className="mt-2 text-xs">
           {!health.live ? (
-            <span className="text-muted-foreground">○ Offline — no model key configured.</span>
+            <span className="text-muted-foreground">○ {t("probe.offline", "Offline — no model key configured.")}</span>
           ) : health.ok ? (
-            <span className="text-ok">✓ Reachable — the {health.provider} key authenticated and responded.</span>
+            <span className="text-ok">✓ {t("probe.reachablePrefix", "Reachable — the")} {health.provider} {t("probe.reachableSuffix", "key authenticated and responded.")}</span>
           ) : (
-            <span className="text-destructive">⚠ Not responding — {health.error ?? "check the key or base URL."}</span>
+            <span className="text-destructive">⚠ {t("probe.notResponding", "Not responding —")} {health.error ?? t("probe.checkKey", "check the key or base URL.")}</span>
           )}
         </div>
       )}

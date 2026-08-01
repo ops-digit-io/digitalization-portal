@@ -14,6 +14,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useI18n } from "@/components/providers";
 import { CHAMPION_ROLES, ROLE_MEANING, type ChampionRole } from "@/lib/champions";
 
 const INPUT = "mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring";
@@ -22,6 +23,7 @@ const LABEL = "block text-xs font-medium text-muted-foreground";
 function MultiSelect({
   label, options, selected, onChange,
 }: { label: string; options: string[]; selected: string[]; onChange: (v: string[]) => void }) {
+  const { t } = useI18n();
   return (
     <div>
       <span className={LABEL}>{label}</span>
@@ -43,12 +45,13 @@ function MultiSelect({
           );
         })}
       </div>
-      {selected.length === 0 && <p className="mt-1 text-[11px] text-muted-foreground">none selected — counts as all</p>}
+      {selected.length === 0 && <p className="mt-1 text-[11px] text-muted-foreground">{t("championEditor.noneCountsAll", "none selected — counts as all")}</p>}
     </div>
   );
 }
 
 export function ChampionEditor({ plants, domains }: { plants: string[]; domains: string[] }) {
+  const { t } = useI18n();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -87,30 +90,30 @@ export function ChampionEditor({ plants, domains }: { plants: string[]; domains:
 
   if (!open) {
     return (
-      <Button size="sm" variant="outline" onClick={() => setOpen(true)}>Register a champion</Button>
+      <Button size="sm" variant="outline" onClick={() => setOpen(true)}>{t("championEditor.register", "Register a champion")}</Button>
     );
   }
 
   return (
     <Card className="p-4">
       <div className="flex items-start justify-between gap-3">
-        <h2 className="text-sm font-semibold">Register a champion</h2>
-        <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Close</Button>
+        <h2 className="text-sm font-semibold">{t("championEditor.register", "Register a champion")}</h2>
+        <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>{t("common.close", "Close")}</Button>
       </div>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div>
-          <label className={LABEL} htmlFor="ch-name">Name</label>
+          <label className={LABEL} htmlFor="ch-name">{t("championEditor.name", "Name")}</label>
           <input id="ch-name" value={name} onChange={(e) => setName(e.target.value)} className={INPUT} />
         </div>
         <div>
-          <label className={LABEL} htmlFor="ch-email">Email</label>
+          <label className={LABEL} htmlFor="ch-email">{t("championEditor.email", "Email")}</label>
           <input id="ch-email" value={email} onChange={(e) => setEmail(e.target.value)} className={INPUT} placeholder="name@company.com" />
         </div>
       </div>
 
       <div className="mt-3">
-        <span className={LABEL}>Role</span>
+        <span className={LABEL}>{t("championEditor.roleLabel", "Role")}</span>
         <div className="mt-1 flex flex-wrap gap-1.5">
           {CHAMPION_ROLES.map((r) => (
             <button
@@ -131,21 +134,21 @@ export function ChampionEditor({ plants, domains }: { plants: string[]; domains:
       </div>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <MultiSelect label="Plants" options={plants} selected={selPlants} onChange={setSelPlants} />
-        <MultiSelect label="Domains" options={domains} selected={selDomains} onChange={setSelDomains} />
+        <MultiSelect label={t("field.plants", "Plants")} options={plants} selected={selPlants} onChange={setSelPlants} />
+        <MultiSelect label={t("field.domains", "Domains")} options={domains} selected={selDomains} onChange={setSelDomains} />
       </div>
 
       <div className="mt-3">
-        <label className={LABEL} htmlFor="ch-capacity">Capacity — honestly</label>
-        <input id="ch-capacity" value={capacity} onChange={(e) => setCapacity(e.target.value)} className={INPUT} placeholder="half a day a week" />
+        <label className={LABEL} htmlFor="ch-capacity">{t("championEditor.capacity", "Capacity — honestly")}</label>
+        <input id="ch-capacity" value={capacity} onChange={(e) => setCapacity(e.target.value)} className={INPUT} placeholder={t("championEditor.capacityPlaceholder", "half a day a week")} />
       </div>
       <div className="mt-3">
-        <label className={LABEL} htmlFor="ch-notes">Notes</label>
+        <label className={LABEL} htmlFor="ch-notes">{t("championEditor.notes", "Notes")}</label>
         <input id="ch-notes" value={notes} onChange={(e) => setNotes(e.target.value)} className={INPUT} />
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <Button size="sm" disabled={busy || name.trim() === ""} onClick={save}>{busy ? "…" : "Add to the register"}</Button>
+        <Button size="sm" disabled={busy || name.trim() === ""} onClick={save}>{busy ? "…" : t("championEditor.add", "Add to the register")}</Button>
         {err && <span className="text-xs text-destructive">{err}</span>}
       </div>
       {warnings.length > 0 && (

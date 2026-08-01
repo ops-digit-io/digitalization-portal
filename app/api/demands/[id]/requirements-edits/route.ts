@@ -8,6 +8,7 @@ import {
   addStory, updateStory, removeStory, restore,
   type OverlayResult,
 } from "@/lib/requirements-overrides";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,15 +21,16 @@ export const dynamic = "force-dynamic";
  * curate its requirements.
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const t = getT();
   const session = await getSession();
   const id = params.id;
 
   const md = await readDemand(id);
   if (md === undefined) {
-    return NextResponse.json({ ok: false, error: `Demand ${id} not found.` }, { status: 404 });
+    return NextResponse.json({ ok: false, error: `${t("api.demands.demandPrefix", "Demand")} ${id} ${t("api.demands.notFound", "not found.")}` }, { status: 404 });
   }
   if (!canEditDemand(session, md)) {
-    return NextResponse.json({ ok: false, error: "You can only edit requirements for demands you own (or need view-all)." }, { status: 403 });
+    return NextResponse.json({ ok: false, error: t("api.demands.editRequirementsForbidden", "You can only edit requirements for demands you own (or need view-all).") }, { status: 403 });
   }
 
   let body: {
@@ -44,7 +46,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "invalid JSON" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: t("api.invalidJson", "invalid JSON") }, { status: 400 });
   }
 
   const overlay = parseOverrides(md);
@@ -73,7 +75,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       result = restore(overlay, body.kind === "epic" ? "epic" : "story", String(body.id ?? ""));
       break;
     default:
-      return NextResponse.json({ ok: false, error: "unknown action" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: t("api.unknownAction", "unknown action") }, { status: 400 });
   }
 
   if (!result.ok) return NextResponse.json({ ok: false, error: result.reason }, { status: 400 });

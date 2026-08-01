@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac";
 import { getSession } from "@/lib/auth/current";
 import { queryFunnel } from "@/lib/funnel/query";
+import { getT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,9 +14,10 @@ export const dynamic = "force-dynamic";
  * 14k-sourced funnel lean. Read-only; scoped to `draft` like the rest of intake.
  */
 export async function GET(req: Request) {
+  const t = getT();
   const session = await getSession();
   if (!can(session, "draft")) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    return NextResponse.json({ error: t("api.forbidden", "forbidden") }, { status: 403 });
   }
   const q = (new URL(req.url).searchParams.get("q") ?? "").trim();
   if (q.length < 3) return NextResponse.json({ matches: [] });
