@@ -21,6 +21,7 @@ import type { DemandAnswers } from "./demand.js";
 import { classifyDemand } from "./demand.js";
 import { knowledgeFor, type DomainKnowledge } from "./domain-knowledge.js";
 import { classifyArchetype, type UseCaseArchetype } from "./usecase-archetypes.js";
+import { citePersona, personasForDomain, type Persona } from "./persona-library.js";
 
 export interface Epic { id: string; title: string; description: string }
 
@@ -66,7 +67,12 @@ export interface IntakeAnalysis {
   enhancements: string[];
   dataSources: string[];
   standards: string[];
+  /** How the stories address their persona — a citation when the library was
+   *  supplied ("P-03 · Maintenance Planner"), a bare role name otherwise. */
   personas: string[];
+  /** The library records behind those citations, for the document's appendix.
+   *  Absent when no library was supplied — the analysis stays usable either way. */
+  personaProfiles?: Persona[];
 }
 
 export interface AnalysisResult {
@@ -100,13 +106,17 @@ function stripDot(s: string): string {
  * Analyse and enhance an intake, and derive requirements. Deterministic: the same
  * answers always give the same analysis and requirements.
  */
-export function analyseIntake(answers: DemandAnswers): AnalysisResult {
+export function analyseIntake(answers: DemandAnswers, library: Persona[] = []): AnalysisResult {
   const domain = clean(answers.domain) || classifyDemand(answers).domain || "general";
   const kb = knowledgeFor(domain);
   const archetype = classifyArchetype(answers);
 
-  const analysis = buildAnalysis(answers, kb, domain, archetype);
-  const requirements = buildRequirements(answers, kb, archetype);
+  // With a library, the stories cite governed personas — "P-03 · Maintenance
+  // Planner" resolves to a record anyone can read. Without one, the old baseline
+  // role names still work, so this never blocks an analysis.
+  const chosen = personasForDomain(library, domain);
+  const analysis = buildAnalysis(answers, kb, domain, archetype, chosen);
+  const requirements = buildRequirements(answers, kb, archetype, chosen);
   return { analysis, requirements };
 }
 
@@ -116,7 +126,7 @@ function mergeUnique(a: string[], b: string[]): string[] {
   return [...a, ...b.filter((x) => !seen.has(x.toLowerCase()))];
 }
 
-function buildAnalysis(answers: DemandAnswers, kb: DomainKnowledge, domain: string, arch: UseCaseArchetype): IntakeAnalysis {
+function buildAnalysis(answers: DemandAnswers, kb: DomainKnowledge, domain: string, arch: UseCaseArchetype, chosen: Persona[] = []): IntakeAnalysis {
   const cap = capabilityPhrase(answers);
   const summary = `The ${domain} team needs to ${cap}. Today, ${clean(answers.currentPain) || "the problem is handled manually"}. Success means: ${clean(answers.desiredOutcome) || "the problem is resolved"}. This reads as a ${arch.label.toLowerCase()} use case.`;
 
@@ -142,13 +152,23 @@ function buildAnalysis(answers: DemandAnswers, kb: DomainKnowledge, domain: stri
     enhancements,
     dataSources: kb.dataSources,
     standards: kb.standards,
-    personas: kb.personas,
+    personas: chosen.length ? chosen.map(citePersona) : kb.personas,
+    ...(chosen.length ? { personaProfiles: chosen } : {}),
   };
 }
 
-function buildRequirements(answers: DemandAnswers, kb: DomainKnowledge, arch: UseCaseArchetype): RequirementsDoc {
+function buildRequirements(
+  answers: DemandAnswers,
+  kb: DomainKnowledge,
+  arch: UseCaseArchetype,
+  library: Persona[] = [],
+): RequirementsDoc {
   const cap = capabilityPhrase(answers);
-  const primary = kb.personas[0] ?? "user";
+  // Stories are written from the USER's side, so buyers and influencers stay in
+  // the appendix rather than becoming the subject of "As a …, I want …".
+  const users = library.filter((p) => p.kind === "user").map(citePersona);
+  const names = users.length ? users : kb.personas;
+  const primary = names[0] ?? "user";
 
   // Epics: the core outcome epic, then the domain's recurring themes.
   const epics: Epic[] = [
@@ -158,7 +178,7 @@ function buildRequirements(answers: DemandAnswers, kb: DomainKnowledge, arch: Us
 
   // Stories: one per epic (primary persona for E1, rotating personas after).
   const stories: UserStory[] = epics.map((epic, i) => {
-    const persona = kb.personas[i % kb.personas.length] ?? primary;
+    const persona = names[i % names.length] ?? primary;
     const capability = i === 0 ? cap : `${epic.title.toLowerCase()} in place`;
     const benefit = i === 0
       ? (clean(answers.problem) ? `the problem is prevented (${shortBenefit(answers)})` : "the outcome is achieved")
@@ -291,7 +311,39 @@ ${list(a.standards)}
 ## Personas
 
 ${list(a.personas)}
-`;
+${personaAppendix(a.personaProfiles ?? [])}`;
+}
+
+/**
+ * The personas the document cites, spelled out. A citation the reader cannot
+ * resolve is worse than a role name: it looks governed and is not. Buyers carry
+ * their objections here, because that is the half of a business case that
+ * usually arrives late and expensive.
+ */
+function personaAppendix(profiles: Persona[]): string {
+  if (profiles.length === 0) return "";
+  const block = profiles
+    .map((p) => {
+      const rows = [
+        `#### ${citePersona(p)}`,
+        "",
+        `_${p.kind} · ${p.authority}${p.domains.length ? ` · ${p.domains.join(", ")}` : ""}_`,
+        "",
+        p.summary || "_no summary recorded_",
+      ];
+      const part = (heading: string, items: string[]) =>
+        items.length ? ["", `**${heading}**`, "", ...items.map((i) => `- ${i}`)] : [];
+      rows.push(
+        ...part("Goals", p.goals),
+        ...part("Frictions", p.frictions),
+        ...part("Success looks like", p.successLooksLike),
+        ...part("Objections", p.objections),
+      );
+      if (p.quote) rows.push("", `> ${p.quote}`);
+      return rows.join("\n");
+    })
+    .join("\n\n");
+  return `\n### Persona profiles\n\n${block}\n`;
 }
 
 /** requirements.md — standardized requirements derived from the intake. */

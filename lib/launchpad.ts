@@ -75,6 +75,7 @@ export const LAUNCHPAD: TileGroup[] = [
       { id: "analyst", title: "Analyst", subtitle: "Simulate, size, scaffold", href: "/assistant", icon: I.chat, tone: "ok" },
       { id: "requirements", title: "Requirements", subtitle: "Epics & stories from intake", href: "/requirements", icon: I.book, tone: "ok" },
       { id: "personas", title: "Persona Analyst", subtitle: "Requestor profiles & cohorts", href: "/personas", icon: I.users, tone: "ok" },
+      { id: "persona-library", title: "Persona Library", subtitle: "The vocabulary requirements cite", href: "/personas/library", icon: I.book, tone: "ok" },
       { id: "analysis", title: "Implementation Analysis", subtitle: "Workload vs. value", href: "/analysis", icon: I.chart, tone: "ok" },
       { id: "value", title: "Value Cockpit", subtitle: "Pipeline · committed · realized", href: "/value", icon: I.euro, tone: "ok" },
       { id: "simulate", title: "Business Case Simulation", subtitle: "P10 / P50 / P90 bands", href: "/simulate", icon: I.bolt, tone: "ok" },
@@ -88,7 +89,7 @@ export const LAUNCHPAD: TileGroup[] = [
       { id: "triage", title: "Triage", subtitle: "Classify & assign lanes", href: "/triage", icon: I.route, tone: "info" },
       { id: "backlog", title: "Backlog", subtitle: "Prioritize (S2)", href: "/board", icon: I.sort, tone: "slate", disabled: true },
       { id: "roadmap", title: "Roadmap", subtitle: "Milestones & gates", href: "/board", icon: I.map, tone: "slate", disabled: true },
-      { id: "champions", title: "Digital Champions", subtitle: "Plant portfolio", href: "/board", icon: I.users, tone: "slate", disabled: true },
+      { id: "champions", title: "Digital Champions", subtitle: "Network coverage & gaps", href: "/champions", icon: I.users, tone: "info" },
     ],
   },
   {
