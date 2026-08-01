@@ -167,6 +167,22 @@ Failures are typed (`ModelError.kind`) so a caller can tell "your key is wrong"
 — stop, tell somebody — from "the model is busy", where the right answer is the
 deterministic floor and no drama.
 
+On the way back, three rules hold for tool results:
+
+- **A failed tool is marked failed** (`is_error`). Otherwise "Error: the register
+  is unreachable" reads as a finding about the register.
+- **A runaway result is cut, and says it was cut.** A tool that returns the world
+  evicts the conversation it was meant to inform; a silent cut leaves the model
+  reasoning confidently about half a table.
+- **Running out of steps is an answer, not silence.** The loop that exhausts its
+  iterations says so; returning "" would present "I ran out of steps" as "I have
+  nothing to say".
+
+Tools are offered in name order, which is also not cosmetic: tool definitions
+render at position 0, so their order is the head of the cache prefix. In
+registration order, adding an import somewhere would reshuffle the array and
+invalidate the cache for every agent in the portal.
+
 ---
 
 ## 3. The journeys

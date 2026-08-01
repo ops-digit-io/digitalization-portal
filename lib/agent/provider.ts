@@ -31,6 +31,12 @@ export interface ToolResultBlock {
   type: "tool_result";
   tool_use_id: string;
   content: string;
+  /**
+   * The tool failed. Without this the model reads "Error: no such demand" as a
+   * finding and reports it as one; with it, it knows the call went wrong and
+   * that trying differently is the right move.
+   */
+  is_error?: boolean;
 }
 /**
  * Everything else the API may put in an assistant turn — thinking and redacted

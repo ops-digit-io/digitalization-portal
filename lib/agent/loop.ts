@@ -15,8 +15,25 @@
 
 import type { Session } from "../rbac.js";
 import type { ToolRegistry } from "./tools.js";
-import type { ModelMessage, ModelProvider, ToolSpec } from "./provider.js";
+import type { ModelMessage, ModelProvider, ToolResultBlock, ToolSpec } from "./provider.js";
 import { TraceRecorder, type Trace } from "./trace.js";
+
+/**
+ * A ceiling on one tool result. A tool that returns a whole repository fills
+ * the context and pushes out the conversation it was meant to inform. Cutting
+ * it is bad; cutting it silently is worse, so the cut says so — the model can
+ * then narrow the call rather than reason confidently about half a table.
+ */
+const MAX_TOOL_RESULT_CHARS = 24_000;
+
+const cap = (s: string): string =>
+  s.length <= MAX_TOOL_RESULT_CHARS
+    ? s
+    : `${s.slice(0, MAX_TOOL_RESULT_CHARS)}\n\n[truncated: ${s.length - MAX_TOOL_RESULT_CHARS} more characters. Narrow the query and call again if you need the rest.]`;
+
+/** What the loop says when it stops because it ran out of steps, not answers. */
+export const EXHAUSTED =
+  "I stopped before finishing: this run hit its limit on tool steps. The work so far is in the trace. Narrow the question and ask again.";
 
 export interface RunAgentParams {
   session: Session;
@@ -102,30 +119,39 @@ export async function runAgent(params: RunAgentParams): Promise<RunAgentResult> 
     // Whatever we did not understand is carried through untouched.
     messages.push({ role: "assistant", content: res.content });
 
-    const results = [];
+    const results: ToolResultBlock[] = [];
     for (const call of res.toolCalls) {
       const tool = chosen.find((t) => t.name === call.name);
       rec.add("tool_call", `call ${call.name}`, JSON.stringify(call.input));
       let content: string;
+      let failed = false;
       if (!tool) {
         content = `Error: tool "${call.name}" is not available to this session.`;
+        failed = true;
         rec.add("error", `tool ${call.name} unavailable`);
       } else {
         try {
           const out = await tool.run(call.input, { session });
-          content = typeof out === "string" ? out : JSON.stringify(out);
+          content = cap(typeof out === "string" ? out : JSON.stringify(out));
           rec.add("tool_result", `result ${call.name}`, content.slice(0, 2000));
         } catch (err) {
           content = `Error running ${call.name}: ${err instanceof Error ? err.message : String(err)}`;
+          failed = true;
           rec.add("error", `tool ${call.name} threw`, content);
         }
       }
-      results.push({ type: "tool_result" as const, tool_use_id: call.id, content });
+      // `is_error` is the difference between the model learning the call went
+      // wrong and the model reading the error text as a finding.
+      results.push({ type: "tool_result", tool_use_id: call.id, content, ...(failed ? { is_error: true } : {}) });
     }
     messages.push({ role: "user", content: results });
 
     if (i === maxIterations - 1) {
       rec.add("note", "max iterations reached");
+      // The loop has stopped mid-conversation: the model was still calling
+      // tools. Returning "" here would present "I ran out of steps" as "I have
+      // nothing to say", which is the one answer that is never true.
+      finalText = EXHAUSTED;
     }
   }
 
