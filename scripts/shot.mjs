@@ -1,21 +1,14 @@
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
+import { launchOptions } from "./lib/browser.mjs";
 
 const BASE = process.env.BASE_URL ?? "http://127.0.0.1:3111";
 const OUT = "screenshots";
 mkdirSync(OUT, { recursive: true });
 
-// Prefer the pre-installed Chromium; fall back to Playwright's resolver.
-const launchOpts = {};
-try {
-  const { existsSync } = await import("node:fs");
-  const candidates = [
-    "/opt/pw-browsers/chromium/chrome-linux/chrome",
-    "/opt/pw-browsers/chromium",
-  ];
-  const globbed = candidates.find((p) => existsSync(p));
-  if (globbed) launchOpts.executablePath = globbed;
-} catch {}
+// Prefer the pre-installed Chromium whatever its build number; fall back to
+// Playwright's own resolver.
+const launchOpts = launchOptions();
 
 const shots = [
   { name: "01-chat-desktop", path: "/", vw: 1280, vh: 900, full: false },

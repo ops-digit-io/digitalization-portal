@@ -1,15 +1,12 @@
 import { chromium } from "playwright";
-import { existsSync, mkdirSync } from "node:fs";
+import { mkdirSync } from "node:fs";
+import { launchOptions } from "./lib/browser.mjs";
 
 const BASE = process.env.BASE_URL ?? "http://127.0.0.1:3111";
 const OUT = "screenshots";
 mkdirSync(OUT, { recursive: true });
 
-const launchOpts = {};
-const exe = ["/opt/pw-browsers/chromium/chrome-linux/chrome", "/opt/pw-browsers/chromium"].find((p) => existsSync(p));
-if (exe) launchOpts.executablePath = exe;
-
-const browser = await chromium.launch(launchOpts);
+const browser = await chromium.launch(launchOptions());
 
 async function shot(name, path, { vw = 1280, vh = 1000, full = true } = {}) {
   const page = await browser.newPage({ viewport: { width: vw, height: vh }, deviceScaleFactor: 2 });
