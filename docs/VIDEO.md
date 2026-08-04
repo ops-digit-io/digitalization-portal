@@ -57,6 +57,10 @@ Two things worth knowing about the seed:
   through `/api/demands/[id]/advance`. Cases stop at S5; nothing in the seed can
   reach S6–S8 until that route passes the business case through.
 
+The Process Funnel is not seeded — it has its own store (`.process-workspace/`).
+To film an engagement with a filled digest on a deployment with no model key,
+create one and paste a digest into it (see `docs/PROCESS-DIGEST.md`).
+
 ## Changing the script
 
 `scripts/video.mjs` is the narrative — one `chapter()` per beat, in order. A

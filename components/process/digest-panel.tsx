@@ -39,6 +39,8 @@ export interface Digest {
   confidence?: string;
   gaps?: string[];
   generatedAt?: string;
+  /** "pasted" when the digest was produced outside the portal and hand-entered. */
+  provider?: string;
 }
 
 const LEVEL: Record<string, string> = {
@@ -117,6 +119,8 @@ export function DigestPanel({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
+  const [pasting, setPasting] = useState(false);
+  const [pasted, setPasted] = useState("");
 
   async function run() {
     setBusy(true);
@@ -134,17 +138,64 @@ export function DigestPanel({
     }
   }
 
+  /** The return leg of "Copy prompt" — the only path to an overview with no key. */
+  async function savePasted() {
+    setBusy(true);
+    setErr(null);
+    setHint(null);
+    try {
+      await apiSend("PUT", `/engagements/${slug}/digest`, { text: pasted });
+      setPasting(false);
+      setPasted("");
+      await onChanged();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Shown in both the empty and the filled state — the prompt can be re-run any time. */
+  const pasteBox = pasting ? (
+    <Card className="space-y-2 p-3">
+      <p className="text-xs text-muted-foreground">{C.pc(locale, "digest.pasteHint")}</p>
+      <textarea
+        value={pasted}
+        onChange={(e) => setPasted(e.target.value)}
+        rows={8}
+        spellCheck={false}
+        className="w-full rounded-md border bg-transparent p-2 font-mono text-xs outline-none focus:ring-1 focus:ring-ring"
+        placeholder={'{ "processStatement": … }'}
+      />
+      <div className="flex items-center gap-2">
+        <Button size="sm" disabled={busy || pasted.trim() === ""} onClick={savePasted}>
+          {busy ? "…" : C.pc(locale, "digest.pasteSave")}
+        </Button>
+        <Button size="sm" variant="outline" disabled={busy} onClick={() => { setPasting(false); setErr(null); }}>
+          {C.pc(locale, "digest.pasteCancel")}
+        </Button>
+        {err && <span className="text-xs text-destructive">{err}</span>}
+      </div>
+    </Card>
+  ) : null;
+
   if (!digest) {
     return (
-      <Card className="flex flex-wrap items-center gap-3 p-3">
-        <b className="text-sm">{C.pc(locale, "digest.none")}</b>
-        <span className="text-xs text-muted-foreground">{C.pc(locale, "digest.derivedFrom")}</span>
-        <span className="flex-1" />
-        {live && <Button size="sm" disabled={busy} onClick={run}>{busy ? "…" : C.pc(locale, "digest.generate")}</Button>}
-        <PromptButton path={`/engagements/${slug}/digest/prompt`} locale={locale} label={C.pc(locale, "digest.heading")} />
-        {hint && <span className="text-xs text-amber-600 dark:text-amber-500">{hint}</span>}
-        {err && <span className="text-xs text-destructive">{err}</span>}
-      </Card>
+      <div className="space-y-2">
+        <Card className="flex flex-wrap items-center gap-3 p-3">
+          <b className="text-sm">{C.pc(locale, "digest.none")}</b>
+          <span className="text-xs text-muted-foreground">{C.pc(locale, "digest.derivedFrom")}</span>
+          <span className="flex-1" />
+          {live && <Button size="sm" disabled={busy} onClick={run}>{busy ? "…" : C.pc(locale, "digest.generate")}</Button>}
+          <PromptButton path={`/engagements/${slug}/digest/prompt`} locale={locale} label={C.pc(locale, "digest.heading")} />
+          {!pasting && (
+            <Button size="sm" variant="outline" onClick={() => setPasting(true)}>{C.pc(locale, "digest.paste")}</Button>
+          )}
+          {hint && <span className="text-xs text-amber-600 dark:text-amber-500">{hint}</span>}
+          {err && !pasting && <span className="text-xs text-destructive">{err}</span>}
+        </Card>
+        {pasteBox}
+      </div>
     );
   }
 
@@ -158,15 +209,26 @@ export function DigestPanel({
         <span className="rounded-full border border-dashed px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
           {C.pc(locale, "digest.derived")}
         </span>
+        {/* Where the numbers came from is part of reading them: a digest the portal
+            generated and one a person ran elsewhere carry different warranties. */}
+        {digest.provider === "pasted" && (
+          <span className="rounded-full border border-dashed px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            {C.pc(locale, "digest.pasted")}
+          </span>
+        )}
         <span className="text-xs text-muted-foreground">
           {C.pc(locale, "digest.confidence")} {digest.confidence || "—"} · {String(digest.generatedAt || "").slice(0, 16).replace("T", " ")}
         </span>
         <span className="flex-1" />
         {live && <Button size="sm" variant="outline" disabled={busy} onClick={run}>{busy ? "…" : C.pc(locale, "digest.regenerate")}</Button>}
         <PromptButton path={`/engagements/${slug}/digest/prompt`} locale={locale} label={C.pc(locale, "digest.heading")} />
+        {!pasting && (
+          <Button size="sm" variant="outline" onClick={() => setPasting(true)}>{C.pc(locale, "digest.paste")}</Button>
+        )}
       </div>
       {hint && <p className="text-xs text-amber-600 dark:text-amber-500">{hint}</p>}
-      {err && <p className="text-xs text-destructive">{err}</p>}
+      {err && !pasting && <p className="text-xs text-destructive">{err}</p>}
+      {pasteBox}
 
       <div className="grid gap-3 lg:grid-cols-2">
         <Card className="bg-muted/30 p-4">

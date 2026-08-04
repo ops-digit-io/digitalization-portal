@@ -64,7 +64,7 @@ graph LR
     _api_process_engagements__slug__analyse["/engagements/[slug]/analyse<br/><i>POST</i>"]
     _api_process_engagements__slug__demands["/engagements/[slug]/demands<br/><i>POST</i>"]
     _api_process_engagements__slug__digest_prompt["/engagements/[slug]/digest/prompt<br/><i>GET</i>"]
-    _api_process_engagements__slug__digest["/engagements/[slug]/digest<br/><i>GET POST</i>"]
+    _api_process_engagements__slug__digest["/engagements/[slug]/digest<br/><i>GET POST PUT</i>"]
     _api_process_engagements__slug__dimension__dim__coach["/engagements/[slug]/dimension/[dim]/coach<br/><i>POST</i>"]
     _api_process_engagements__slug__dimension__dim__prompt["/engagements/[slug]/dimension/[dim]/prompt<br/><i>GET</i>"]
     _api_process_engagements__slug__dimension__dim_["/engagements/[slug]/dimension/[dim]<br/><i>GET PUT</i>"]
@@ -137,7 +137,7 @@ graph LR
 | `/api/process/engagements/[slug]/analyse` | POST | `app/api/process/engagements/[slug]/analyse/route.ts` |
 | `/api/process/engagements/[slug]/demands` | POST | `app/api/process/engagements/[slug]/demands/route.ts` |
 | `/api/process/engagements/[slug]/digest/prompt` | GET | `app/api/process/engagements/[slug]/digest/prompt/route.ts` |
-| `/api/process/engagements/[slug]/digest` | GET, POST | `app/api/process/engagements/[slug]/digest/route.ts` |
+| `/api/process/engagements/[slug]/digest` | GET, POST, PUT | `app/api/process/engagements/[slug]/digest/route.ts` |
 | `/api/process/engagements/[slug]/dimension/[dim]/coach` | POST | `app/api/process/engagements/[slug]/dimension/[dim]/coach/route.ts` |
 | `/api/process/engagements/[slug]/dimension/[dim]/prompt` | GET | `app/api/process/engagements/[slug]/dimension/[dim]/prompt/route.ts` |
 | `/api/process/engagements/[slug]/dimension/[dim]` | GET, PUT | `app/api/process/engagements/[slug]/dimension/[dim]/route.ts` |
