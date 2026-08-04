@@ -55,7 +55,7 @@ export function useIntakeSave() {
   const [saved, setSaved] = useState<SaveResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function save(payload: { answers?: unknown; markdown?: string }): Promise<SaveResponse | null> {
+  async function save(payload: { answers?: unknown; markdown?: string; references?: unknown }): Promise<SaveResponse | null> {
     setSaving(true);
     setError(null);
     try {

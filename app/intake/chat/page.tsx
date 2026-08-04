@@ -9,6 +9,7 @@ import type { ChatMessage, IntakeState } from "@/lib/intake-agent";
 import { ToolHeader, SavedLinks, useIntakeSave } from "../shared";
 import { IntakeEnhancer } from "../enhancer";
 import { SimilarDemands } from "../similar";
+import type { Reference } from "@/lib/references";
 
 interface GovernedBy { playbook: string; skills: string[] }
 
@@ -38,6 +39,8 @@ export default function ChatTool() {
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<"live" | "offline" | null>(null);
   const [governedBy, setGovernedBy] = useState<GovernedBy | null>(null);
+  // Relations the requester recognised against the duplicate check.
+  const [links, setLinks] = useState<Reference[]>([]);
   const { saving, saved, error, save, reset } = useIntakeSave();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -124,7 +127,7 @@ export default function ChatTool() {
 
   async function doSave() {
     if (!state) return;
-    const data = await save({ answers: state.answers });
+    const data = await save({ answers: state.answers, references: links });
     if (data) setMessages((prev) => [...prev, { role: "assistant", text: `Saved as ${data.id}. It's on the demands list now, at S1 with G1 open — a human accepts it at triage.` }]);
   }
 
@@ -181,7 +184,7 @@ export default function ChatTool() {
               {/* Duplicate check before saving — link an existing demand instead of adding one. */}
               {!saved && state && state.answers.title.trim().length >= 3 && (
                 <div className="mt-3">
-                  <SimilarDemands query={state.answers.title} />
+                  <SimilarDemands query={state.answers.title} links={links} onLinksChange={setLinks} />
                 </div>
               )}
 

@@ -45,6 +45,10 @@ graph LR
     _api_intake_similar["/similar<br/><i>GET</i>"]
     _api_intake_turn["/turn<br/><i>POST</i>"]
   end
+  subgraph mesh["/api/mesh"]
+    _api_mesh_graph["/graph<br/><i>GET</i>"]
+    _api_mesh["/<br/><i>GET</i>"]
+  end
   subgraph model_settings["/api/model-settings"]
     _api_model_settings["/<br/><i>GET POST</i>"]
   end
@@ -64,7 +68,7 @@ graph LR
     _api_process_engagements__slug__analyse["/engagements/[slug]/analyse<br/><i>POST</i>"]
     _api_process_engagements__slug__demands["/engagements/[slug]/demands<br/><i>POST</i>"]
     _api_process_engagements__slug__digest_prompt["/engagements/[slug]/digest/prompt<br/><i>GET</i>"]
-    _api_process_engagements__slug__digest["/engagements/[slug]/digest<br/><i>GET POST</i>"]
+    _api_process_engagements__slug__digest["/engagements/[slug]/digest<br/><i>GET POST PUT</i>"]
     _api_process_engagements__slug__dimension__dim__coach["/engagements/[slug]/dimension/[dim]/coach<br/><i>POST</i>"]
     _api_process_engagements__slug__dimension__dim__prompt["/engagements/[slug]/dimension/[dim]/prompt<br/><i>GET</i>"]
     _api_process_engagements__slug__dimension__dim_["/engagements/[slug]/dimension/[dim]<br/><i>GET PUT</i>"]
@@ -125,6 +129,8 @@ graph LR
 | `/api/intake` | POST | `app/api/intake/route.ts` |
 | `/api/intake/similar` | GET | `app/api/intake/similar/route.ts` |
 | `/api/intake/turn` | POST | `app/api/intake/turn/route.ts` |
+| `/api/mesh/graph` | GET | `app/api/mesh/graph/route.ts` |
+| `/api/mesh` | GET | `app/api/mesh/route.ts` |
 | `/api/model-settings` | GET, POST | `app/api/model-settings/route.ts` |
 | `/api/personas/library/[id]` | GET, PUT, DELETE | `app/api/personas/library/[id]/route.ts` |
 | `/api/personas/library` | GET, POST | `app/api/personas/library/route.ts` |
@@ -137,7 +143,7 @@ graph LR
 | `/api/process/engagements/[slug]/analyse` | POST | `app/api/process/engagements/[slug]/analyse/route.ts` |
 | `/api/process/engagements/[slug]/demands` | POST | `app/api/process/engagements/[slug]/demands/route.ts` |
 | `/api/process/engagements/[slug]/digest/prompt` | GET | `app/api/process/engagements/[slug]/digest/prompt/route.ts` |
-| `/api/process/engagements/[slug]/digest` | GET, POST | `app/api/process/engagements/[slug]/digest/route.ts` |
+| `/api/process/engagements/[slug]/digest` | GET, POST, PUT | `app/api/process/engagements/[slug]/digest/route.ts` |
 | `/api/process/engagements/[slug]/dimension/[dim]/coach` | POST | `app/api/process/engagements/[slug]/dimension/[dim]/coach/route.ts` |
 | `/api/process/engagements/[slug]/dimension/[dim]/prompt` | GET | `app/api/process/engagements/[slug]/dimension/[dim]/prompt/route.ts` |
 | `/api/process/engagements/[slug]/dimension/[dim]` | GET, PUT | `app/api/process/engagements/[slug]/dimension/[dim]/route.ts` |

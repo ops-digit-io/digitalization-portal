@@ -37,6 +37,11 @@ jobs:
         run: npm run typecheck
       - name: Test
         run: npm test
+      - name: Mesh integrity
+        # The corpus must read as a graph. `npm test` asserts it too, but a
+        # dedicated step puts the full report in the log rather than one assertion.
+        run: npm run mesh:check
+
       - name: Build
         run: npm run build
         env:

@@ -28,6 +28,23 @@ export { can, ROLES, CAPABILITIES, roleDef } from "./rbac.js";
 export type { Capability, Role, RoleDef, Session, CanContext } from "./rbac.js";
 export { resolveSession, isPortalMember } from "./session.js";
 
+// Context mesh — typed references between artifacts, and the graph they form
+export {
+  parseReferences,
+  serializeReferences,
+  setReferences,
+  addReference,
+  removeReference,
+  parseTarget,
+  referenceHref,
+  referenceKind,
+  REFERENCE_KINDS,
+  RELATED_HEADING,
+} from "./references.js";
+export type { Reference, ReferenceKind, ReferenceKindDef } from "./references.js";
+export { edgesFrom, dedupeEdges, neighbourhood, byKind, collapseReciprocal, danglingEdges, sameRef } from "./mesh.js";
+export type { MeshEdge, MeshRef, Neighbour, Neighbourhood, EdgeSource } from "./mesh.js";
+
 // Registry / board / visibility
 export { parseRegistryIndex } from "./registry.js";
 export type { RegistryRow } from "./registry.js";

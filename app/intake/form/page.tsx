@@ -7,6 +7,7 @@ import { classifyDemand, missingRequired, INTAKE_FIELDS, FIELD_GROUPS, EMPTY_ANS
 import { ToolHeader, SavedLinks, useIntakeSave, useDraft } from "../shared";
 import { IntakeEnhancer } from "../enhancer";
 import { SimilarDemands } from "../similar";
+import type { Reference } from "@/lib/references";
 
 const LANE_LABEL: Record<string, string> = {
   run: "run", regulatory: "regulatory", continuous_improvement: "continuous improvement",
@@ -59,6 +60,8 @@ export default function FormTool() {
   const [answers, setAnswers, clearDraft] = useDraft<DemandAnswers>("intake:form:v1", { ...EMPTY_ANSWERS });
   const { saving, saved, error, save, reset } = useIntakeSave();
   const categoryOptions = useCategoryOptions();
+  // Relations the requester recognised against the duplicate check.
+  const [links, setLinks] = useState<Reference[]>([]);
 
   const classification = useMemo(() => classifyDemand(answers), [answers]);
   const missing = useMemo(() => missingRequired(answers), [answers]);
@@ -68,7 +71,7 @@ export default function FormTool() {
   useEffect(() => { if (saved) clearDraft(); }, [saved, clearDraft]);
 
   const set = (k: keyof DemandAnswers, v: string) => setAnswers((a) => ({ ...a, [k]: v }));
-  function restart() { setAnswers({ ...EMPTY_ANSWERS }); clearDraft(); reset(); }
+  function restart() { setAnswers({ ...EMPTY_ANSWERS }); clearDraft(); reset(); setLinks([]); }
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-3">
@@ -88,7 +91,7 @@ export default function FormTool() {
 
         {!saved && answers.title.trim().length >= 3 && (
           <div className="mt-4">
-            <SimilarDemands query={answers.title} />
+            <SimilarDemands query={answers.title} links={links} onLinksChange={setLinks} />
           </div>
         )}
 
@@ -110,7 +113,7 @@ export default function FormTool() {
               <span className="text-xs text-muted-foreground">{canSave ? "Ready to save." : `Still needed: ${missing.map((m) => m.label).join(", ")}`}</span>
               <div className="flex gap-2">
                 <button onClick={restart} className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Clear</button>
-                <button onClick={() => save({ answers })} disabled={!canSave || saving} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-40">
+                <button onClick={() => save({ answers, references: links })} disabled={!canSave || saving} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-40">
                   {saving ? "Saving…" : "Save demand"}
                 </button>
               </div>

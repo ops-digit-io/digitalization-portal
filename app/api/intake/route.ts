@@ -11,6 +11,7 @@ import {
   type DemandAnswers,
 } from "@/lib/demand";
 import { enqueueDemand, pendingSaveResult } from "@/lib/pending/service";
+import { addReference, targetFor, RELATIONS, type Reference, type Relation } from "@/lib/references";
 import { rateLimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
@@ -18,6 +19,33 @@ export const dynamic = "force-dynamic";
 
 /** Capture-year for new demand ids (fixed for the demo so ids are stable). */
 const INTAKE_YEAR = 2026;
+
+/**
+ * Read the relations the capture UI collected. External input: every target goes
+ * through `parseTarget`, an unknown relation is dropped rather than invented, and
+ * the note is bounded — this writes into the funnel's system of record.
+ */
+function coerceReferences(raw: unknown): Reference[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Reference[] = [];
+  const seen = new Set<string>();
+  for (const item of raw.slice(0, 20)) {
+    if (typeof item !== "object" || item === null) continue;
+    const r = item as { kind?: unknown; id?: unknown; relation?: unknown; note?: unknown };
+    const target = targetFor(r.kind, r.id);
+    if (!target) continue;
+    const key = `${target.kind}:${target.id.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const relation = RELATIONS.includes(r.relation as Relation) ? (r.relation as Relation) : undefined;
+    out.push({
+      ...target,
+      note: typeof r.note === "string" ? r.note.trim().slice(0, 300) : "",
+      ...(relation ? { relation } : {}),
+    });
+  }
+  return out;
+}
 
 function coerce(a: unknown): DemandAnswers {
   const src = (a ?? {}) as Record<string, unknown>;
@@ -40,7 +68,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
   }
 
-  let body: { action?: string; answers?: unknown; markdown?: string; id?: string };
+  let body: { action?: string; answers?: unknown; markdown?: string; id?: string; references?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -51,6 +79,11 @@ export async function POST(req: Request) {
   // tool sends raw `markdown`, which we parse back to answers so it re-renders
   // through the same buildDemand. Whatever the tool, the saved page is identical.
   const answers = typeof body.markdown === "string" ? parseDemandToAnswers(body.markdown) : coerce(body.answers);
+  // Relations the requester recognised at capture — the duplicate check asks them
+  // to make a judgement ("open one instead of duplicating?"), and until now the
+  // answer was thrown away. Whitelisted, never trusted: an unparseable target is
+  // dropped rather than written into the funnel.
+  const references = coerceReferences(body.references);
   const classification = classifyDemand(answers);
   const missing = missingRequired(answers).map((f) => f.key);
 
@@ -78,10 +111,14 @@ export async function POST(req: Request) {
       // allocated collision-free by the buffer, and reads merge it in the meantime.
       // dedupKey makes an identical double-submit idempotent (returns the same id).
       const createdOn = new Date().toISOString().slice(0, 10);
-      const dedupKey = createHash("sha256").update(JSON.stringify(answers)).digest("hex").slice(0, 16);
+      const dedupKey = createHash("sha256").update(JSON.stringify({ answers, references })).digest("hex").slice(0, 16);
       const { id, markdown, kind } = await enqueueDemand(
         INTAKE_YEAR,
-        (uid) => buildDemand({ id: uid, createdOn, lane: classification.lane }, answers),
+        (uid) =>
+          references.reduce(
+            (md, ref) => addReference(md, ref),
+            buildDemand({ id: uid, createdOn, lane: classification.lane }, answers),
+          ),
         { dedupKey },
       );
       const repo = process.env.DEMANDS_REPO ?? "du-demands";
