@@ -12,12 +12,14 @@ import { GateAction } from "@/components/portal/gate-action";
 import { AdvanceStage } from "@/components/portal/advance-stage";
 import { HeatDot, LaneBadge, LevelBadge } from "@/components/portal/badges";
 import { AttachmentsCard } from "@/components/portal/attachments-card";
+import { RelatedPanel } from "@/components/portal/related-panel";
 import { DemandStatusActions } from "@/components/portal/demand-status-actions";
 import { DemandTriageActions } from "@/components/portal/demand-triage-actions";
 import { getSession } from "@/lib/auth/current";
 import { canEditDemand } from "@/lib/demand-edit";
 import { can } from "@/lib/rbac";
 import { listAttachments } from "@/lib/attachments";
+import { loadNeighbourhood } from "@/lib/mesh-store";
 import type { Gate, Stage } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +33,7 @@ const ALL_GATES: Gate[] = ["G1", "G2", "G3", "G4", "G5", "G6", "G7"];
 /** Split README into H2 sections, excluding the ones rendered elsewhere. */
 function proseSections(markdown: string): { title: string; body: string }[] {
   const parts = markdown.split(/\n(?=## )/);
-  const skip = new Set(["state", "gates", "people"]);
+  const skip = new Set(["state", "gates", "people", "related"]);
   const out: { title: string; body: string }[] = [];
   for (const part of parts) {
     const m = /^##\s+(.+)/.exec(part.trim());
@@ -72,6 +74,7 @@ export default async function UseCasePage({ params }: { params: { id: string } }
   const canAssignLane = can(session, "assign_lane");
   const canPark = can(session, "park");
   const attachments = listAttachments(markdown);
+  const mesh = await loadNeighbourhood({ kind: "demand", id: params.id });
   const uploadEnabled = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 
   const stage = uc.state.stage as Stage | undefined;
@@ -225,6 +228,8 @@ export default async function UseCasePage({ params }: { params: { id: string } }
               ))}
             </dl>
           </div>
+
+          <RelatedPanel mesh={mesh} truncated={mesh.truncated} />
 
           <div>
             <h2 className="mb-2 text-sm font-semibold">Documents</h2>

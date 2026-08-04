@@ -15,6 +15,7 @@ import { agentPrompt } from "./prompts";
 import { render } from "./render";
 import { buildDemand, classifyDemand, EMPTY_ANSWERS, type DemandAnswers } from "../demand";
 import { saveNewDemand } from "../demands-store";
+import { addReference } from "../references";
 import type { Lane } from "../types";
 import * as store from "./store";
 import { profileFrom } from "./profile";
@@ -293,7 +294,17 @@ export async function createDemands(
       requester: m.owner || "",
     };
     const lane = p.lane ?? classifyDemand(answers).lane;
-    const { id, result } = await saveNewDemand(year, (uid) => buildDemand({ id: uid, createdOn, lane }, answers));
+    // Record the origin as a REFERENCE, not only as the prose line above. The
+    // engagement already lists what it was cut into; without this the demand had
+    // no way back — a reader landing on it could see it came from "a process
+    // diagnosis" and had no way to reach the diagnosis, and nor did any code.
+    const { id, result } = await saveNewDemand(year, (uid) =>
+      addReference(buildDemand({ id: uid, createdOn, lane }, answers), {
+        kind: "process",
+        id: m.slug,
+        note: de ? `Aus der Prozessdiagnose „${m.title}" herausgeschnitten.` : `Cut out of the process diagnosis “${m.title}”.`,
+      }),
+    );
     created.push({ id, title: p.title.trim(), host: result.host, path: result.path });
   }
 
