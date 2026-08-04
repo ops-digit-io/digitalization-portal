@@ -33,7 +33,7 @@ append-only and anything below it drifts further from the document over time.
 
 ### The grammar
 
-`- <target> — <note>`
+`- <target> — <relation>, <note>`
 
 - **target** is `kind:id`, or a bare id whose shape identifies it: `UC-2026-0033`
   is a demand, `P-03` a persona, `C-01` a champion. The spec's own example
@@ -48,6 +48,35 @@ append-only and anything below it drifts further from the document over time.
 Kinds live in one table, `REFERENCE_KINDS` — the mesh's only extension seam. A new
 artifact kind is one entry; nothing else in the module knows the list.
 
+### Relations are typed; the rest of the note is not
+
+The note stays free prose, but its **first phrase** is worth typing. The portal's
+central promise is that a demand is captured once, and "this is a duplicate of
+UC-2026-0033" has to be answerable by a query across the funnel — it cannot be if
+the only record of it is a sentence.
+
+`duplicate of` · `supersedes` · `superseded by` · `depends on` · `blocks` ·
+`part of` · `related`
+
+This is where the spec's own example already pointed: *"related, shares cause-code
+taxonomy"* is exactly `<relation>, <note>`. The vocabulary is a suggestion, not a
+schema — a note opening with anything else is still a perfectly good reference that
+simply has no relation. And a note is only split when the phrase is followed by
+punctuation or ends the note, so *"related work stopped in March"* keeps its first
+word.
+
+Asymmetric relations are **inverted when read from the other end**. If A says it
+supersedes B, then on B's page the neighbour A reads *superseded by* — stating it
+the other way round would assert the opposite of what was written.
+
+### Building a reference from a kind and an id
+
+Use `targetFor(kind, id)`. Do **not** assemble `` `${kind}:${id}` `` and hand it to
+`parseTarget`: a demand's markdown prefix is `uc`, not `demand`, so
+`"demand:UC-2026-0001"` names no kind and is silently dropped. That bug shipped once
+and cost every reference a requester flagged at intake, which is why the safe path
+is now a function and the trap has a test.
+
 ## Authored and derived edges
 
 Half the mesh is written by people. The other half the portal already knew:
@@ -59,6 +88,7 @@ Half the mesh is written by people. The other half the portal already knew:
 | demand → champion | the row's requester / sponsor, matched to the register | derived |
 | process → champion | the engagement's owner / champion | derived |
 | demand → requirements | the case's artifact list | derived |
+| demand → demand | the requester's answer to the duplicate check at intake | authored |
 | anything → anything | a `## Related` line | authored |
 
 The distinction is **shown, not smoothed over**. An authored edge has a person
@@ -112,11 +142,46 @@ pass; when it lands, `authoredBacklinks` is the only function that changes.
   edge in place rather than moving it to the end, and never blanks a note a human
   improved by hand when an automated re-run supplies none.
 
+## Capture is where the mesh is earned
+
+The duplicate check at intake asks the requester a real question — *"possibly
+already captured, open one instead of duplicating?"* — and until now it offered only
+a link. Someone who looked, judged "related but not the same", and filed anyway had
+that judgement thrown away. Nothing in the funnel remembered the two demands had
+ever been compared, so the next person to look started from scratch. On the portal's
+own terms that is a direct loss: capturing once depends on the comparison sticking.
+
+The match list now carries the two answers worth recording — **Duplicate** and
+**Related** — and they travel with the demand into its `## Related` section on save.
+Choosing neither is a first-class outcome: silence is not a claim, and an unrecorded
+comparison beats a wrong edge.
+
+The API whitelists what arrives (`coerceReferences`): unknown relations are dropped
+rather than invented, notes are bounded, and duplicate targets collapse. The
+capture's `dedupKey` includes the references, so two captures that differ only in
+what they link to are not treated as the same submission.
+
+## Reading it from a client or an agent
+
+`GET /api/mesh?id=UC-2026-0001` — or with an explicit `kind=` when the id's shape
+does not name one (a process slug, a skill name). Returns the same neighbourhood
+`loadNeighbourhood` gives a server page, scoped to `view_board`.
+
+It exists because the mesh has more than one consumer: server pages call the loader
+directly, but client pages (the process engagement view) and agent tools cannot, and
+all three want the same answer. Read-only by construction — writing an edge goes
+through the artifact that owns it, never through the API.
+
 ## Rendering it
 
 `components/portal/related-panel.tsx` takes a `Neighbourhood` and renders nothing
 at all when there is nothing to show — an empty *Related* heading reads as
 "checked, nothing related", which is a claim the mesh is in no position to make.
 
-It is wired onto the demand page today. Any page with an artifact identity can take
-it: pass `loadNeighbourhood({ kind, id })` into the panel.
+Wired onto the **demand page** (server-side, via `loadNeighbourhood`) and the
+**process engagement page** (client-side, via `useMesh` over the API).
+
+The persona and champion pages are deliberately not wired: both are *list* pages
+with no per-entity route, so there is nowhere for a panel to sit. Giving them detail
+pages — or a per-row "referenced by N" count, which needs a bulk mesh query rather
+than a per-subject one — is the natural next step.

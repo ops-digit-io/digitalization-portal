@@ -21,7 +21,7 @@
  * `lib/mesh-store.ts`, so the traversal can be tested without a filesystem.
  */
 
-import type { Reference, ReferenceKind } from "./references.js";
+import { RELATION_INVERSE, type Reference, type ReferenceKind, type Relation } from "./references.js";
 
 export type EdgeSource = "authored" | "derived";
 
@@ -37,6 +37,8 @@ export interface MeshEdge {
   /** Why the edge exists, in words. Empty is allowed but makes for a poor mesh. */
   note: string;
   source: EdgeSource;
+  /** The typed relation, when the edge has one. Queryable; the note is not. */
+  relation?: Relation;
 }
 
 /** A node's title, for rendering an edge as something other than an id. */
@@ -48,6 +50,12 @@ export interface Neighbour {
   id: string;
   note: string;
   source: EdgeSource;
+  /**
+   * The relation as read FROM THIS NODE. On an inbound edge it is the inverse of
+   * what the other document wrote: if A says it supersedes B, then on B's page the
+   * neighbour A is "superseded by" — stating it the other way round would be false.
+   */
+  relation?: Relation;
   /** The target's own title when the portal knows it, else undefined. */
   title?: string;
 }
@@ -72,7 +80,13 @@ export function sameRef(a: MeshRef, b: MeshRef): boolean {
  */
 export function edgesFrom(subject: MeshRef, refs: readonly Reference[], source: EdgeSource = "authored"): MeshEdge[] {
   return refs
-    .map((r) => ({ from: subject, to: { kind: r.kind, id: r.id }, note: r.note, source }))
+    .map((r) => ({
+      from: subject,
+      to: { kind: r.kind, id: r.id },
+      note: r.note,
+      source,
+      ...(r.relation ? { relation: r.relation } : {}),
+    }))
     // A self-edge is always a mistake and would render as an artifact citing itself.
     .filter((e) => !sameRef(e.from, e.to));
 }
@@ -114,12 +128,23 @@ export function neighbourhood(edges: readonly MeshEdge[], subject: MeshRef, titl
   const inb: Neighbour[] = [];
   for (const e of edges) {
     if (sameRef(e.from, subject)) {
-      out.push({ ...e.to, note: e.note, source: e.source, ...titleOf(title, e.to) });
+      out.push({ ...e.to, note: e.note, source: e.source, ...rel(e.relation), ...titleOf(title, e.to) });
     } else if (sameRef(e.to, subject)) {
-      inb.push({ ...e.from, note: e.note, source: e.source, ...titleOf(title, e.from) });
+      // Read from this end, the relation is the other document's inverted.
+      inb.push({
+        ...e.from,
+        note: e.note,
+        source: e.source,
+        ...rel(e.relation ? RELATION_INVERSE[e.relation] : undefined),
+        ...titleOf(title, e.from),
+      });
     }
   }
   return { outbound: sortNeighbours(out), inbound: sortNeighbours(inb) };
+}
+
+function rel(relation: Relation | undefined): { relation?: Relation } {
+  return relation ? { relation } : {};
 }
 
 function titleOf(title: TitleLookup | undefined, ref: MeshRef): { title?: string } {

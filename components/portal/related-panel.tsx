@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { byKind, collapseReciprocal, type Neighbour, type Neighbourhood } from "@/lib/mesh";
-import { referenceKind, referenceHref, type ReferenceKind } from "@/lib/references";
+import { referenceKind, referenceHref, RELATION_LABEL, type ReferenceKind } from "@/lib/references";
 
 /**
  * The context mesh, rendered — what this artifact points at, and what points back.
@@ -28,6 +28,12 @@ function Row({ n }: { n: Neighbour }) {
           {n.title || n.id}
         </Link>
         {n.title && <span className="font-mono text-[10px] text-muted-foreground">{n.id}</span>}
+        {/* A duplicate is not a footnote — the relation leads, the prose follows. */}
+        {n.relation && (
+          <span className="shrink-0 rounded-full border px-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {RELATION_LABEL[n.relation]}
+          </span>
+        )}
         {n.source === "derived" && (
           <span
             className="ml-auto shrink-0 rounded-full border border-dashed px-1.5 text-[10px] uppercase tracking-wide text-muted-foreground"

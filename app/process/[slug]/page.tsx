@@ -8,6 +8,8 @@ import { Card } from "@/components/ui/card";
 import { apiGet, apiSend, SectionLabel } from "@/components/process/ui";
 import { SectionCard, type SectionMeta } from "@/components/process/section-card";
 import { DigestPanel, type Digest } from "@/components/process/digest-panel";
+import { RelatedPanel } from "@/components/portal/related-panel";
+import { useMesh } from "@/components/portal/use-mesh";
 import { AdvisoryPanel, type AdvisoryMeta } from "@/components/process/advisory-panel";
 import { useI18n } from "@/components/providers";
 import type { Locale } from "@/lib/i18n";
@@ -657,6 +659,11 @@ function OverviewTab({
         <SectionLabel>{C.pc(locale, "digest.heading")}</SectionLabel>
         <DigestPanel slug={slug} digest={digest} live={live} locale={locale} onChanged={onChanged} />
       </section>
+
+      {/* What this diagnosis was cut into, and anything that names it. */}
+      <section className="mt-6">
+        <MeshSection slug={slug} />
+      </section>
     </div>
   );
 }
@@ -1075,4 +1082,11 @@ function StageTab({
       </section>
     </div>
   );
+}
+
+/** The engagement's neighbourhood, fetched client-side (this page is a client tree). */
+function MeshSection({ slug }: { slug: string }) {
+  const mesh = useMesh("process", slug);
+  if (!mesh) return null;
+  return <RelatedPanel mesh={mesh} truncated={mesh.truncated} />;
 }

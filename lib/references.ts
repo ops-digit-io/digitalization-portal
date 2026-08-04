@@ -39,12 +39,50 @@
 /** The artifact kinds the mesh can point at. */
 export type ReferenceKind = "demand" | "process" | "persona" | "champion" | "skill" | "playbook" | "requirement";
 
+/**
+ * How two artifacts relate.
+ *
+ * The note stays free prose — but the FIRST word of it is worth typing, because the
+ * portal's central promise is that a demand is captured once. "This is a duplicate
+ * of UC-2026-0033" has to be answerable by a query across the funnel, and it cannot
+ * be if the only record of it is a sentence.
+ *
+ * The vocabulary is deliberately short and it is a suggestion, not a schema: an
+ * unrecognised note is still a perfectly good reference, it just has no relation.
+ */
+export const RELATIONS = ["duplicate", "supersedes", "superseded-by", "depends-on", "blocks", "part-of", "related"] as const;
+export type Relation = (typeof RELATIONS)[number];
+
+/** How each relation reads in a sentence, and how it is written back out. */
+export const RELATION_LABEL: Record<Relation, string> = {
+  duplicate: "duplicate of",
+  supersedes: "supersedes",
+  "superseded-by": "superseded by",
+  "depends-on": "depends on",
+  blocks: "blocks",
+  "part-of": "part of",
+  related: "related",
+};
+
+/** The inverse of each relation, for reading an edge from the other end. */
+export const RELATION_INVERSE: Record<Relation, Relation> = {
+  duplicate: "duplicate",
+  supersedes: "superseded-by",
+  "superseded-by": "supersedes",
+  "depends-on": "blocks",
+  blocks: "depends-on",
+  "part-of": "part-of",
+  related: "related",
+};
+
 export interface Reference {
   kind: ReferenceKind;
   /** The target's own identifier — `UC-2026-0033`, a process slug, `P-03`, `C-01`. */
   id: string;
   /** Why the edge exists. Free prose; may be empty, but a mesh of bare ids is trivia. */
   note: string;
+  /** The typed relation, when the note opens with one of `RELATIONS`. */
+  relation?: Relation;
 }
 
 export interface ReferenceKindDef {
@@ -122,9 +160,34 @@ export function referenceKind(kind: ReferenceKind): ReferenceKindDef | undefined
   return BY_KIND.get(kind);
 }
 
+/** Canonical id: trimmed, and upper-cased for the kinds whose ids are upper-case. */
+function normaliseId(kind: ReferenceKind, raw: string): string {
+  const id = raw.trim();
+  return kind === "demand" || kind === "persona" || kind === "champion" ? id.toUpperCase() : id;
+}
+
 /** Where a reference points in the portal, or "" for an unknown kind. */
 export function referenceHref(ref: Reference): string {
   return BY_KIND.get(ref.kind)?.href(ref.id) ?? "";
+}
+
+/**
+ * Build a target from a kind and an id that arrived as separate values — a form
+ * post, a query string, an agent tool call.
+ *
+ * Exists because the obvious thing to write is `parseTarget(\`${kind}:${id}\`)`, and
+ * that is WRONG for any kind whose prefix differs from its name: a demand's prefix
+ * is "uc", so "demand:UC-2026-0001" names no kind and is silently dropped. That bug
+ * shipped once and cost every reference a requester flagged at intake. Callers with
+ * a kind in hand should use this and never assemble the string themselves.
+ */
+export function targetFor(kind: unknown, id: unknown): { kind: ReferenceKind; id: string } | undefined {
+  if (typeof id !== "string" || id.trim() === "") return undefined;
+  const def = typeof kind === "string" ? REFERENCE_KINDS.find((k) => k.kind === kind || k.prefix === kind) : undefined;
+  // No usable kind — fall back to reading the id on its own, which still resolves
+  // a bare "UC-2026-0001" or a fully prefixed "process:some-slug".
+  if (!def) return parseTarget(id);
+  return { kind: def.kind, id: normaliseId(def.kind, id) };
 }
 
 /** The section heading the mesh lives under. */
@@ -144,10 +207,37 @@ const BEFORE = ["History"];
 const ITEM_RE = /^\s*[-*]\s+(.+?)\s*$/;
 const SPLIT_RE = /\s+(?:—|–|--)\s+/;
 
-/** Canonical id: trimmed, and upper-cased for the kinds whose ids are upper-case. */
-function normaliseId(kind: ReferenceKind, raw: string): string {
-  const id = raw.trim();
-  return kind === "demand" || kind === "persona" || kind === "champion" ? id.toUpperCase() : id;
+/** Longest label first, so "superseded by" is never read as "supersedes". */
+const RELATION_BY_LABEL: [Relation, string][] = (Object.entries(RELATION_LABEL) as [Relation, string][]).sort(
+  (a, b) => b[1].length - a[1].length,
+);
+
+/**
+ * Split a note into its leading relation and the rest.
+ *
+ * The spec's own example — "related, shares cause-code taxonomy" — is exactly this
+ * shape, which is where the convention comes from. A note that opens with no known
+ * relation keeps all of its text and simply has none.
+ */
+export function splitRelation(note: string): { relation?: Relation; rest: string } {
+  const text = note.trim();
+  for (const [relation, label] of RELATION_BY_LABEL) {
+    if (!text.toLowerCase().startsWith(label)) continue;
+    const after = text.slice(label.length);
+    // The label must end the note or be followed by punctuation — otherwise
+    // "related work stopped in March" would lose its first word.
+    if (after === "") return { relation, rest: "" };
+    const m = /^\s*[,;:—–-]\s*(.*)$/s.exec(after);
+    if (m) return { relation, rest: (m[1] ?? "").trim() };
+  }
+  return { rest: text };
+}
+
+/** Rejoin a relation and its note into the single prose line stored in markdown. */
+export function joinRelation(relation: Relation | undefined, rest: string): string {
+  const note = rest.trim();
+  if (!relation) return note;
+  return note ? `${RELATION_LABEL[relation]}, ${note}` : RELATION_LABEL[relation];
 }
 
 /**
@@ -215,7 +305,8 @@ export function parseReferences(markdown: string): Reference[] {
     const key = `${target.kind}:${target.id.toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ ...target, note: rest.join(" — ").trim() });
+    const { relation, rest: note } = splitRelation(rest.join(" — "));
+    out.push({ ...target, note, ...(relation ? { relation } : {}) });
   }
   return out;
 }
@@ -227,7 +318,7 @@ export function serializeReference(ref: Reference): string {
   const def = BY_KIND.get(ref.kind);
   // A demand keeps the bare form the spec wrote; everything else is prefixed.
   const target = ref.kind === "demand" ? ref.id : `${def?.prefix ?? ref.kind}:${ref.id}`;
-  const note = ref.note.trim();
+  const note = joinRelation(ref.relation, ref.note);
   return note ? `- ${target} — ${note}` : `- ${target}`;
 }
 
@@ -288,9 +379,10 @@ export function addReference(markdown: string, ref: Reference): string {
   const at = refs.findIndex((r) => r.kind === ref.kind && r.id.toLowerCase() === ref.id.toLowerCase());
   if (at < 0) return setReferences(markdown, [...refs, ref]);
   const note = ref.note.trim();
-  if (note === "" || note === refs[at]!.note) return markdown;
+  const sameRelation = (ref.relation ?? undefined) === (refs[at]!.relation ?? undefined);
+  if ((note === "" || note === refs[at]!.note) && sameRelation) return markdown;
   const next = [...refs];
-  next[at] = { ...refs[at]!, note };
+  next[at] = { ...refs[at]!, ...(note ? { note } : {}), ...(ref.relation ? { relation: ref.relation } : {}) };
   return setReferences(markdown, next);
 }
 

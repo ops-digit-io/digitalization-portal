@@ -14,7 +14,13 @@ import {
   addReference,
   removeReference,
   parseTarget,
+  targetFor,
+  splitRelation,
+  joinRelation,
   referenceHref,
+  RELATIONS,
+  RELATION_INVERSE,
+  RELATION_LABEL,
   REFERENCE_KINDS,
   type Reference,
 } from "./references";
@@ -70,9 +76,13 @@ describe("parseTarget", () => {
 });
 
 describe("parseReferences", () => {
-  it("reads the section the data model specifies, verbatim", () => {
+  it("reads the section the data model specifies, and types its relation", () => {
+    // The spec's own example opens with a relation word — which is where the
+    // typed-relation convention comes from, rather than being invented here.
     const refs = parseReferences(doc("- UC-2026-0033 — related, shares cause-code taxonomy"));
-    expect(refs).toEqual([{ kind: "demand", id: "UC-2026-0033", note: "related, shares cause-code taxonomy" }]);
+    expect(refs).toEqual([
+      { kind: "demand", id: "UC-2026-0033", relation: "related", note: "shares cause-code taxonomy" },
+    ]);
   });
 
   it("accepts em dash, en dash, double hyphen, and no note at all", () => {
@@ -232,6 +242,104 @@ describe("referenceHref", () => {
         // Exactly one kind may claim a given bare id, or inference is a coin flip.
         expect(others.filter((o) => o.bareId!.test(sample))).toHaveLength(0);
       }
+    }
+  });
+});
+
+describe("relations", () => {
+  it("types the vocabulary the UI writes, and keeps the rest as prose", () => {
+    expect(splitRelation("duplicate of, same reason list")).toEqual({ relation: "duplicate", rest: "same reason list" });
+    expect(splitRelation("depends on — the ERP export lands first")).toEqual({
+      relation: "depends-on",
+      rest: "the ERP export lands first",
+    });
+    expect(splitRelation("part of")).toEqual({ relation: "part-of", rest: "" });
+  });
+
+  it("never eats the first word of a note that merely starts with a relation word", () => {
+    // "related work stopped in March" is prose, not a typed relation.
+    expect(splitRelation("related work stopped in March")).toEqual({ rest: "related work stopped in March" });
+    expect(splitRelation("blocks are cast on Tuesdays")).toEqual({ rest: "blocks are cast on Tuesdays" });
+    expect(splitRelation("shares the taxonomy")).toEqual({ rest: "shares the taxonomy" });
+  });
+
+  it("reads the longest label first, so 'superseded by' is not 'supersedes'", () => {
+    expect(splitRelation("superseded by, UC-2026-0044 replaced it").relation).toBe("superseded-by");
+    expect(splitRelation("supersedes, the old manual check").relation).toBe("supersedes");
+  });
+
+  it("round-trips every relation in the vocabulary, with and without a note", () => {
+    for (const relation of RELATIONS) {
+      for (const note of ["", "because of the taxonomy"]) {
+        const line = joinRelation(relation, note);
+        expect(splitRelation(line)).toEqual({ relation, rest: note });
+        const round = parseReferences(doc(`- UC-2026-0033 — ${line}`));
+        expect(round[0]).toMatchObject({ relation, note });
+      }
+    }
+  });
+
+  it("survives the full markdown round-trip", () => {
+    const refs: Reference[] = [
+      { kind: "demand", id: "UC-2026-0033", relation: "duplicate", note: "same reason list" },
+      { kind: "demand", id: "UC-2026-0044", relation: "blocks", note: "" },
+      { kind: "persona", id: "P-03", note: "no relation, just a note" },
+    ];
+    expect(parseReferences(doc(serializeReferences(refs)))).toEqual(refs);
+  });
+
+  it("treats a changed relation as a change worth writing", () => {
+    const base = addReference("# T\n\n## State\n", { kind: "demand", id: "UC-2026-0033", relation: "related", note: "x" });
+    const promoted = addReference(base, { kind: "demand", id: "UC-2026-0033", relation: "duplicate", note: "x" });
+    expect(parseReferences(promoted)[0]?.relation).toBe("duplicate");
+    // Re-running with the same relation is still a no-op.
+    expect(addReference(promoted, { kind: "demand", id: "UC-2026-0033", relation: "duplicate", note: "" })).toBe(promoted);
+  });
+
+  it("every relation has an inverse, and inverting twice is identity", () => {
+    for (const r of RELATIONS) {
+      expect(RELATIONS).toContain(RELATION_INVERSE[r]);
+      expect(RELATION_INVERSE[RELATION_INVERSE[r]]).toBe(r);
+      expect(RELATION_LABEL[r]).toBeTruthy();
+    }
+  });
+});
+
+describe("targetFor", () => {
+  it("accepts a kind NAME even when the markdown prefix differs", () => {
+    // The demand kind's prefix is "uc". Assembling "demand:UC-…" and handing it to
+    // parseTarget names no kind and is dropped — the bug this function exists to
+    // make unwritable. Every reference flagged at intake was lost to it.
+    expect(targetFor("demand", "UC-2026-0001")).toEqual({ kind: "demand", id: "UC-2026-0001" });
+    expect(parseTarget("demand:UC-2026-0001")).toBeUndefined();
+  });
+
+  it("accepts the markdown prefix too", () => {
+    expect(targetFor("uc", "UC-2026-0001")).toEqual({ kind: "demand", id: "UC-2026-0001" });
+    expect(targetFor("process", "a-slug")).toEqual({ kind: "process", id: "a-slug" });
+  });
+
+  it("normalises the id the same way the parser does", () => {
+    expect(targetFor("demand", "uc-2026-0001")?.id).toBe("UC-2026-0001");
+    expect(targetFor("persona", "p-03")?.id).toBe("P-03");
+    expect(targetFor("process", "Mixed-Case")?.id).toBe("Mixed-Case");
+  });
+
+  it("falls back to reading the id alone when the kind is missing or unknown", () => {
+    expect(targetFor(undefined, "UC-2026-0001")).toEqual({ kind: "demand", id: "UC-2026-0001" });
+    expect(targetFor("nonsense", "process:a-slug")).toEqual({ kind: "process", id: "a-slug" });
+    expect(targetFor(42, "P-03")).toEqual({ kind: "persona", id: "P-03" });
+  });
+
+  it("refuses an empty or non-string id", () => {
+    for (const bad of ["", "   ", undefined, null, 7]) {
+      expect(targetFor("demand", bad)).toBeUndefined();
+    }
+  });
+
+  it("every kind round-trips through its own name", () => {
+    for (const def of REFERENCE_KINDS) {
+      expect(targetFor(def.kind, "sample-id")?.kind).toBe(def.kind);
     }
   });
 });

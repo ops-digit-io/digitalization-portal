@@ -191,3 +191,36 @@ describe("collapseReciprocal", () => {
     expect(collapsed.inbound.map((i) => i.kind)).toEqual(["persona"]);
   });
 });
+
+describe("relations across the graph", () => {
+  it("inverts an asymmetric relation when read from the other end", () => {
+    // A says it supersedes B. On B's page, A must read "superseded by" — stating
+    // it the other way round would assert the opposite of what was written.
+    const edges: MeshEdge[] = [{ from: uc("A"), to: uc("B"), note: "", source: "authored", relation: "supersedes" }];
+    expect(neighbourhood(edges, uc("A")).outbound[0]?.relation).toBe("supersedes");
+    expect(neighbourhood(edges, uc("B")).inbound[0]?.relation).toBe("superseded-by");
+  });
+
+  it("leaves a symmetric relation alone in both directions", () => {
+    const edges: MeshEdge[] = [{ from: uc("A"), to: uc("B"), note: "", source: "authored", relation: "duplicate" }];
+    expect(neighbourhood(edges, uc("A")).outbound[0]?.relation).toBe("duplicate");
+    expect(neighbourhood(edges, uc("B")).inbound[0]?.relation).toBe("duplicate");
+  });
+
+  it("inverts depends-on into blocks", () => {
+    const edges: MeshEdge[] = [{ from: uc("A"), to: uc("B"), note: "", source: "authored", relation: "depends-on" }];
+    expect(neighbourhood(edges, uc("B")).inbound[0]?.relation).toBe("blocks");
+  });
+
+  it("carries the relation off a parsed document", () => {
+    const md = "## Related\n\n- UC-2026-0033 — duplicate of, same reason list\n";
+    const edges = edgesFrom(uc("UC-2026-0001"), parseReferences(md));
+    expect(edges[0]).toMatchObject({ relation: "duplicate", note: "same reason list" });
+  });
+
+  it("leaves an edge with no relation undefined rather than defaulting it", () => {
+    const edges: MeshEdge[] = [{ from: uc("A"), to: uc("B"), note: "just a note", source: "derived" }];
+    expect(neighbourhood(edges, uc("A")).outbound[0]).not.toHaveProperty("relation");
+    expect(neighbourhood(edges, uc("B")).inbound[0]).not.toHaveProperty("relation");
+  });
+});
