@@ -282,33 +282,67 @@ function sectionBody(markdown: string, heading: string): string | undefined {
   return collecting || buf.length ? buf.join("\n") : undefined;
 }
 
-/**
- * Every reference in a document's `## Related` section, in document order.
- *
- * Never throws and never partially fails: a line that names no known kind is
- * skipped, and a document with no `## Related` yields an empty list. Duplicates
- * (same kind + id) collapse to the first, which keeps the mesh idempotent when
- * two writers record the same edge.
- */
-export function parseReferences(markdown: string): Reference[] {
-  const body = sectionBody(markdown, RELATED_HEADING);
-  if (body === undefined) return [];
+/** A `## Related` line that could not be turned into an edge, and why. */
+export interface UnresolvedReference {
+  /** The list item as written, so a human can find and fix it. */
+  line: string;
+  reason: "unknown-kind" | "duplicate-target";
+}
 
-  const out: Reference[] = [];
+export interface ReferenceReport {
+  refs: Reference[];
+  /**
+   * Lines the parser could not use. `parseReferences` drops these silently — which
+   * is right for rendering a page and WRONG for judging whether the corpus is a
+   * sound graph. A typo that quietly removes an edge is exactly the failure a mesh
+   * cannot detect from the inside, so the integrity tooling reads this instead.
+   */
+  unresolved: UnresolvedReference[];
+}
+
+/**
+ * Parse the `## Related` section, reporting what it could not use.
+ *
+ * Never throws and never partially fails. Duplicates (same kind + id) collapse to
+ * the first, which keeps the mesh idempotent when two writers record the same edge.
+ */
+export function parseReferenceReport(markdown: string): ReferenceReport {
+  const body = sectionBody(markdown, RELATED_HEADING);
+  if (body === undefined) return { refs: [], unresolved: [] };
+
+  const refs: Reference[] = [];
+  const unresolved: UnresolvedReference[] = [];
   const seen = new Set<string>();
   for (const line of body.split("\n")) {
     const item = ITEM_RE.exec(line);
     if (!item) continue;
-    const [head, ...rest] = item[1]!.split(SPLIT_RE);
+    const raw = item[1]!;
+    const [head, ...rest] = raw.split(SPLIT_RE);
     const target = parseTarget(head ?? "");
-    if (!target) continue;
+    if (!target) {
+      unresolved.push({ line: raw.trim(), reason: "unknown-kind" });
+      continue;
+    }
     const key = `${target.kind}:${target.id.toLowerCase()}`;
-    if (seen.has(key)) continue;
+    if (seen.has(key)) {
+      unresolved.push({ line: raw.trim(), reason: "duplicate-target" });
+      continue;
+    }
     seen.add(key);
     const { relation, rest: note } = splitRelation(rest.join(" — "));
-    out.push({ ...target, note, ...(relation ? { relation } : {}) });
+    refs.push({ ...target, note, ...(relation ? { relation } : {}) });
   }
-  return out;
+  return { refs, unresolved };
+}
+
+/**
+ * Every reference in a document's `## Related` section, in document order.
+ *
+ * The forgiving read, for rendering: unusable lines are dropped. Use
+ * `parseReferenceReport` when the drops themselves matter.
+ */
+export function parseReferences(markdown: string): Reference[] {
+  return parseReferenceReport(markdown).refs;
 }
 
 // ----------------------------------------------------------------- serialize

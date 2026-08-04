@@ -172,6 +172,72 @@ directly, but client pages (the process engagement view) and agent tools cannot,
 all three want the same answer. Read-only by construction — writing an edge goes
 through the artifact that owns it, never through the API.
 
+## Ensuring the corpus really reads as a graph
+
+Everything above describes how an edge is written and read. None of it guarantees
+the **corpus as a whole** is a graph — and a per-artifact view structurally cannot
+tell you, because it only ever sees one neighbourhood at a time.
+
+The failure that matters is invisible from the inside. A `## Related` line naming
+`UC2026-0002` (missing a hyphen) records **no edge at all**: the parser drops it,
+the page renders exactly as if the line were never written, and the relation is
+gone. Nothing inside the mesh can distinguish that from an edge nobody authored.
+
+So the corpus is validated from outside, all of it at once.
+
+```bash
+npm run mesh:check              # report; exit 1 if the corpus is not sound
+npm run mesh:check -- --json    # nodes + edges, for a graph database or a d3 view
+npm run mesh:check -- --mermaid # the graph as a diagram
+npm run mesh:check -- --warn    # treat warnings as failures too
+```
+
+`lib/mesh-corpus.ts` loads every artifact the mesh can name — including nodes that
+hold no references of their own, because an artifact missing from the corpus is
+indistinguishable from one that was deleted. `lib/mesh-graph.ts` then builds one
+graph and names what is wrong with it:
+
+| Issue | Meaning | Severity |
+|---|---|---|
+| `unresolved` | a line names no known artifact — a typo eating an edge | error |
+| `dangling` | the target does not exist in the corpus | error |
+| `contradiction` | two documents state incompatible relations about the same pair | error |
+| `duplicate-line` | the same target listed twice in one document | warning |
+| `asymmetric` | one end records a mutual relation, the other does not | warning |
+| `unverifiable` | a whole kind is absent, so its edges cannot be judged | warning |
+
+**Errors** mean the corpus does not read as a sound graph. **Warnings** mean it
+does, but something wants a human.
+
+`unverifiable` is the one worth explaining. Skills and playbooks live in a separate
+repository a deployment may not reach. A corpus that loaded *no* nodes of a kind
+cannot tell a deleted target from an unreachable store — so reporting every such
+edge as dangling would be loud and wrong, and reporting none would be quiet and
+wrong. The gap is named once, per kind, and those edges are left unjudged.
+
+Contradictions are compared **from the same end** before being judged, or every
+mutual pair would look like a disagreement purely because the two documents were
+written from opposite sides. `A supersedes B` on one page and `B superseded by A`
+on the other is agreement; `A duplicate-of B` against `B supersedes A` is not, and
+triage does opposite things with each.
+
+### It is checked on every run
+
+`lib/mesh-corpus.test.ts` asserts soundness inside `npm test`, and CI runs
+`npm run mesh:check` as its own step for the readable report. This follows
+`docs-coverage.test.ts`, which keeps the generated maps honest the same way: a
+property is only a fact if something checks it.
+
+`demands/` starts empty by design, so on a clean checkout the assertions are
+trivially true. They earn their keep in any tree that holds captured demands.
+
+### Duplicate clusters
+
+`duplicateClusters()` returns connected groups over `duplicate` edges — the query
+typed relations exist for. Three demands each flagged against the next are **one
+cluster of three** for triage to merge, not three unrelated pairs. Prose in a note
+could never answer that.
+
 ## Rendering it
 
 `components/portal/related-panel.tsx` takes a `Neighbourhood` and renders nothing

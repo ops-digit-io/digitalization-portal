@@ -14,6 +14,7 @@
     "demo:seed": "node scripts/demo-seed.mjs",
     "demo:clean": "node scripts/demo-seed.mjs --clean",
     "video": "node scripts/video.mjs",
+    "mesh:check": "vite-node scripts/mesh-check.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
