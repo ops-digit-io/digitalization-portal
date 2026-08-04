@@ -48,6 +48,7 @@ const I = {
   copy: "M9 9h11v11H9z M5 15H4V4h11v1",
   bell: "M18 9a6 6 0 1 0-12 0c0 6-3 7-3 7h18s-3-1-3-7 M13.7 21a2 2 0 0 1-3.4 0",
   download: "M12 3v11 M8 11l4 4 4-4 M5 20h14",
+  mesh: "M6 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z M18 5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z M12 15a2 2 0 1 0 0 4 2 2 0 0 0 0-4z M8 8h8 M7 10l4 5 M17 9l-4 6",
 };
 
 // Tiles are pure entry points — no metrics rendered on them.
@@ -108,6 +109,7 @@ export const LAUNCHPAD: TileGroup[] = [
       { id: "skill-library", title: "Skill Library", subtitle: "Import reference skills (agentskills.io)", href: "/skill-library", icon: I.download, tone: "info" },
       { id: "traces", title: "Agent Traces", subtitle: "Replayable AI runs", href: "/assistant", icon: I.gauge, tone: "slate", disabled: true },
       { id: "digest", title: "Review Digest", subtitle: "Due dates & staleness", href: "/digest", icon: I.bell, tone: "slate" },
+      { id: "mesh", title: "Context Mesh", subtitle: "How every artifact relates", href: "/mesh", icon: I.mesh, tone: "info" },
       { id: "usage", title: "Usage & Cost", subtitle: "AI spend and portal use by tool (admin)", href: "/admin/usage", icon: I.gauge, tone: "info" },
       { id: "settings", title: "Configuration", subtitle: "Integrations & status", href: "/settings", icon: I.shield, tone: "info" },
     ],

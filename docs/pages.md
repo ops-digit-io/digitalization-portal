@@ -42,6 +42,7 @@ graph LR
   _intake --> _api_intake_similar["/api/intake/similar"]
   _login(["/login"])
   _login --> _api_auth_login["/api/auth/login"]
+  _mesh(["/mesh"])
   _(["/"])
   _personas__requestor_(["/personas/[requestor]"])
   _personas_library(["/personas/library"])
@@ -101,6 +102,7 @@ graph LR
 | `/intake/md` | _server-rendered_ |
 | `/intake` | `/api/intake`<br/>`/api/intake/enhance`<br/>`/api/intake/similar` |
 | `/login` | `/api/auth/login` |
+| `/mesh` | _server-rendered_ |
 | `/` | _server-rendered_ |
 | `/personas/[requestor]` | _server-rendered_ |
 | `/personas/library` | `/api/personas/library` |

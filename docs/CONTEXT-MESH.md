@@ -238,6 +238,25 @@ typed relations exist for. Three demands each flagged against the next are **one
 cluster of three** for triage to merge, not three unrelated pairs. Prose in a note
 could never answer that.
 
+## Seeing it whole
+
+`/mesh` is the only place the graph is looked at as a graph, and it exists for the
+two questions a neighbourhood cannot answer:
+
+1. **Is the corpus still readable as a graph?** CI fails on a broken one; this is
+   where a human sees which document holds the broken line.
+2. **What should triage merge?** Duplicate clusters, grouped — the query typed
+   relations exist for.
+
+It reads the whole corpus, which is why it is a page you visit rather than
+something on a hot path. `lib/mesh-store.ts` stays the bounded per-page loader.
+
+`GET /api/mesh/graph` returns the same thing as data — nodes, edges, issues,
+duplicate clusters and orphans — or `?format=mermaid` for a diagram. Like the CLI
+exports, it is always a derivative: nothing reads it back in, because an export that
+could be re-imported would be the second source of truth that keeping references in
+the documents is meant to avoid.
+
 ## Rendering it
 
 `components/portal/related-panel.tsx` takes a `Neighbourhood` and renders nothing

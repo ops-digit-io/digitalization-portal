@@ -46,6 +46,7 @@ graph LR
     _api_intake_turn["/turn<br/><i>POST</i>"]
   end
   subgraph mesh["/api/mesh"]
+    _api_mesh_graph["/graph<br/><i>GET</i>"]
     _api_mesh["/<br/><i>GET</i>"]
   end
   subgraph model_settings["/api/model-settings"]
@@ -128,6 +129,7 @@ graph LR
 | `/api/intake` | POST | `app/api/intake/route.ts` |
 | `/api/intake/similar` | GET | `app/api/intake/similar/route.ts` |
 | `/api/intake/turn` | POST | `app/api/intake/turn/route.ts` |
+| `/api/mesh/graph` | GET | `app/api/mesh/graph/route.ts` |
 | `/api/mesh` | GET | `app/api/mesh/route.ts` |
 | `/api/model-settings` | GET, POST | `app/api/model-settings/route.ts` |
 | `/api/personas/library/[id]` | GET, PUT, DELETE | `app/api/personas/library/[id]/route.ts` |
