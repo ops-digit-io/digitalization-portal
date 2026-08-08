@@ -59,6 +59,9 @@ graph LR
   subgraph poc["/api/poc"]
     _api_poc["/<br/><i>POST</i>"]
   end
+  subgraph templates["/api/templates"]
+    _api_templates["/<br/><i>GET POST</i>"]
+  end
   subgraph process["/api/process"]
     _api_process_config["/config<br/><i>GET</i>"]
     _api_process_engagements__slug__advisory__key__decide["/engagements/[slug]/advisory/[key]/decide<br/><i>POST</i>"]
@@ -135,6 +138,7 @@ graph LR
 | `/api/personas/library/[id]` | GET, PUT, DELETE | `app/api/personas/library/[id]/route.ts` |
 | `/api/personas/library` | GET, POST | `app/api/personas/library/route.ts` |
 | `/api/poc` | POST | `app/api/poc/route.ts` |
+| `/api/templates` | GET, POST | `app/api/templates/route.ts` |
 | `/api/process/config` | GET | `app/api/process/config/route.ts` |
 | `/api/process/engagements/[slug]/advisory/[key]/decide` | POST | `app/api/process/engagements/[slug]/advisory/[key]/decide/route.ts` |
 | `/api/process/engagements/[slug]/advisory/[key]/generate` | POST | `app/api/process/engagements/[slug]/advisory/[key]/generate/route.ts` |

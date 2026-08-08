@@ -195,6 +195,16 @@ export class GitHubHost implements GitHost {
     return { owner: this.cfg.org, name, url: data.html_url, local: false };
   }
 
+  async getRepoMeta(name: string): Promise<{ exists: boolean; isTemplate: boolean }> {
+    try {
+      const r = await this.api<{ is_template?: boolean }>(`/repos/${this.cfg.org}/${name}`, { method: "GET" });
+      return { exists: true, isTemplate: Boolean(r.is_template) };
+    } catch (err) {
+      if (isStatus(err, 404)) return { exists: false, isTemplate: false };
+      throw err;
+    }
+  }
+
   /** The current blob sha of a path, or undefined when the path is new. */
   private async shaOf(repo: RepoRef, path: string, branch: string): Promise<string | undefined> {
     try {

@@ -10,6 +10,8 @@ data directly through `lib/` — which is the portal's default, not an omission.
 graph LR
   _admin_categories(["/admin/categories"])
   _admin_categories --> _api_categories["/api/categories"]
+  _admin_templates(["/admin/templates"])
+  _admin_templates --> _api_templates["/api/templates"]
   _admin_usage(["/admin/usage"])
   _admin_usage --> _api_usage["/api/usage"]
   _analysis(["/analysis"])
@@ -84,6 +86,7 @@ graph LR
 | Page | Calls |
 |---|---|
 | `/admin/categories` | `/api/categories` |
+| `/admin/templates` | `/api/templates` |
 | `/admin/usage` | `/api/usage` |
 | `/analysis` | _server-rendered_ |
 | `/assistant` | `/api/agent` |

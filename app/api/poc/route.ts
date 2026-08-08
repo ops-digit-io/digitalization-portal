@@ -25,6 +25,7 @@ import {
   type PocStack,
   type TemplateContext,
 } from "@/lib/poc/templates";
+import { listCustomTemplates, customToStack } from "@/lib/poc/custom-templates";
 import { readDemand, readArtifact } from "@/lib/demands-store";
 import { getSession } from "@/lib/auth/current";
 
@@ -67,9 +68,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
   }
 
-  // The stack is chosen by id; fall back to a category default for the old kind-only
-  // payload, and finally to the dashboard stack.
-  const stack = pocStack(body.stackId) ?? defaultStackFor(body.kind ?? "dashboard");
+  // The stack is chosen by id — a built-in stack, or a registered custom template —
+  // falling back to a category default for the old kind-only payload.
+  const custom = body.stackId ? (await listCustomTemplates().catch(() => [])).find((c) => c.id === body.stackId) : undefined;
+  const stack = pocStack(body.stackId) ?? (custom ? customToStack(custom) : undefined) ?? defaultStackFor(body.kind ?? "dashboard");
   const host = getGitHost();
 
   if (body.step === "scaffold") {
