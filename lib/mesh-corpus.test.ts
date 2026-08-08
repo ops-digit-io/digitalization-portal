@@ -18,7 +18,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { loadCorpus, repoDocForDemand, playbookSkillEdges } from "./mesh-corpus";
+import { loadCorpus, loadCorpusCached, clearCorpusCache, repoDocForDemand, playbookSkillEdges, stagePlaybooks, demandPlaybookEdges } from "./mesh-corpus";
 import { buildGraph, duplicateClusters, orphans, type MeshDocument } from "./mesh-graph";
 
 describe("the markdown corpus reads as a graph", () => {
@@ -117,5 +117,50 @@ describe("playbookSkillEdges — the library is connected, not 67 orphans", () =
     const looseIds = orphans(g).map((n) => n.id);
     expect(looseIds).not.toContain("s1-intake");
     expect(looseIds).not.toContain("demand-classification");
+  });
+});
+
+describe("loadCorpusCached", () => {
+  it("returns the same build within the TTL and rebuilds after a clear", async () => {
+    clearCorpusCache();
+    const a = await loadCorpusCached(1_000);
+    const b = await loadCorpusCached(1_000 + 30_000); // still inside the 60s window
+    expect(b).toBe(a); // same cached object, not re-read
+    clearCorpusCache();
+    const c = await loadCorpusCached(1_000);
+    expect(c).not.toBe(a); // rebuilt after clear
+  });
+});
+
+describe("bridge library ↔ funnel — demand → stage's playbook → its skills", () => {
+  const playbooks = [{ name: "s1-intake" }, { name: "s2-triage" }, { name: "requirements-analysis" }];
+
+  it("maps playbooks to stages by the sN- naming convention", () => {
+    const byStage = stagePlaybooks(playbooks);
+    expect(byStage.get("S1")).toEqual(["s1-intake"]);
+    expect(byStage.get("S2")).toEqual(["s2-triage"]);
+    expect(byStage.has("S3")).toBe(false); // requirements-analysis names no stage
+  });
+
+  it("links a demand to the playbook that governs its stage", () => {
+    const byStage = stagePlaybooks(playbooks);
+    const edges = demandPlaybookEdges("UC-2026-0041", "S1", byStage);
+    expect(edges).toHaveLength(1);
+    expect(edges[0]!.to).toEqual({ kind: "playbook", id: "s1-intake" });
+    expect(edges[0]!.source).toBe("derived");
+    expect(demandPlaybookEdges("UC-2026-0041", undefined, byStage)).toEqual([]);
+  });
+
+  it("joins the two clusters end to end: demand → playbook → skill", () => {
+    const skillIds = new Map([["demand-classification", "demand-classification"]]);
+    const byStage = stagePlaybooks(playbooks);
+    const docs: MeshDocument[] = [
+      { kind: "demand", id: "UC-2026-0041", title: "Scrap", derived: demandPlaybookEdges("UC-2026-0041", "S1", byStage) },
+      { kind: "playbook", id: "s1-intake", title: "Intake", derived: playbookSkillEdges("s1-intake", ["demand-classification"], skillIds) },
+      { kind: "skill", id: "demand-classification", title: "Classify" },
+    ];
+    const g = buildGraph(docs);
+    expect(g.sound).toBe(true);
+    expect(orphans(g)).toEqual([]); // nothing isolated — one connected chain
   });
 });
