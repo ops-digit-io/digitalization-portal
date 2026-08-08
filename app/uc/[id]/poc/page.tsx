@@ -21,6 +21,7 @@ export default function PocBuilder() {
   const [artifact, setArtifact] = useState<ArtifactResp | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [customs, setCustoms] = useState<StackMeta[]>([]);
+  const [scaffoldStatus, setScaffoldStatus] = useState<{ scaffolded: boolean | null; repo: string; url: string | null } | null>(null);
 
   // Registered custom templates (admin → PoC templates) join the built-in stacks.
   useEffect(() => {
@@ -29,6 +30,15 @@ export default function PocBuilder() {
       .then((j) => Array.isArray(j.customs) && setCustoms(j.customs as StackMeta[]))
       .catch(() => {});
   }, []);
+
+  // Is this use case already scaffolded? (Its uc-* repo already exists.)
+  useEffect(() => {
+    if (!id) return;
+    fetch(`/api/poc?useCaseId=${encodeURIComponent(id)}`)
+      .then((r) => r.json())
+      .then((j) => setScaffoldStatus(j))
+      .catch(() => {});
+  }, [id]);
 
   const allStacks = [...POC_STACK_META, ...customs];
   const chosen = allStacks.find((s) => s.id === stackId);
@@ -94,6 +104,27 @@ export default function PocBuilder() {
       </div>
 
       {error && <div className="mt-4 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm">{error}</div>}
+
+      {/* Whether this use case already has a scaffolded uc-* repo. */}
+      {scaffoldStatus && !scaffold && (
+        scaffoldStatus.scaffolded === true ? (
+          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-sm">
+            <span aria-hidden>●</span>
+            <span className="font-medium">Already scaffolded.</span>
+            <span className="text-muted-foreground">This use case has a repo:</span>
+            {scaffoldStatus.url ? (
+              <a href={scaffoldStatus.url} target="_blank" rel="noreferrer" className="font-mono text-xs text-info hover:underline">{scaffoldStatus.repo}</a>
+            ) : (
+              <span className="font-mono text-xs">{scaffoldStatus.repo}</span>
+            )}
+            <span className="text-xs text-muted-foreground">— scaffolding again updates the spec and files in place.</span>
+          </div>
+        ) : scaffoldStatus.scaffolded === false ? (
+          <div className="mt-4 flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+            <span aria-hidden>○</span> Not yet scaffolded — <span className="font-mono text-xs">{scaffoldStatus.repo}</span> will be created.
+          </div>
+        ) : null
+      )}
 
       {/* Step 1 */}
       {!scaffold && (

@@ -205,6 +205,10 @@ export class GitHubHost implements GitHost {
     }
   }
 
+  async markTemplate(name: string): Promise<void> {
+    await this.api(`/repos/${this.cfg.org}/${name}`, { method: "PATCH", body: JSON.stringify({ is_template: true }) });
+  }
+
   /** The current blob sha of a path, or undefined when the path is new. */
   private async shaOf(repo: RepoRef, path: string, branch: string): Promise<string | undefined> {
     try {

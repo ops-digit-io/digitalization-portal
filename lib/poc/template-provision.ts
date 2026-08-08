@@ -46,24 +46,42 @@ export function templateRepoFiles(stack: PocStack): ScaffoldFile[] {
 export interface ProvisionResult {
   repo: RepoRef;
   files: number;
+  /** True when the repo was newly created, false when an existing one was synced. */
+  created: boolean;
 }
+
+const alreadyExists = (e: unknown): boolean =>
+  (e as { status?: number })?.status === 422 || /already exists/i.test(e instanceof Error ? e.message : "");
 
 /**
  * Create the stack's template repository (flagged as a GitHub template) and populate
- * it. Requires a host that can create repos — i.e. GitHub App credentials; a
- * LocalHost run writes to the working tree, which is only useful for a dry run.
+ * it — idempotently. If the repo already exists, it is SYNCED instead of failing: the
+ * files are (re)written and the template flag is ensured. Requires a host that can
+ * create repos (GitHub App credentials).
  */
 export async function provisionTemplateRepo(
   host: GitHost,
   stack: PocStack,
   opts: { private?: boolean } = {},
 ): Promise<ProvisionResult> {
-  const repo = await host.createRepo(stack.templateRepo, {
-    description: `PoC template · ${stack.label} — follows ${stack.upstream.name}`,
-    private: opts.private ?? false,
-    template: true,
-  });
+  let repo: RepoRef;
+  let created = false;
+  try {
+    repo = await host.createRepo(stack.templateRepo, {
+      description: `PoC template · ${stack.label} — follows ${stack.upstream.name}`,
+      private: opts.private ?? false,
+      template: true,
+    });
+    created = true;
+  } catch (err) {
+    if (!alreadyExists(err)) throw err;
+    // The repo is already there — sync it rather than fail, and make sure it carries
+    // the template flag (generate-from-template needs it; a hand-created repo won't).
+    const org = process.env.GITHUB_ORG ?? "";
+    repo = { owner: org, name: stack.templateRepo, url: `https://github.com/${org}/${stack.templateRepo}`, local: false };
+    if (host.markTemplate) await host.markTemplate(stack.templateRepo).catch(() => {});
+  }
   const files = templateRepoFiles(stack);
   for (const f of files) await host.putFile(repo, f, `scaffold template: ${f.path}`, "main");
-  return { repo, files: files.length };
+  return { repo, files: files.length, created };
 }
