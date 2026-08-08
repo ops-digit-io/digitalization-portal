@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { loadCorpus } from "@/lib/mesh-corpus";
 import { buildGraph, orphans, duplicateClusters, type MeshIssue } from "@/lib/mesh-graph";
+import { meshGaps, blastRadius } from "@/lib/mesh-insights";
 import { filterGraph, egoGraph, toGraphData, KIND_STYLE } from "@/lib/mesh-view";
 import { referenceHref, referenceKind, RELATIONS, type ReferenceKind, type Relation } from "@/lib/references";
 import { MeshForceGraph } from "@/components/mesh/force-graph";
@@ -10,7 +11,7 @@ import type { MeshRef } from "@/lib/mesh";
 
 export const dynamic = "force-dynamic";
 
-type Params = { kind?: string; relation?: string; source?: string; focus?: string; depth?: string };
+type Params = { kind?: string; relation?: string; source?: string; focus?: string; depth?: string; q?: string };
 
 /** A /mesh URL from the current params plus an override (drops empties). */
 function meshHref(current: Params, patch: Partial<Params>): string {
@@ -90,6 +91,7 @@ export default async function MeshPage({ searchParams }: { searchParams: Params 
   const warnings = graph.issues.filter((i) => i.severity === "warning");
   const clusters = duplicateClusters(graph);
   const loose = orphans(graph);
+  const gaps = meshGaps(graph);
   const authored = graph.edges.filter((e) => e.source === "authored").length;
 
   // View controls (server-driven, like the board): filter by kind / relation /
@@ -109,9 +111,19 @@ export default async function MeshPage({ searchParams }: { searchParams: Params 
       });
   const graphData = view.edges.length > 0 ? toGraphData(view) : null;
   const focusNode = focus ? graph.nodes.find((n) => `${n.kind}:${n.id}`.toLowerCase() === focus.toLowerCase()) : undefined;
+  const blast = focusNode ? blastRadius(graph, `${focusNode.kind}:${focusNode.id}`) : [];
   const kindsInGraph = [...new Set(graph.nodes.map((n) => n.kind))].sort();
   const relationsPresent = RELATIONS.filter((r) => graph.edges.some((e) => e.relation === r));
   const filtered = Boolean(fKind || fRelation || fSource || focus);
+
+  // Search: find a node by id or title, jump to its neighbourhood. Server-driven.
+  const q = searchParams.q?.trim() || undefined;
+  const matches = q
+    ? graph.nodes
+        .filter((n) => n.id.toLowerCase().includes(q.toLowerCase()) || (n.title ?? "").toLowerCase().includes(q.toLowerCase()))
+        .sort((a, b) => b.in + b.out - (a.in + a.out))
+        .slice(0, 15)
+    : [];
 
   return (
     <main className="mx-auto max-w-[1100px] px-6 py-6">
@@ -144,8 +156,40 @@ export default async function MeshPage({ searchParams }: { searchParams: Params 
         />
         <Tile label="Edges" value={graph.edges.length} sub={`${authored} authored · ${graph.edges.length - authored} derived`} />
         <Tile label="Errors" value={errors.length} tone={errors.length ? "--destructive" : undefined} sub="break the graph" />
-        <Tile label="Unconnected" value={loose.length} sub="no edge either way" />
+        <Tile label="Unconnected" value={loose.length} sub={`${gaps.length} with gaps`} />
       </div>
+
+      {graph.nodes.length > 0 && (
+        <section className="mt-5">
+          <form method="get" action="/mesh" className="flex flex-wrap items-center gap-2">
+            <input
+              type="search"
+              name="q"
+              defaultValue={q ?? ""}
+              placeholder="Find an artifact by id or title…"
+              className="w-72 max-w-full rounded-md border bg-background px-3 py-1.5 text-sm"
+            />
+            <button type="submit" className="rounded-md border px-3 py-1.5 text-sm hover:border-foreground/40">Search</button>
+            {q && <Link href="/mesh" className="text-xs text-muted-foreground hover:text-foreground">clear</Link>}
+          </form>
+          {q && (
+            <Card className="mt-2 divide-y">
+              {matches.length === 0 ? (
+                <div className="p-3 text-sm text-muted-foreground">Nothing matches “{q}”.</div>
+              ) : (
+                matches.map((n) => (
+                  <div key={`${n.kind}:${n.id}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 p-2.5">
+                    <span className="inline-block size-2 shrink-0 rounded-full" style={{ background: KIND_STYLE[n.kind].color }} aria-hidden />
+                    <RefLink r={n} label={n.title ?? n.id} />
+                    <span className="text-xs text-muted-foreground">{referenceKind(n.kind)?.label ?? n.kind}</span>
+                    <Link href={meshHref({}, { focus: `${n.kind}:${n.id}` })} className="ml-auto text-xs text-info hover:underline">⊙ focus</Link>
+                  </div>
+                ))
+              )}
+            </Card>
+          )}
+        </section>
+      )}
 
       {graph.nodes.length === 0 && (
         <Card className="mt-6 p-8 text-center text-sm text-muted-foreground">
@@ -171,6 +215,11 @@ export default async function MeshPage({ searchParams }: { searchParams: Params 
               <span className="font-medium">{focusNode.title ?? focusNode.id}</span>
               <span className="font-mono text-xs text-muted-foreground">{focusNode.id}</span>
               <span className="ml-2 text-xs text-muted-foreground">neighbourhood · depth {depth}</span>
+              {blast.length > 0 && (
+                <span className="text-xs" style={{ color: "hsl(var(--warn))" }} title={blast.map((n) => n.id).join(", ")}>
+                  · {blast.length} affected if killed
+                </span>
+              )}
               <span className="ml-auto flex items-center gap-1">
                 {depth > 1 && <Link href={meshHref(searchParams, { depth: String(depth - 1) })} className="rounded border px-1.5 text-xs hover:border-foreground/40">− depth</Link>}
                 {depth < 3 && <Link href={meshHref(searchParams, { depth: String(depth + 1) })} className="rounded border px-1.5 text-xs hover:border-foreground/40">+ depth</Link>}
@@ -251,6 +300,35 @@ export default async function MeshPage({ searchParams }: { searchParams: Params 
                 <span className="ml-auto text-xs text-muted-foreground">{c.length} demands</span>
               </div>
             ))}
+          </Card>
+        </section>
+      )}
+
+      {gaps.length > 0 && (
+        <section className="mt-6">
+          <h2 className="mb-1 text-sm font-semibold">Gaps — demands the mesh cannot fully place</h2>
+          <p className="mb-2 max-w-3xl text-xs text-muted-foreground">
+            Not an error: the graph is sound. These demands simply have no edge to a{" "}
+            <span className="font-medium">champion</span> who carries them or a <span className="font-medium">persona</span>{" "}
+            they serve — work for steering, not a broken link.
+          </p>
+          <Card className="divide-y">
+            {gaps.slice(0, 12).map((g) => (
+              <div key={`${g.node.kind}:${g.node.id}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 p-3">
+                <RefLink r={g.node} label={g.node.title ?? g.node.id} />
+                <span className="font-mono text-xs text-muted-foreground">{g.node.id}</span>
+                <span className="ml-auto flex gap-1.5">
+                  {g.missing.map((k) => (
+                    <span key={k} className="rounded-full border px-1.5 text-[10px] uppercase tracking-wide" style={{ color: "hsl(var(--warn))" }}>
+                      no {KIND_STYLE[k].label.toLowerCase()}
+                    </span>
+                  ))}
+                </span>
+              </div>
+            ))}
+            {gaps.length > 12 && (
+              <div className="p-3 text-xs text-muted-foreground">+ {gaps.length - 12} more with gaps.</div>
+            )}
           </Card>
         </section>
       )}

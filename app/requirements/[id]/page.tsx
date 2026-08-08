@@ -8,6 +8,8 @@ import { parseOverrides, applyOverrides, emptyOverlay } from "@/lib/requirements
 import { canEditDemand } from "@/lib/demand-edit";
 import { getSession } from "@/lib/auth/current";
 import { Card } from "@/components/ui/card";
+import { RelatedPanel } from "@/components/portal/related-panel";
+import { loadNeighbourhood } from "@/lib/mesh-store";
 import { Md, AnalyseButton } from "../render";
 import { RequirementsBoard } from "./board";
 
@@ -26,6 +28,7 @@ export default async function CaseRequirements({ params }: { params: { id: strin
     readArtifact(id, "research"),
   ]);
   const analysed = requirements !== undefined || analysis !== undefined || research !== undefined;
+  const mesh = await loadNeighbourhood({ kind: "requirement", id });
 
   // Parse the standardized requirements back into structure, then apply the human
   // overlay (add/edit/remove) from the demand README — both the overlay and the
@@ -107,6 +110,10 @@ export default async function CaseRequirements({ params }: { params: { id: strin
           )}
         </div>
       )}
+
+      <div className="mt-8 border-t pt-6">
+        <RelatedPanel mesh={mesh} truncated={mesh.truncated} />
+      </div>
     </main>
   );
 }
