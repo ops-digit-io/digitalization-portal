@@ -32,9 +32,11 @@ import { getGitHost, hasGitHubCredentials, type DirEntry, type RepoRef } from ".
 
 export interface ContentRepo {
   /** Short name used in messages and env-var docs. */
-  key: "registry" | "templates";
+  key: "registry" | "templates" | "specifications";
   repoName: string;
   mirrorDir: string;
+  /** Directory to list when probing reachability (a repo is "there" if this lists ≥1). */
+  probe: string;
 }
 
 /** The agent library: playbooks, skills, contracts. */
@@ -43,6 +45,7 @@ export function registryRepo(env = process.env): ContentRepo {
     key: "registry",
     repoName: env.REGISTRY_REPO ?? "du-agent-registry",
     mirrorDir: env.REGISTRY_MIRROR_DIR ?? path.join(os.tmpdir(), "du-agent-registry"),
+    probe: "playbooks",
   };
 }
 
@@ -52,6 +55,18 @@ export function templatesRepo(env = process.env): ContentRepo {
     key: "templates",
     repoName: env.TEMPLATES_REPO ?? "du-templates",
     mirrorDir: env.TEMPLATES_MIRROR_DIR ?? path.join(os.tmpdir(), "du-templates"),
+    probe: "sections",
+  };
+}
+
+/** The specification documents — the portal's spec, surfaced by the /docs reader. */
+export function specificationsRepo(env = process.env): ContentRepo {
+  return {
+    key: "specifications",
+    repoName: env.SPECIFICATIONS_REPO ?? "du-specifications",
+    mirrorDir: env.SPECIFICATIONS_MIRROR_DIR ?? path.join(os.tmpdir(), "du-specifications"),
+    // Specs live at the repo root as flat markdown; the root itself is the probe.
+    probe: "",
   };
 }
 
@@ -103,7 +118,7 @@ export async function listContent(c: ContentRepo, rel: string): Promise<DirEntry
 export async function contentReachable(c: ContentRepo): Promise<{ ok: boolean; source: "github" | "mirror" | "none"; detail: string }> {
   if (live()) {
     try {
-      const ents = await getGitHost().listDir(ref(c), c.key === "registry" ? "playbooks" : "sections");
+      const ents = await getGitHost().listDir(ref(c), c.probe);
       return ents.length > 0
         ? { ok: true, source: "github", detail: `${c.repoName} · ${ents.length} entries` }
         : { ok: false, source: "github", detail: `${c.repoName} reachable but empty` };
@@ -111,7 +126,7 @@ export async function contentReachable(c: ContentRepo): Promise<{ ok: boolean; s
       return { ok: false, source: "github", detail: (e instanceof Error ? e.message : String(e)).slice(0, 160) };
     }
   }
-  const probe = await readdir(c.mirrorDir).catch(() => null);
+  const probe = await readdir(path.join(c.mirrorDir, c.probe)).catch(() => null);
   if (probe === null) {
     return { ok: false, source: "none", detail: `no mirror at ${c.mirrorDir} — run: npm run content:pull` };
   }

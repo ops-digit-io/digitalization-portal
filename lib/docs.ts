@@ -1,17 +1,19 @@
 /**
- * In-app specification reader helpers. The `docs/` folder ships with the app; a
- * `/docs` route reads it at request time (server-side, from `process.cwd()`).
+ * In-app specification reader helpers.
+ *
+ * The specification documents are NOT in this repository — they live in the
+ * external `du-specifications` repo, read through the same content-repo seam as the
+ * agent library and the templates (`lib/content-repo.ts`): live from GitHub when
+ * the App is configured, else the local mirror (`npm run content:pull`), else
+ * nothing — in which case `/docs` shows its empty state rather than pretending.
  *
  * The pure parts (slug guard, title derivation) live here so they are unit-tested
- * without the filesystem. Doc filenames are mixed-case and hyphenated
+ * without any IO. Doc filenames are mixed-case and hyphenated
  * (e.g. `ARCHITECTURE-intake.md`), so the slug charset is deliberately permissive
  * but blocks path traversal (no `/`, `.`, or separators).
  */
 
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
-
-const DOCS_DIR = "docs";
+import { specificationsRepo, listContent, readContent } from "./content-repo.js";
 
 /** A slug is valid iff it is exactly `[A-Za-z0-9-]+` — no dots, slashes, or `..`. */
 export function safeDocSlug(slug: string): string | null {
@@ -24,18 +26,18 @@ export function docTitle(markdown: string, slug: string): string {
   return m?.[1]?.trim() || slug;
 }
 
-/** List available doc slugs (filenames without `.md`), sorted. Server-only. */
-export async function listDocSlugs(baseDir = process.cwd()): Promise<string[]> {
-  const entries = await readdir(join(baseDir, DOCS_DIR)).catch(() => [] as string[]);
+/** List available spec slugs (filenames without `.md`), sorted. Server-only. */
+export async function listDocSlugs(): Promise<string[]> {
+  const entries = await listContent(specificationsRepo(), "");
   return entries
-    .filter((f) => f.toLowerCase().endsWith(".md"))
-    .map((f) => f.slice(0, -3))
+    .filter((e) => e.type === "file" && e.name.toLowerCase().endsWith(".md"))
+    .map((e) => e.name.slice(0, -3))
     .sort();
 }
 
-/** Read one doc's markdown, or undefined if the slug is invalid/missing. Server-only. */
-export async function readDoc(slug: string, baseDir = process.cwd()): Promise<string | undefined> {
+/** Read one spec's markdown, or undefined if the slug is invalid/missing. Server-only. */
+export async function readDoc(slug: string): Promise<string | undefined> {
   const safe = safeDocSlug(slug);
   if (!safe) return undefined;
-  return readFile(join(baseDir, DOCS_DIR, `${safe}.md`), "utf8").catch(() => undefined);
+  return readContent(specificationsRepo(), `${safe}.md`);
 }

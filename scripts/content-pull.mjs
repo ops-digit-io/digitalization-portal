@@ -42,6 +42,14 @@ const TARGETS = [
     expect: ["sections", "advisory"],
     localSource: process.env.TEMPLATES_LOCAL_SOURCE,
   },
+  {
+    key: "specifications",
+    repo: process.env.SPECIFICATIONS_REPO ?? "du-specifications",
+    dir: process.env.SPECIFICATIONS_MIRROR_DIR ?? path.join(os.tmpdir(), "du-specifications"),
+    // Specs are flat markdown at the repo root; the numbered spec is the anchor.
+    expect: ["01-portal-spec.md"],
+    localSource: process.env.SPECIFICATIONS_LOCAL_SOURCE,
+  },
 ];
 
 const run = (cmd, args, cwd) =>
