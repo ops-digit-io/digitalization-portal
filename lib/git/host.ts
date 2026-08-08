@@ -81,6 +81,8 @@ export interface GitHost {
    *  template-repo health check. Optional: a host that cannot look this up omits it,
    *  and the caller reports the status as unknown. */
   getRepoMeta?(name: string): Promise<{ exists: boolean; isTemplate: boolean }>;
+  /** Flag an existing repo as a GitHub template (idempotent). Optional. */
+  markTemplate?(name: string): Promise<void>;
   /** Write a file on a branch. `opts.createOnly` refuses to overwrite an existing path. */
   putFile(repo: RepoRef, file: FileWrite, message: string, branch: string, opts?: PutFileOptions): Promise<void>;
   /** Read a file's text (default branch, or `ref`). undefined if absent. */

@@ -15,7 +15,7 @@ import { can } from "@/lib/rbac";
 import { getGitHost } from "@/lib/git";
 import type { RepoRef } from "@/lib/git";
 import { planPoc, scaffoldRepo, buildArtifact } from "@/lib/poc/builder";
-import type { UseCaseSeed } from "@/lib/poc/scaffold";
+import { repoName, type UseCaseSeed } from "@/lib/poc/scaffold";
 import { seedFromDemandMarkdown } from "@/lib/poc/seed-from-demand";
 import type { ArtifactKind } from "@/lib/poc/spec";
 import {
@@ -50,6 +50,28 @@ function templateFor(stack: PocStack): { owner: string; repo: string } | undefin
   const org = process.env.GITHUB_ORG;
   const on = process.env.POC_USE_TEMPLATE_REPOS === "1" || process.env.POC_USE_TEMPLATE_REPOS === "true";
   return on && org && stack.templateRepo ? { owner: org, repo: stack.templateRepo } : undefined;
+}
+
+/**
+ * Scaffold status for a use case: does its uc-* repository already exist? So the
+ * builder can say "already scaffolded" instead of silently creating a second repo.
+ * `scaffolded` is null when there is no GitHub App to ask (the honest unknown).
+ */
+export async function GET(req: Request) {
+  const useCaseId = new URL(req.url).searchParams.get("useCaseId");
+  if (!useCaseId) return NextResponse.json({ error: "useCaseId required" }, { status: 400 });
+  const seed = await seedFor(useCaseId);
+  if (!seed) return NextResponse.json({ useCaseId, repo: null, scaffolded: null, url: null });
+  const name = repoName(seed);
+  const host = getGitHost();
+  const meta = host.getRepoMeta ? await host.getRepoMeta(name).catch(() => undefined) : undefined;
+  const org = process.env.GITHUB_ORG;
+  return NextResponse.json({
+    useCaseId,
+    repo: name,
+    scaffolded: meta ? meta.exists : null,
+    url: org ? `https://github.com/${org}/${name}` : null,
+  });
 }
 
 export async function POST(req: Request) {

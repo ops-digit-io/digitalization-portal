@@ -93,7 +93,7 @@ export async function POST(req: Request) {
     }
     const all = [...POC_STACKS.map((s) => s.id), ...(await listCustomTemplates()).map((c) => c.id)];
     const ids = !body.stackId || body.stackId === "all" ? all : [body.stackId];
-    const results: { id: string; ok: boolean; url?: string; files?: number; error?: string }[] = [];
+    const results: { id: string; ok: boolean; url?: string; files?: number; created?: boolean; error?: string }[] = [];
     for (const id of ids) {
       const stack = await resolveStack(id);
       if (!stack) {
@@ -102,7 +102,7 @@ export async function POST(req: Request) {
       }
       try {
         const r = await provisionTemplateRepo(host, stack, { private: body.private === true });
-        results.push({ id, ok: true, url: r.repo.url, files: r.files });
+        results.push({ id, ok: true, url: r.repo.url, files: r.files, created: r.created });
       } catch (e) {
         results.push({ id, ok: false, error: msg(e) });
       }

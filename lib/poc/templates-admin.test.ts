@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { normalizeCustom, customToStack } from "./custom-templates.js";
-import { templateRepoFiles, TEMPLATE_SEED } from "./template-provision.js";
+import { templateRepoFiles, provisionTemplateRepo, TEMPLATE_SEED } from "./template-provision.js";
 import { templateStatuses } from "./template-status.js";
 import { pocStack } from "./templates.js";
 import type { GitHost } from "../git/host.js";
@@ -39,6 +39,43 @@ describe("template provisioning", () => {
     expect(files.some((f) => f.path === "poc/streamlit_app.py")).toBe(true);
     // Not a real case — the portal overlays that on generate.
     expect(files.find((f) => f.path === "poc/streamlit_app.py")!.content).toContain("UC-XXXX-XXXX");
+  });
+});
+
+describe("provisionTemplateRepo is idempotent", () => {
+  it("syncs an existing repo and ensures the template flag instead of erroring on 422", async () => {
+    const puts: string[] = [];
+    let marked = false;
+    const host = {
+      kind: "github",
+      async createRepo() {
+        throw Object.assign(new Error("name already exists on this account"), { status: 422 });
+      },
+      async markTemplate() {
+        marked = true;
+      },
+      async putFile(_repo: unknown, f: { path: string }) {
+        puts.push(f.path);
+      },
+    } as unknown as GitHost;
+    const r = await provisionTemplateRepo(host, pocStack("python-streamlit")!);
+    expect(r.created).toBe(false);
+    expect(marked).toBe(true);
+    expect(puts).toContain("README.md");
+    expect(puts).toContain("poc/streamlit_app.py");
+  });
+
+  it("creates a new repo when it does not exist", async () => {
+    const host = {
+      kind: "github",
+      async createRepo(name: string) {
+        return { owner: "o", name, url: `https://github.com/o/${name}`, local: false };
+      },
+      async putFile() {},
+    } as unknown as GitHost;
+    const r = await provisionTemplateRepo(host, pocStack("python-dash")!);
+    expect(r.created).toBe(true);
+    expect(r.files).toBeGreaterThan(1);
   });
 });
 
