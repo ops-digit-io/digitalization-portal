@@ -63,8 +63,20 @@ export interface PutFileOptions {
 
 export interface GitHost {
   readonly kind: "github" | "local";
-  /** Create a repository under the configured org/workspace. */
-  createRepo(name: string, opts?: { description?: string; private?: boolean }): Promise<RepoRef>;
+  /** Create a repository under the configured org/workspace. `template: true` marks
+   *  it as a GitHub template repository (so others can generate from it). */
+  createRepo(name: string, opts?: { description?: string; private?: boolean; template?: boolean }): Promise<RepoRef>;
+  /**
+   * Create a repository FROM a GitHub template repository (generate-from-template).
+   * Optional: a host that cannot do this omits it, and the caller falls back to
+   * `createRepo` + writing the files. GitHub copies template files verbatim (no
+   * placeholder substitution), so the caller still overlays any seed-specific files.
+   */
+  createRepoFromTemplate?(
+    name: string,
+    template: { owner: string; repo: string },
+    opts?: { description?: string; private?: boolean },
+  ): Promise<RepoRef>;
   /** Write a file on a branch. `opts.createOnly` refuses to overwrite an existing path. */
   putFile(repo: RepoRef, file: FileWrite, message: string, branch: string, opts?: PutFileOptions): Promise<void>;
   /** Read a file's text (default branch, or `ref`). undefined if absent. */

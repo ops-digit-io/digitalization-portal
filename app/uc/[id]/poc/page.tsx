@@ -7,25 +7,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
-type Kind = "dashboard" | "app" | "mockup" | "report";
-interface RepoRef { owner: string; name: string; url: string; local: boolean }
-interface ScaffoldResp { host: string; repo: RepoRef; committedPaths: string[]; spec: string; specPath: string }
-interface ArtifactResp { host: string; artifactPath: string; pullRequest: { number: number; url: string; local: boolean }; artifact: string }
+import { POC_STACK_META, STACK_CATEGORIES } from "@/lib/poc/stacks-meta";
 
-const KINDS: { id: Kind; label: string }[] = [
-  { id: "dashboard", label: "Dashboard" },
-  { id: "app", label: "Web app" },
-  { id: "mockup", label: "UI mockup" },
-  { id: "report", label: "Report" },
-];
+interface RepoRef { owner: string; name: string; url: string; local: boolean }
+interface ScaffoldResp { host: string; repo: RepoRef; committedPaths: string[]; spec: string; specPath: string; stack: string; fromTemplate: boolean }
+interface ArtifactResp { host: string; artifactPath: string; pullRequest: { number: number; url: string; local: boolean }; artifact: string }
 
 export default function PocBuilder() {
   const { id } = useParams<{ id: string }>();
-  const [kind, setKind] = useState<Kind>("dashboard");
+  const [stackId, setStackId] = useState<string>("html-dashboard");
   const [busy, setBusy] = useState<string | null>(null);
   const [scaffold, setScaffold] = useState<ScaffoldResp | null>(null);
   const [artifact, setArtifact] = useState<ArtifactResp | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const chosen = POC_STACK_META.find((s) => s.id === stackId);
 
   async function post(body: Record<string, unknown>) {
     const res = await fetch("/api/poc", {
@@ -41,7 +36,7 @@ export default function PocBuilder() {
   async function runScaffold() {
     setBusy("scaffold"); setError(null); setArtifact(null);
     try {
-      setScaffold(await post({ step: "scaffold", useCaseId: id, kind }));
+      setScaffold(await post({ step: "scaffold", useCaseId: id, stackId }));
     } catch (e) { setError(String(e)); } finally { setBusy(null); }
   }
 
@@ -49,7 +44,7 @@ export default function PocBuilder() {
     if (!scaffold) return;
     setBusy("artifact"); setError(null);
     try {
-      setArtifact(await post({ step: "artifact", useCaseId: id, kind, approved: true, repo: scaffold.repo }));
+      setArtifact(await post({ step: "artifact", useCaseId: id, stackId, approved: true, repo: scaffold.repo }));
     } catch (e) { setError(String(e)); } finally { setBusy(null); }
   }
 
@@ -92,21 +87,43 @@ export default function PocBuilder() {
       {/* Step 1 */}
       {!scaffold && (
         <Card className="mt-5 p-4">
-          <h2 className="text-sm font-semibold">1 · Create the repository and draft the spec</h2>
-          <p className="mt-1 text-xs text-muted-foreground">Choose what the PoC should produce.</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {KINDS.map((k) => (
-              <button
-                key={k.id}
-                onClick={() => setKind(k.id)}
-                className={`rounded-full border px-3 py-1 text-xs ${kind === k.id ? "border-foreground bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                {k.label}
-              </button>
-            ))}
+          <h2 className="text-sm font-semibold">1 · Choose the PoC stack, then scaffold</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Each stack lays a runnable project under <code className="font-mono">poc/</code> — real tech files, not just
+            markdown. Pick by what the PoC should prove.
+          </p>
+
+          <div className="mt-3 space-y-4">
+            {STACK_CATEGORIES.map((cat) => {
+              const items = POC_STACK_META.filter((s) => s.category === cat.category);
+              if (items.length === 0) return null;
+              return (
+                <div key={cat.category}>
+                  <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{cat.label}</div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {items.map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => setStackId(s.id)}
+                        className={`rounded-lg border p-3 text-left transition-colors ${stackId === s.id ? "border-foreground ring-1 ring-foreground" : "hover:border-foreground/30"}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium">{s.label}</span>
+                          <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">{s.language}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">{s.description}</p>
+                        <code className="mt-1.5 block font-mono text-[11px] text-muted-foreground">$ {s.run}</code>
+                        <div className="mt-1 text-[10px] text-muted-foreground">based on {s.upstream.name}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
+
           <Button className="mt-4" onClick={runScaffold} disabled={busy !== null}>
-            {busy === "scaffold" ? "Creating repository…" : "Scaffold repo & draft spec"}
+            {busy === "scaffold" ? "Creating repository…" : `Scaffold ${chosen?.label ?? "repo"} & draft spec`}
           </Button>
         </Card>
       )}
@@ -117,6 +134,7 @@ export default function PocBuilder() {
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-sm font-semibold">2 · Repository created — review the drafted spec</h2>
             <Badge variant="outline" className="font-normal">{scaffold.host === "github" ? "GitHub" : "local workspace"}</Badge>
+            {scaffold.fromTemplate && <Badge variant="secondary" className="font-normal">from template repo</Badge>}
           </div>
           <div className="mt-2 text-xs text-muted-foreground">
             <span className="font-mono">{scaffold.repo.name}</span> · {scaffold.committedPaths.length} files committed

@@ -18,7 +18,14 @@ import { planPoc, scaffoldRepo, buildArtifact } from "@/lib/poc/builder";
 import type { UseCaseSeed } from "@/lib/poc/scaffold";
 import { seedFromDemandMarkdown } from "@/lib/poc/seed-from-demand";
 import type { ArtifactKind } from "@/lib/poc/spec";
-import { readDemand } from "@/lib/demands-store";
+import {
+  pocStack,
+  defaultStackFor,
+  extractRequirementLines,
+  type PocStack,
+  type TemplateContext,
+} from "@/lib/poc/templates";
+import { readDemand, readArtifact } from "@/lib/demands-store";
 import { getSession } from "@/lib/auth/current";
 
 export const runtime = "nodejs";
@@ -30,11 +37,26 @@ async function seedFor(useCaseId: string): Promise<UseCaseSeed | undefined> {
   return seedFromDemandMarkdown(useCaseId, md);
 }
 
+/** Feature lines from the demand's requirements artifact, to drive a mockup. */
+async function contextFor(useCaseId: string): Promise<TemplateContext> {
+  const md = await readArtifact(useCaseId, "requirements").catch(() => undefined);
+  const requirements = extractRequirementLines(md);
+  return requirements.length ? { requirements } : {};
+}
+
+/** The GitHub template repo to generate from, only when the org opted in. */
+function templateFor(stack: PocStack): { owner: string; repo: string } | undefined {
+  const org = process.env.GITHUB_ORG;
+  const on = process.env.POC_USE_TEMPLATE_REPOS === "1" || process.env.POC_USE_TEMPLATE_REPOS === "true";
+  return on && org && stack.templateRepo ? { owner: org, repo: stack.templateRepo } : undefined;
+}
+
 export async function POST(req: Request) {
   const session = await getSession();
   let body: {
     step?: "scaffold" | "artifact";
     useCaseId?: string;
+    stackId?: string;
     kind?: ArtifactKind;
     approved?: boolean;
     repo?: RepoRef;
@@ -45,7 +67,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
   }
 
-  const kind: ArtifactKind = body.kind ?? "dashboard";
+  // The stack is chosen by id; fall back to a category default for the old kind-only
+  // payload, and finally to the dashboard stack.
+  const stack = pocStack(body.stackId) ?? defaultStackFor(body.kind ?? "dashboard");
   const host = getGitHost();
 
   if (body.step === "scaffold") {
@@ -55,14 +79,17 @@ export async function POST(req: Request) {
     const seed = body.useCaseId ? await seedFor(body.useCaseId) : undefined;
     if (!seed) return NextResponse.json({ error: "unknown use case" }, { status: 404 });
     try {
-      const plan = planPoc(seed, kind);
-      const result = await scaffoldRepo(host, seed, plan);
+      const ctx = await contextFor(seed.id);
+      const plan = planPoc(seed, stack, ctx);
+      const result = await scaffoldRepo(host, seed, plan, templateFor(stack));
       return NextResponse.json({
         host: host.kind,
         repo: result.repo,
         committedPaths: result.committedPaths,
         spec: result.spec,
         specPath: result.specPath,
+        stack: stack.id,
+        fromTemplate: result.fromTemplate,
       });
     } catch (err) {
       return NextResponse.json({ error: err instanceof Error ? err.message : "scaffold failed" }, { status: 500 });
@@ -76,7 +103,8 @@ export async function POST(req: Request) {
     const seed = body.useCaseId ? await seedFor(body.useCaseId) : undefined;
     if (!seed || !body.repo) return NextResponse.json({ error: "missing repo or use case" }, { status: 400 });
     try {
-      const result = await buildArtifact(host, body.repo, seed, kind, body.approved === true);
+      const ctx = await contextFor(seed.id);
+      const result = await buildArtifact(host, body.repo, seed, stack, body.approved === true, ctx);
       return NextResponse.json({
         host: host.kind,
         artifactPath: result.artifactPath,

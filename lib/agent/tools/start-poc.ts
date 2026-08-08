@@ -13,10 +13,13 @@ import type { RegistryRow } from "../../registry.js";
 import { getGitHost } from "../../git/index.js";
 import { planPoc, scaffoldRepo } from "../../poc/builder.js";
 import { slugify, type UseCaseSeed } from "../../poc/scaffold.js";
+import { pocStack, defaultStackFor, POC_STACKS } from "../../poc/templates.js";
 import type { ArtifactKind } from "../../poc/spec.js";
 
 export interface StartPocInput {
   useCaseId: string;
+  /** The tech stack id, e.g. "python-streamlit". Falls back to a category default. */
+  stackId?: string;
   kind?: ArtifactKind;
 }
 
@@ -30,7 +33,7 @@ export function makeStartPocTool(rows: readonly RegistryRow[]): AgentTool<StartP
       type: "object",
       properties: {
         useCaseId: { type: "string", description: "The use case to build a PoC for, e.g. UC-2026-0041." },
-        kind: { type: "string", enum: ["dashboard", "app", "mockup", "report"] },
+        stackId: { type: "string", enum: POC_STACKS.map((s) => s.id), description: "The tech stack to scaffold, e.g. python-streamlit." },
       },
       required: ["useCaseId"],
     },
@@ -48,11 +51,13 @@ export function makeStartPocTool(rows: readonly RegistryRow[]): AgentTool<StartP
         ...(row.domain ? { domain: row.domain } : {}),
       };
       const host = getGitHost();
-      const plan = planPoc(seed, input.kind ?? "dashboard");
+      const stack = pocStack(input.stackId) ?? defaultStackFor(input.kind ?? "dashboard");
+      const plan = planPoc(seed, stack);
       const result = await scaffoldRepo(host, seed, plan);
       return {
         repo: result.repo.name,
         host: host.kind,
+        stack: stack.id,
         committedPaths: result.committedPaths,
         specPath: result.specPath,
         link: `/uc/${row.id}/poc`,
