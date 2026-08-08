@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { loadCorpus } from "@/lib/mesh-corpus";
 import { buildGraph, orphans, duplicateClusters, type MeshIssue } from "@/lib/mesh-graph";
 import { meshGaps, blastRadius } from "@/lib/mesh-insights";
-import { filterGraph, egoGraph, toGraphData, KIND_STYLE } from "@/lib/mesh-view";
+import { filterGraph, egoGraph, toGraphData, KIND_STYLE, type MeshView } from "@/lib/mesh-view";
 import { referenceHref, referenceKind, RELATIONS, type ReferenceKind, type Relation } from "@/lib/references";
 import { MeshForceGraph } from "@/components/mesh/force-graph";
 import type { MeshRef } from "@/lib/mesh";
@@ -102,14 +102,30 @@ export default async function MeshPage({ searchParams }: { searchParams: Params 
   const fRelation = (RELATIONS as readonly string[]).includes(searchParams.relation ?? "") ? (searchParams.relation as Relation) : undefined;
   const fSource = searchParams.source === "authored" || searchParams.source === "derived" ? searchParams.source : undefined;
 
-  const view = focus
-    ? egoGraph(graph, focus, depth)
-    : filterGraph(graph, {
-        ...(fKind ? { kinds: new Set([fKind]) } : {}),
-        ...(fRelation ? { relations: new Set([fRelation]) } : {}),
-        ...(fSource ? { sources: new Set([fSource]) } : {}),
-      });
-  const graphData = view.edges.length > 0 ? toGraphData(view) : null;
+  const anyFilter = Boolean(fKind || fRelation || fSource);
+  let view: MeshView;
+  if (focus) {
+    view = egoGraph(graph, focus, depth);
+  } else if (!anyFilter) {
+    // The whole graph, isolated nodes included — a single item you cannot see is a
+    // single item you cannot navigate to.
+    view = { nodes: graph.nodes, edges: graph.edges };
+  } else {
+    view = filterGraph(graph, {
+      ...(fKind ? { kinds: new Set([fKind]) } : {}),
+      ...(fRelation ? { relations: new Set([fRelation]) } : {}),
+      ...(fSource ? { sources: new Set([fSource]) } : {}),
+    });
+    // Filtering to a kind should show every artifact of that kind, isolated or not —
+    // that is how you reach one specific playbook or skill.
+    if (fKind) {
+      const have = new Set(view.nodes.map((n) => `${n.kind}:${n.id.toLowerCase()}`));
+      for (const n of graph.nodes) {
+        if (n.kind === fKind && !have.has(`${n.kind}:${n.id.toLowerCase()}`)) view.nodes.push(n);
+      }
+    }
+  }
+  const graphData = view.nodes.length > 0 ? toGraphData(view) : null;
   const focusNode = focus ? graph.nodes.find((n) => `${n.kind}:${n.id}`.toLowerCase() === focus.toLowerCase()) : undefined;
   const blast = focusNode ? blastRadius(graph, `${focusNode.kind}:${focusNode.id}`) : [];
   const kindsInGraph = [...new Set(graph.nodes.map((n) => n.kind))].sort();
@@ -198,7 +214,7 @@ export default async function MeshPage({ searchParams }: { searchParams: Params 
         </Card>
       )}
 
-      {graph.edges.length > 0 && (
+      {graph.nodes.length > 0 && (
         <section className="mt-6">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <h2 className="text-sm font-semibold">The graph</h2>
@@ -381,6 +397,27 @@ export default async function MeshPage({ searchParams }: { searchParams: Params 
                   </span>
                 </div>
               ))}
+          </Card>
+        </section>
+      )}
+
+      {loose.length > 0 && (
+        <section className="mt-6">
+          <h2 className="mb-1 text-sm font-semibold">Unconnected — {loose.length}</h2>
+          <p className="mb-2 max-w-3xl text-xs text-muted-foreground">
+            Single items nothing links yet. They still appear in the graph (drifting at the edge), and are listed here so
+            you can open any one directly — a skill no playbook runs, a demand nobody has related.
+          </p>
+          <Card className="divide-y">
+            {loose.slice(0, 60).map((n) => (
+              <div key={`${n.kind}:${n.id}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 p-2.5">
+                <span className="inline-block size-2 shrink-0 rounded-full" style={{ background: KIND_STYLE[n.kind].color }} aria-hidden />
+                <RefLink r={n} label={n.title ?? n.id} />
+                <span className="text-xs text-muted-foreground">{referenceKind(n.kind)?.label ?? n.kind}</span>
+                <Link href={meshHref({}, { focus: `${n.kind}:${n.id}` })} className="ml-auto text-xs text-info hover:underline">⊙ focus</Link>
+              </div>
+            ))}
+            {loose.length > 60 && <div className="p-2.5 text-xs text-muted-foreground">+ {loose.length - 60} more.</div>}
           </Card>
         </section>
       )}
