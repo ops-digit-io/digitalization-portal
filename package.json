@@ -2,7 +2,7 @@
   "name": "digitalization-portal",
   "version": "0.1.0",
   "private": true,
-  "description": "Digital Unit Portal \u2014 control plane for enterprise change demand. Git is the system of record; every artifact is markdown.",
+  "description": "Digital Unit Portal — control plane for enterprise change demand. Git is the system of record; every artifact is markdown.",
   "type": "module",
   "scripts": {
     "dev": "next dev",
@@ -24,6 +24,11 @@
     "node": ">=20"
   },
   "devDependencies": {
+    "@types/d3-drag": "^3.0.7",
+    "@types/d3-force": "^3.0.10",
+    "@types/d3-selection": "^3.0.11",
+    "@types/d3-shape": "^3.1.8",
+    "@types/d3-zoom": "^3.0.8",
     "@types/node": "^22.20.1",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
@@ -41,6 +46,11 @@
     "@tiptap/starter-kit": "^2.27.2",
     "@vercel/blob": "^0.27.3",
     "clsx": "^2.1.1",
+    "d3-drag": "^3.0.0",
+    "d3-force": "^3.0.0",
+    "d3-selection": "^3.0.0",
+    "d3-shape": "^3.2.0",
+    "d3-zoom": "^3.0.0",
     "jose": "^5.10.0",
     "lucide-react": "^1.25.0",
     "mdast-util-from-markdown": "^2.0.3",

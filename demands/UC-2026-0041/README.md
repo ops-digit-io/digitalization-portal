@@ -57,6 +57,10 @@ L2 — one reporting step gets materially faster and finer. Heat medium — clea
 | G6 Scale readiness | pending |  |  |  |
 | G7 Rollout complete | pending |  |  |  |
 
+## Related
+
+- UC-2026-0033 — depends on, needs the harmonized cause codes to attribute scrap across lines
+
 ## History
 
 - 2026-04-02 — captured via portal intake (s1-intake playbook)
