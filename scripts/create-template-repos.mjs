@@ -34,11 +34,12 @@ await writeFile(
   `export { getGitHost } from ${JSON.stringify(join(root, "lib/git/index.ts"))};
 export { hasGitHubCredentials } from ${JSON.stringify(join(root, "lib/git/host.ts"))};
 export { POC_STACKS } from ${JSON.stringify(join(root, "lib/poc/templates.ts"))};
+export { provisionTemplateRepo } from ${JSON.stringify(join(root, "lib/poc/template-provision.ts"))};
 `,
 );
 const outfile = join(tmp, "bundle.mjs");
 await build({ entryPoints: [entryFile], bundle: true, platform: "node", format: "esm", outfile, logLevel: "silent" });
-const { getGitHost, hasGitHubCredentials, POC_STACKS } = await import(outfile);
+const { getGitHost, hasGitHubCredentials, POC_STACKS, provisionTemplateRepo } = await import(outfile);
 await rm(tmp, { recursive: true, force: true });
 
 if (!hasGitHubCredentials()) {
@@ -47,38 +48,18 @@ if (!hasGitHubCredentials()) {
   process.exit(1);
 }
 
-// Neutral seed — GitHub copies template files verbatim; the portal overlays the real
-// id/title/plant when it generates a uc-* repo from the template.
-const seed = {
-  id: "UC-XXXX-XXXX",
-  title: "Use-Case PoC",
-  slug: "use-case-poc",
-  plant: "PLANT",
-  lane: "transform",
-  domain: "process",
-  createdOn: "2026-01-01",
-};
-
 const isPrivate = process.argv.includes("--private");
 const host = getGitHost();
 let ok = 0;
 
+// Same provisioning the in-app Templates tool uses, so CLI and app never diverge.
 for (const stack of POC_STACKS) {
-  const name = stack.templateRepo;
   try {
-    const repo = await host.createRepo(name, {
-      description: `PoC template · ${stack.label} — follows ${stack.upstream.name}`,
-      private: isPrivate,
-      template: true,
-    });
-    const readme = `# ${name}\n\nPoC template · **${stack.label}**.\n\n${stack.description}\n\nFollows [${stack.upstream.name}](${stack.upstream.url}). Used by the digitalization\nportal's PoC builder via GitHub "generate from template" — the portal creates a\nuse-case repo from this template, then overlays the case's own files.\n`;
-    const files = [{ path: "README.md", content: readme }, ...stack.files(seed)];
-    for (const f of files) await host.putFile(repo, f, `scaffold template: ${f.path}`, "main");
-    console.log(`✓ ${name} — template repo, ${files.length} files · ${repo.url}`);
+    const { repo, files } = await provisionTemplateRepo(host, stack, { private: isPrivate });
+    console.log(`✓ ${stack.templateRepo} — template repo, ${files} files · ${repo.url}`);
     ok += 1;
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`✗ ${name}: ${msg}`);
+    console.error(`✗ ${stack.templateRepo}: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 

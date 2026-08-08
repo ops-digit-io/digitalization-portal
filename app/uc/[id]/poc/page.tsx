@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
-import { POC_STACK_META, STACK_CATEGORIES } from "@/lib/poc/stacks-meta";
+import { POC_STACK_META, STACK_CATEGORIES, type StackMeta } from "@/lib/poc/stacks-meta";
 
 interface RepoRef { owner: string; name: string; url: string; local: boolean }
 interface ScaffoldResp { host: string; repo: RepoRef; committedPaths: string[]; spec: string; specPath: string; stack: string; fromTemplate: boolean }
@@ -20,7 +20,18 @@ export default function PocBuilder() {
   const [scaffold, setScaffold] = useState<ScaffoldResp | null>(null);
   const [artifact, setArtifact] = useState<ArtifactResp | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const chosen = POC_STACK_META.find((s) => s.id === stackId);
+  const [customs, setCustoms] = useState<StackMeta[]>([]);
+
+  // Registered custom templates (admin → PoC templates) join the built-in stacks.
+  useEffect(() => {
+    fetch("/api/templates")
+      .then((r) => r.json())
+      .then((j) => Array.isArray(j.customs) && setCustoms(j.customs as StackMeta[]))
+      .catch(() => {});
+  }, []);
+
+  const allStacks = [...POC_STACK_META, ...customs];
+  const chosen = allStacks.find((s) => s.id === stackId);
 
   async function post(body: Record<string, unknown>) {
     const res = await fetch("/api/poc", {
@@ -95,7 +106,7 @@ export default function PocBuilder() {
 
           <div className="mt-3 space-y-4">
             {STACK_CATEGORIES.map((cat) => {
-              const items = POC_STACK_META.filter((s) => s.category === cat.category);
+              const items = allStacks.filter((s) => s.category === cat.category);
               if (items.length === 0) return null;
               return (
                 <div key={cat.category}>
