@@ -31,6 +31,8 @@ import { readDemand, listArtifacts } from "./demands-store.js";
 import { getFunnelRows } from "./funnel/query.js";
 import * as processStore from "./process/store.js";
 import { parseReferences } from "./references.js";
+import { repoNameFor } from "./poc/scaffold.js";
+import { STAGES, type Stage } from "./types.js";
 import {
   dedupeEdges,
   edgesFrom,
@@ -39,7 +41,11 @@ import {
   type MeshEdge,
   type MeshRef,
   type Neighbourhood,
+  type TitleLookup,
 } from "./mesh.js";
+
+/** A use case has earned its uc-* repo once it reaches the PoC stage (S4+). */
+const hasScaffoldedRepo = (s?: Stage): boolean => s !== undefined && STAGES.indexOf(s) >= STAGES.indexOf("S4");
 
 /**
  * How many funnel documents an authored-backlink scan will open. Chosen to keep a
@@ -90,6 +96,14 @@ async function derived(): Promise<{ edges: MeshEdge[]; titles: Map<string, strin
       const cid = byPerson.get(norm(person));
       if (cid) edges.push({ from: demand, to: { kind: "champion", id: cid }, note: role, source: "derived" });
     }
+    // The scaffolded uc-* repo is a real node (S4+); the edge is derived from stage,
+    // computed from id+title without opening the document — so a repo shows in the
+    // demand's neighbourhood the same way it shows on /mesh.
+    if (hasScaffoldedRepo(r.stage)) {
+      const repo = repoNameFor(r.id, r.title);
+      put({ kind: "repo", id: repo }, repo);
+      edges.push({ from: demand, to: { kind: "repo", id: repo }, note: "PoC repository scaffolded for this use case", source: "derived" });
+    }
   }
 
   for (const m of engagements) {
@@ -120,6 +134,14 @@ async function derived(): Promise<{ edges: MeshEdge[]; titles: Map<string, strin
 
 /** The subject's own edges: what its document declares, plus its artifacts. */
 async function ownEdges(subject: MeshRef): Promise<MeshEdge[]> {
+  // A requirement is 1:1 with its demand; surface the parent edge when looked at from
+  // the requirement's own page (the demand adds this too, but only for itself).
+  if (subject.kind === "requirement") {
+    const artifacts = await listArtifacts(subject.id).catch((): string[] => []);
+    return artifacts.includes("requirements")
+      ? [{ from: { kind: "demand", id: subject.id }, to: { kind: "requirement", id: subject.id }, note: "standardized requirements derived from this intake", source: "derived" }]
+      : [];
+  }
   if (subject.kind !== "demand") return [];
   const md = await readDemand(subject.id).catch(() => undefined);
   const edges = md ? edgesFrom(subject, parseReferences(md)) : [];
@@ -174,4 +196,45 @@ export async function loadNeighbourhood(subject: MeshRef): Promise<LoadedMesh> {
   } catch {
     return { outbound: [], inbound: [], truncated: false };
   }
+}
+
+/**
+ * The whole cheap edge set in ONE pass — the derived edges plus the authored edges
+ * from a bounded scan of the funnel — so a LIST page (the persona library, the
+ * champion register) can render every item's neighbourhood without re-deriving the
+ * mesh per row. One bounded scan for the page, not one per card.
+ */
+export interface MeshEdges {
+  edges: MeshEdge[];
+  titles: Map<string, string>;
+  /** True when the authored scan hit its bound and stopped early. */
+  truncated: boolean;
+  title: TitleLookup;
+}
+
+async function allAuthoredEdges(): Promise<{ edges: MeshEdge[]; truncated: boolean }> {
+  const { rows } = await getFunnelRows();
+  const scan = rows.slice(0, AUTHORED_SCAN_LIMIT);
+  const found = await Promise.all(
+    scan.map(async (r) => {
+      const md = await readDemand(r.id).catch(() => undefined);
+      return md ? edgesFrom({ kind: "demand", id: r.id }, parseReferences(md)) : [];
+    }),
+  );
+  return { edges: found.flat(), truncated: rows.length > scan.length };
+}
+
+export async function loadMeshEdges(): Promise<MeshEdges> {
+  try {
+    const [{ edges: base, titles }, authored] = await Promise.all([derived(), allAuthoredEdges()]);
+    const title: TitleLookup = (ref) => titles.get(`${ref.kind}:${ref.id.toLowerCase()}`);
+    return { edges: dedupeEdges([...base, ...authored.edges]), titles, truncated: authored.truncated, title };
+  } catch {
+    return { edges: [], titles: new Map(), truncated: false, title: () => undefined };
+  }
+}
+
+/** One subject's neighbourhood, computed from an already-loaded `MeshEdges`. */
+export function neighbourhoodOf(mesh: MeshEdges, subject: MeshRef): Neighbourhood {
+  return neighbourhood(mesh.edges, subject, mesh.title);
 }

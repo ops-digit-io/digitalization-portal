@@ -7,6 +7,8 @@ import { listChampions } from "@/lib/champions-store";
 import { getAllCategories } from "@/lib/category-store";
 import { listDemandRows } from "@/lib/demands-store";
 import * as processStore from "@/lib/process/store";
+import { loadMeshEdges, neighbourhoodOf } from "@/lib/mesh-store";
+import { RelatedPanel } from "@/components/portal/related-panel";
 import { ChampionEditor } from "./editor";
 import { ChampionsAnalysis } from "./analysis";
 
@@ -41,6 +43,10 @@ export default async function ChampionsPage() {
       .catch(() => [] as EngagementRef[]),
     listDemandRows().then((rows) => rows.map((r) => r.requester ?? "").filter((r) => r !== "")).catch(() => [] as string[]),
   ]);
+
+  // The mesh once, for the whole register — each card reads its own neighbourhood
+  // from it rather than re-deriving the graph per champion.
+  const mesh = await loadMeshEdges();
 
   const on = new Date().toISOString().slice(0, 10);
   const coverage = buildCoverage(champions, categories.plant, categories.domain, on);
@@ -184,6 +190,9 @@ export default async function ChampionsPage() {
                     </p>
                   )}
                   {c.notes && <p className="mt-1 text-xs">{c.notes}</p>}
+                  <div className="mt-2 border-t pt-2">
+                    <RelatedPanel mesh={neighbourhoodOf(mesh, { kind: "champion", id: c.id })} truncated={mesh.truncated} />
+                  </div>
                 </Card>
               );
             })}

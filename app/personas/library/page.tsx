@@ -5,6 +5,8 @@ import { Card } from "@/components/ui/card";
 import { citePersona, type Persona } from "@/lib/persona-library";
 import { isRetired, listPersonas } from "@/lib/persona-library-store";
 import { getAllCategories } from "@/lib/category-store";
+import { loadMeshEdges, neighbourhoodOf } from "@/lib/mesh-store";
+import { RelatedPanel } from "@/components/portal/related-panel";
 import { PersonaEditor } from "./editor";
 
 export const dynamic = "force-dynamic";
@@ -51,6 +53,8 @@ export default async function PersonaLibraryPage() {
     getAllCategories(),
   ]);
   const mayEdit = can(session, "draft");
+  // The mesh once for the page; each card reads its persona's neighbourhood from it.
+  const mesh = await loadMeshEdges();
 
   return (
     <main className="mx-auto max-w-[1100px] px-4 py-6">
@@ -117,6 +121,9 @@ export default async function PersonaLibraryPage() {
                 Cited as <code className="rounded bg-secondary px-1 py-0.5">{citePersona(p)}</code>
                 {p.sourcedFrom ? ` · ${p.sourcedFrom}` : " · no source recorded"}
               </p>
+              <div className="mt-2 border-t pt-2">
+                <RelatedPanel mesh={neighbourhoodOf(mesh, { kind: "persona", id: p.id })} truncated={mesh.truncated} />
+              </div>
             </Card>
           );
         })}
