@@ -1,21 +1,22 @@
 import Link from "next/link";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { listDocSlugs, docTitle } from "@/lib/docs";
+import { listDocSlugs, readDoc, docTitle } from "@/lib/docs";
+import { specificationsRepo } from "@/lib/content-repo";
 import { Card } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Specification — the governance spec (`docs/*.md`) rendered inside the portal, so
- * the rules are one click from every tool. Reads the shipped docs folder at request
- * time; the app already renders markdown everywhere else.
+ * Specification — the governance spec rendered inside the portal, so the rules are
+ * one click from every tool. The spec lives in the external `du-specifications`
+ * repo and is read through the content-repo seam (live GitHub → local mirror);
+ * when neither is reachable this shows an empty state rather than pretending.
  */
 export default async function DocsIndex() {
+  const repo = specificationsRepo().repoName;
   const slugs = await listDocSlugs();
   const docs = await Promise.all(
     slugs.map(async (slug) => {
-      const md = await readFile(join(process.cwd(), "docs", `${slug}.md`), "utf8").catch(() => "");
+      const md = (await readDoc(slug)) ?? "";
       return { slug, title: docTitle(md, slug) };
     }),
   );
@@ -29,11 +30,13 @@ export default async function DocsIndex() {
       </nav>
       <h1 className="text-lg font-semibold">Specification</h1>
       <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-        Governance, data model, and architecture — the spec the portal is built to. Rendered from <span className="font-mono">docs/</span>.
+        Governance, data model, and architecture — the spec the portal is built to. Read from <span className="font-mono">{repo}</span>.
       </p>
 
       {docs.length === 0 ? (
-        <Card className="mt-6 p-10 text-center text-sm text-muted-foreground">No documents found.</Card>
+        <Card className="mt-6 p-10 text-center text-sm text-muted-foreground">
+          No specifications reachable. They live in <span className="font-mono">{repo}</span> — configure the GitHub App, or run <span className="font-mono">npm run content:pull</span> to mirror them locally.
+        </Card>
       ) : (
         <Card className="mt-5 divide-y p-0">
           {docs.map((d) => (

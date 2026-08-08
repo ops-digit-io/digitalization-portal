@@ -2,8 +2,9 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { loadCorpus } from "@/lib/mesh-corpus";
-import { buildGraph, orphans, duplicateClusters, type MeshIssue } from "@/lib/mesh-graph";
+import { buildGraph, orphans, duplicateClusters, toMermaid, type MeshIssue } from "@/lib/mesh-graph";
 import { referenceHref, referenceKind } from "@/lib/references";
+import { Mermaid } from "@/components/process/mermaid";
 import type { MeshRef } from "@/lib/mesh";
 
 export const dynamic = "force-dynamic";
@@ -79,6 +80,9 @@ export default async function MeshPage() {
   const clusters = duplicateClusters(graph);
   const loose = orphans(graph);
   const authored = graph.edges.filter((e) => e.source === "authored").length;
+  // The graph drawn — every node carrying at least one relation. Solid arrows are
+  // authored (`## Related`), dotted are derived. Bounded so a large corpus stays legible.
+  const diagram = graph.edges.length > 0 ? toMermaid(graph, { maxEdges: 120 }) : null;
 
   return (
     <main className="mx-auto max-w-[1100px] px-6 py-6">
@@ -119,6 +123,20 @@ export default async function MeshPage() {
           Nothing captured yet — the mesh fills as demands are taken in.{" "}
           <Link href="/intake" className="underline hover:text-foreground">Capture a demand</Link>.
         </Card>
+      )}
+
+      {diagram && (
+        <section className="mt-6">
+          <h2 className="mb-1 text-sm font-semibold">The graph</h2>
+          <p className="mb-2 max-w-3xl text-xs text-muted-foreground">
+            Every artifact carrying at least one relation, drawn from the corpus. <span className="whitespace-nowrap">Solid arrows</span> are
+            authored in a <code className="font-mono">## Related</code> line; <span className="whitespace-nowrap">dotted arrows</span> are
+            derived from state. Node ids match the lists below.
+          </p>
+          <Card className="overflow-x-auto p-4">
+            <Mermaid chart={diagram} />
+          </Card>
+        </section>
       )}
 
       {clusters.length > 0 && (

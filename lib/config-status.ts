@@ -53,6 +53,7 @@ export function describeConfig(env: Record<string, string | undefined> = process
   const org = env.GITHUB_ORG?.trim();
   const demandsRepo = env.DEMANDS_REPO?.trim() || "du-demands";
   const registryRepo = env.REGISTRY_REPO?.trim() || "du-agent-registry";
+  const specificationsRepo = env.SPECIFICATIONS_REPO?.trim() || "du-specifications";
   const agentTools = (env.AGENT_TOOLS?.trim().toLowerCase() ?? "on") !== "off";
   const oidc = has(env.OIDC_ISSUER) && has(env.OIDC_CLIENT_ID) && has(env.AUTH_SECRET);
 
@@ -134,6 +135,15 @@ export function describeConfig(env: Record<string, string | undefined> = process
           envVars: ["REGISTRY_REPO"],
           level: "required",
           note: "Where agent skills and playbooks live. Defaults to du-agent-registry.",
+        },
+        {
+          key: "specifications-repo",
+          label: "Specifications repo",
+          configured: true,
+          detail: specificationsRepo,
+          envVars: ["SPECIFICATIONS_REPO"],
+          level: "recommended",
+          note: "Where the portal spec lives; the /docs reader reads it. Defaults to du-specifications.",
         },
       ],
     },

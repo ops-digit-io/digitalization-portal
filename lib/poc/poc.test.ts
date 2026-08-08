@@ -37,6 +37,24 @@ describe("scaffold", () => {
     expect(readme.content).toMatch(/## State/);
     expect(readme.content).toMatch(/Stage:\*\* S1/);
   });
+
+  it("namespaces CODEOWNERS teams to GITHUB_ORG so branch-protection review can be satisfied", () => {
+    const prev = process.env.GITHUB_ORG;
+    try {
+      process.env.GITHUB_ORG = "ops-digit-io";
+      const co = buildScaffoldFiles(seed).find((f) => f.path === ".github/CODEOWNERS")!;
+      expect(co.content).toMatch(/@ops-digit-io\/du-triage/);
+      expect(co.content).not.toMatch(/@org\//); // never the placeholder org
+    } finally {
+      if (prev === undefined) delete process.env.GITHUB_ORG;
+      else process.env.GITHUB_ORG = prev;
+    }
+  });
+
+  it("an explicit seed.org overrides the environment", () => {
+    const co = buildScaffoldFiles({ ...seed, org: "acme-corp" }).find((f) => f.path === ".github/CODEOWNERS")!;
+    expect(co.content).toMatch(/@acme-corp\/du-triage/);
+  });
 });
 
 describe("spec + mockup", () => {

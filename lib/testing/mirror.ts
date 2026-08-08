@@ -17,13 +17,16 @@
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { registryRepo, templatesRepo } from "../content-repo.js";
+import { registryRepo, templatesRepo, specificationsRepo } from "../content-repo.js";
 
 /** A registry mirror (playbooks/skills/contracts) is present. */
 export const hasRegistryMirror = existsSync(join(registryRepo().mirrorDir, "playbooks"));
 
 /** A templates mirror (section/advisory templates) is present. */
 export const hasTemplatesMirror = existsSync(join(templatesRepo().mirrorDir, "sections"));
+
+/** A specifications mirror (the portal spec, flat markdown) is present. */
+export const hasSpecificationsMirror = existsSync(join(specificationsRepo().mirrorDir, "01-portal-spec.md"));
 
 /** Both mirrors are present — for tests that read library and templates together. */
 export const hasContentMirror = hasRegistryMirror && hasTemplatesMirror;
