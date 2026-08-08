@@ -37,7 +37,7 @@
  */
 
 /** The artifact kinds the mesh can point at. */
-export type ReferenceKind = "demand" | "process" | "persona" | "champion" | "skill" | "playbook" | "requirement";
+export type ReferenceKind = "demand" | "process" | "persona" | "champion" | "skill" | "playbook" | "requirement" | "repo";
 
 /**
  * How two artifacts relate.
@@ -150,6 +150,20 @@ export const REFERENCE_KINDS: readonly ReferenceKindDef[] = [
     prefix: "playbook",
     label: "Playbook",
     href: (id) => `/catalog/playbook/${encodeURIComponent(id)}`,
+  },
+  {
+    // A scaffolded `uc-*` repository — a use case earns its own repo at the PoC
+    // stage. The node is derived (nobody authors `repo:` in `## Related`); its id is
+    // the repo name `uc-yyyy-nnnn-<slug>`, and it links to where the portal manages
+    // that PoC rather than out to GitHub, so the href stays env-independent.
+    kind: "repo",
+    prefix: "repo",
+    label: "Scaffolded repo",
+    bareId: /^uc-\d{4}-\d{3,}-[a-z0-9-]+$/i,
+    href: (id) => {
+      const uc = /^(uc-\d{4}-\d{3,})/i.exec(id)?.[1];
+      return uc ? `/uc/${uc.toUpperCase()}/poc` : "/build";
+    },
   },
 ];
 

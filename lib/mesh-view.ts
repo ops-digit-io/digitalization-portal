@@ -57,6 +57,7 @@ export const KIND_STYLE: Record<ReferenceKind, { open: string; close: string; co
   champion: { open: "{{", close: "}}", color: "#d97706", label: "Champion" },
   skill: { open: "([", close: "])", color: "#db2777", label: "Skill" },
   playbook: { open: ">", close: "]", color: "#4b5563", label: "Playbook" },
+  repo: { open: "[(", close: ")]", color: "#65a30d", label: "Scaffolded repo" },
 };
 
 /**

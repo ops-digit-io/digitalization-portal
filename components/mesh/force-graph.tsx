@@ -43,6 +43,7 @@ import {
   symbolCross,
   symbolDiamond,
   symbolSquare,
+  symbolSquare2,
   symbolStar,
   symbolTriangle,
   symbolWye,
@@ -61,6 +62,7 @@ const KIND_SYMBOL: Record<ReferenceKind, SymbolType> = {
   champion: symbolStar,
   skill: symbolWye,
   playbook: symbolCross,
+  repo: symbolSquare2,
 };
 
 type SimNode = GraphData["nodes"][number] & SimulationNodeDatum;

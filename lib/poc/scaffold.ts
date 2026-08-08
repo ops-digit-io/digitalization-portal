@@ -27,6 +27,16 @@ export function repoName(seed: UseCaseSeed): string {
   return `${seed.id.toLowerCase()}-${seed.slug}`;
 }
 
+/**
+ * The `uc-*` repository name for a case id + title alone — the same string
+ * `repoName` produces for a seed, without needing the full seed. Exists so the
+ * context mesh can derive a scaffolded-repo node from a demand summary (which has
+ * only id + title), matching the name a scaffold actually created.
+ */
+export function repoNameFor(id: string, title: string): string {
+  return `${id.toLowerCase()}-${slugify(title) || id.toLowerCase()}`;
+}
+
 /** Turn a title into a short URL-safe slug. */
 export function slugify(title: string): string {
   return title

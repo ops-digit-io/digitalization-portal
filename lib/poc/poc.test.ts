@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { LocalHost } from "../git/local-host.js";
 import { hasGitHubCredentials } from "../git/host.js";
 import { getGitHost } from "../git/index.js";
-import { buildScaffoldFiles, repoName, slugify, type UseCaseSeed } from "./scaffold.js";
+import { buildScaffoldFiles, repoName, repoNameFor, slugify, type UseCaseSeed } from "./scaffold.js";
 import { draftPocSpec } from "./spec.js";
 import { generateDashboardMockup } from "./mockup.js";
 import { planPoc, scaffoldRepo, buildArtifact } from "./builder.js";
@@ -24,6 +24,12 @@ const seed: UseCaseSeed = {
 describe("scaffold", () => {
   it("names the repo uc-yyyy-nnnn-slug", () => {
     expect(repoName(seed)).toBe("uc-2026-0041-scrap-attribution-at-shift");
+  });
+
+  it("repoNameFor derives the same name from id + title alone (for the mesh)", () => {
+    expect(repoNameFor(seed.id, seed.title)).toBe(repoName(seed));
+    // Falls back to the id when a title slugifies to nothing.
+    expect(repoNameFor("UC-2026-0099", "!!!")).toBe("uc-2026-0099-uc-2026-0099");
   });
 
   it("scaffold files include README and a gatekeeper-free CODEOWNERS", () => {
