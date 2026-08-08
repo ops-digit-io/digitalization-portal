@@ -257,6 +257,38 @@ exports, it is always a derivative: nothing reads it back in, because an export 
 could be re-imported would be the second source of truth that keeping references in
 the documents is meant to avoid.
 
+## Drawing the graph
+
+`/mesh` draws the corpus as a node-link diagram, not only as counts and lists. The
+page serializes the whole-corpus `MeshGraph` with `toMermaid` (`lib/mesh-graph.ts`)
+and renders it through the portal's own Mermaid component
+(`components/process/mermaid.tsx`) — the same way `docs/api-map.md` and
+`docs/pages.md` render structures that must not drift from the code.
+
+The drawing follows the model exactly, so the picture makes the same distinctions
+the data does:
+
+- **A node is any artifact carrying at least one relation.** Isolated nodes are
+  left out of the diagram on purpose — they are already answered by the
+  *Unconnected* tile and would only add noise to the picture. Each node is labelled
+  with its title and its kind.
+- **A solid arrow is an authored edge** (a line in a `## Related` section); **a
+  dotted arrow is a derived edge** (inferred from state, e.g. a demand to its
+  requirements). This is the same authored/derived split the neighbourhood panel
+  shows as a dashed badge — so the whole-graph view and the per-artifact view never
+  disagree.
+- **Typed relations are drawn as edge labels**, so "duplicate of" is readable on
+  the edge rather than only in a table.
+
+The render is **bounded** (`toMermaid(graph, { maxEdges })`, default 300; the page
+caps it lower for legibility) and states plainly when edges were omitted — an
+unbounded draw of a large corpus is unreadable, and a silently truncated one is
+worse. Like every other mesh export it is a **derivative**: the diagram is built
+from the documents on each request and read by nobody, so it can never become the
+second source of truth that keeping references in the documents exists to avoid.
+Node ids in the diagram match the ids in the lists on the same page, so a node
+spotted in the picture is found again in *Most connected* or *Duplicate clusters*.
+
 ## Rendering it
 
 `components/portal/related-panel.tsx` takes a `Neighbourhood` and renders nothing
