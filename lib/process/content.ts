@@ -178,7 +178,7 @@ export function confidenceWord(locale: Locale, code: "S" | "P" | "I"): string {
 
 // ------------------------------------------------------------------ status text
 export type Status = "gruen" | "gelb" | "rot" | "grau";
-const STATUS: Record<Locale, Record<Status, { pill: string; full: string }>> = {
+const STATUS: Record<"en" | "de", Record<Status, { pill: string; full: string }>> = {
   en: {
     gruen: { pill: "Green", full: "Green — healthy" },
     gelb: { pill: "Amber", full: "Amber — needs action" },
@@ -259,7 +259,7 @@ export function explainStatus(locale: Locale, p: ProfileLike): string {
 
 // ---------------------------------------------------- direction vector (§6.4)
 export type DirectionCode = "Z0" | "Z1" | "Z2" | "Z3" | "enablement" | "feedback";
-const DIRECTION: Record<Locale, Record<DirectionCode, string>> = {
+const DIRECTION: Record<"en" | "de", Record<DirectionCode, string>> = {
   en: {
     Z0: "Branch 0 — Kill: consumer-less steps with a negative balance (K3.4, K4.4).",
     Z1: "Branch 1 — Interfaces (1b before 1a): K5.1 or K2.2 at level 2 or below; latency between the steps (check K3.2).",
@@ -283,7 +283,7 @@ export function directionText(locale: Locale, code: string): string {
 }
 
 // -------------------------------------------------------------- triage (§7.3)
-const TRIAGE: Record<Locale, Record<Recommendation, { headline: string; reason: string }>> = {
+const TRIAGE: Record<"en" | "de", Record<Recommendation, { headline: string; reason: string }>> = {
   en: {
     aufnehmen: { headline: "Take it on", reason: "Spoke minimum plausible and no knock-out at level 1. The process goes into the full assessment." },
     enabler: { headline: "Take it on — as an enabler (branch 1b)", reason: "" },
@@ -297,7 +297,7 @@ const TRIAGE: Record<Locale, Record<Recommendation, { headline: string; reason: 
     selbsthilfe: { headline: "An den Spoke — Selbsthilfe mit Playbook", reason: "Spoke stark, messbar, dokumentiert, Ziel klar — das trägt der Spoke mit einem Playbook selbst. Hub-Zeit für schwierigere Prozesse aufsparen." },
   },
 };
-const WARN: Record<Locale, Record<WarnCode, string>> = {
+const WARN: Record<"en" | "de", Record<WarnCode, string>> = {
   en: {
     "no-goal": "Goal statement missing (K4.1 = 1) — a kill candidate at the recon gate if no goal can be stated.",
     "thin-value": "Quantity / business basis thin (K4.4) — sharpen the addressable value before prioritising.",
