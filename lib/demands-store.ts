@@ -25,10 +25,12 @@ import { parseUseCase, parsePeople, type ParsedUseCase } from "./parse.js";
 import { parseBusinessCase } from "./businesscase.js";
 import { nextDemandId } from "./demand.js";
 import { mapPool } from "./pool.js";
+import { canOpenGate } from "./gates.js";
+import { exitGate } from "./stages.js";
 import { getGitHost, hasGitHubCredentials, FileExistsError, type RepoRef } from "./git/index.js";
 import { LocalHost } from "./git/local-host.js";
 import type { RegistryRow } from "./registry.js";
-import type { Lane, Stage, Status } from "./types.js";
+import { type Gate, type Lane, type Stage, type Status, GATES } from "./types.js";
 
 const DIR = "demands";
 const README = "README.md";
@@ -197,6 +199,16 @@ export function demandRowFromMarkdown(id: string, md: string): RegistryRow {
   const p = parseUseCase(md);
   const people = parsePeople(md);
   const since = p.state.raw["since"] ?? p.state.created;
+
+  // Next-gate readiness, derived and viewer-independent (no `actor`, so the
+  // self-approval check is skipped). Cheap: canOpenGate is pure over the parsed
+  // case + people we already have. G5's baseline check needs the business case,
+  // which this row-level read doesn't load, so G5 readiness is approximate.
+  const stage = p.state.stage as Stage | undefined;
+  const openGate = GATES.find((g) => p.gates.find((x) => x.id === g)?.status === "open");
+  const targetGate: Gate | undefined = openGate ?? (stage ? exitGate(stage) : undefined);
+  const nextGateReady = targetGate ? canOpenGate(targetGate, { readme: p, people }).permitted : false;
+
   return {
     id,
     title: demandTitle(p, id),
@@ -212,6 +224,8 @@ export function demandRowFromMarkdown(id: string, md: string): RegistryRow {
     ...(since ? { since } : {}),
     ...(p.state.confidential ? { confidential: true } : {}),
     ...(demandNeedsAttention(p) ? { needsAttention: true } : {}),
+    ...(targetGate ? { targetGate } : {}),
+    ...(nextGateReady ? { nextGateReady: true } : {}),
   };
 }
 

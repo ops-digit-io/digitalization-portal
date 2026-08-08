@@ -67,7 +67,7 @@ export const LAUNCHPAD: TileGroup[] = [
       { id: "intake", title: "Intake", subtitle: "Capture a demand — chat, form or markdown", href: "/intake", icon: I.spark, tone: "info" },
       { id: "demands", title: "Demands", subtitle: "Every demand taken in", href: "/demands", icon: I.chat, tone: "info" },
       { id: "board", title: "Portfolio Board", subtitle: "All demand by stage", href: "/board", icon: I.grid, tone: "info" },
-      { id: "attention", title: "Needs Attention", subtitle: "Unreadable or stalled", href: "/board", icon: I.alert, tone: "warn" },
+      { id: "attention", title: "Needs Attention", subtitle: "Unreadable or stalled", href: "/attention", icon: I.alert, tone: "warn" },
     ],
   },
   {
@@ -88,22 +88,22 @@ export const LAUNCHPAD: TileGroup[] = [
     tiles: [
       { id: "funnel", title: "Use-case Funnel", subtitle: "Stage flow, kill rate by gate", href: "/funnel", icon: I.chart, tone: "info" },
       { id: "triage", title: "Triage", subtitle: "Classify & assign lanes", href: "/triage", icon: I.route, tone: "info" },
-      { id: "backlog", title: "Backlog", subtitle: "Prioritize (S2)", href: "/board", icon: I.sort, tone: "slate", disabled: true },
-      { id: "roadmap", title: "Roadmap", subtitle: "Milestones & gates", href: "/board", icon: I.map, tone: "slate", disabled: true },
+      { id: "backlog", title: "Backlog", subtitle: "Prioritize (S2)", href: "/backlog", icon: I.sort, tone: "slate" },
+      { id: "roadmap", title: "Roadmap", subtitle: "Milestones & gates", href: "/roadmap", icon: I.map, tone: "slate" },
       { id: "champions", title: "Digital Champions", subtitle: "Network coverage & gaps", href: "/champions", icon: I.users, tone: "info" },
     ],
   },
   {
     category: "Build & deliver",
     tiles: [
-      { id: "poc", title: "Agentic PoC Builder", subtitle: "Repo · spec · artifact", href: "/build", icon: I.wrench, tone: "violet", disabled: true },
+      { id: "poc", title: "Agentic PoC Builder", subtitle: "Repo · spec · artifact", href: "/build", icon: I.wrench, tone: "violet" },
       { id: "handovers", title: "Handovers", subtitle: "Run-lane & G7 records", href: "/handovers", icon: I.swap, tone: "violet" },
     ],
   },
   {
     category: "Govern & operate",
     tiles: [
-      { id: "docs", title: "Specification", subtitle: "Governance & data model", href: "/board", icon: I.book, tone: "slate", disabled: true },
+      { id: "docs", title: "Specification", subtitle: "Governance & data model", href: "/docs", icon: I.book, tone: "slate" },
       { id: "catalog", title: "Skills & Playbooks", subtitle: "Agent capabilities", href: "/catalog", icon: I.copy, tone: "info" },
       { id: "categories", title: "Categories", subtitle: "Manage plants & domains (admin)", href: "/admin/categories", icon: I.cog, tone: "slate" },
       { id: "skill-library", title: "Skill Library", subtitle: "Import reference skills (agentskills.io)", href: "/skill-library", icon: I.download, tone: "info" },

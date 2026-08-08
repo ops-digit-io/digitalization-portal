@@ -10,7 +10,7 @@
  * the field that makes stalling visible, so it is always present, never hidden.
  */
 
-import { STAGES, type Stage } from "./types.js";
+import { STAGES, type Stage, type Gate } from "./types.js";
 import type { RegistryRow } from "./registry.js";
 import { boardVisibility, toPublicSummary, type PublicSummary } from "./visibility.js";
 import type { Session } from "./rbac.js";
@@ -20,6 +20,10 @@ export interface BoardCard extends PublicSummary {
   daysInStage?: number;
   /** True when an active card has sat in its stage past the stall threshold. */
   stalled?: boolean;
+  /** The gate this case is working toward (derived from its state). */
+  targetGate?: Gate;
+  /** Whether the case meets the criteria to open its next gate (viewer-independent). */
+  nextGateReady?: boolean;
 }
 
 export interface BoardSummary {
@@ -108,6 +112,10 @@ export function assembleBoard(
     if (days !== undefined) card.daysInStage = days;
     const status = row.status ?? "active";
     if (status === "active" && days !== undefined && days > STALL_DAYS) card.stalled = true;
+    // Next-gate readiness is a derived, non-identifying signal (boolean + gate id) —
+    // the same verdict the detail page shows any viewer, so portfolio-transparent.
+    if (row.targetGate) card.targetGate = row.targetGate;
+    if (row.nextGateReady) card.nextGateReady = true;
 
     cards.push(card);
     summary.total += 1;

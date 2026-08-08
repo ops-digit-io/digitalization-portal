@@ -9,6 +9,7 @@
  */
 
 import {
+  type Gate,
   type Heat,
   type Lane,
   type Level,
@@ -41,6 +42,10 @@ export interface RegistryRow {
   needsAttention?: boolean;
   /** True when the demand is captured in the interim buffer, not yet committed to git. */
   pending?: boolean;
+  /** The gate this case is working toward (derived), for the board readiness badge. */
+  targetGate?: Gate;
+  /** Whether the case currently meets the criteria to open its next gate (viewer-independent). */
+  nextGateReady?: boolean;
 }
 
 const COLUMN_ALIASES: Record<keyof RegistryRow, string[]> = {
@@ -61,6 +66,9 @@ const COLUMN_ALIASES: Record<keyof RegistryRow, string[]> = {
   confidential: ["confidential"],
   needsAttention: ["needs attention"],
   pending: ["pending"],
+  // Derived at read time (demandRowFromMarkdown), not columns in the registry index.
+  targetGate: [],
+  nextGateReady: [],
 };
 
 function parseNumber(cell: string | undefined): number | undefined {

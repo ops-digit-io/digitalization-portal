@@ -26,6 +26,15 @@ export function UseCaseCard({ card, manage }: { card: BoardCard; manage?: QuickA
         <div className="flex items-center justify-between gap-2">
           <span className="text-[11px] font-medium text-muted-foreground">{card.id}</span>
           <div className="flex items-center gap-1.5">
+            {!killed && !parked && card.nextGateReady && card.targetGate && (
+              <Badge
+                variant="outline"
+                className="border-ok/50 px-1.5 py-0 text-[10px] font-normal text-ok"
+                title={`Meets the criteria to open ${card.targetGate}`}
+              >
+                {card.targetGate} ready
+              </Badge>
+            )}
             {killed && <Badge variant="outline" className="border-destructive/50 px-1.5 py-0 text-[10px] font-normal text-destructive">killed</Badge>}
             {parked && <Badge variant="outline" className="border-warn/50 px-1.5 py-0 text-[10px] font-normal text-warn">parked</Badge>}
             {showMenu && <CardQuickActions id={card.id} status={card.status} caps={manage!} />}

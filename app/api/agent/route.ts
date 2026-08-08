@@ -14,6 +14,7 @@ import { resolveProvider } from "@/lib/model-settings";
 import { createDefaultRegistry } from "@/lib/agent/registry";
 import { makeImplementationAnalysisTool } from "@/lib/agent/tools/implementation-analysis";
 import { makeStartPocTool } from "@/lib/agent/tools/start-poc";
+import { makeDuplicateScanTool } from "@/lib/agent/tools/duplicate-scan";
 import { agentToolsEnabled } from "@/lib/agent/tools";
 import { factsBlock } from "@/lib/agent/prompt";
 import { loadAnalystGuideline, analystSystemPrompt, ANALYST_GOVERNED_BY } from "@/lib/agent/analyst-guideline";
@@ -52,7 +53,8 @@ export async function POST(req: Request) {
   const rows = await listDemandRowsWithValue();
   const registry = createDefaultRegistry()
     .register(makeImplementationAnalysisTool(rows))
-    .register(makeStartPocTool(rows));
+    .register(makeStartPocTool(rows))
+    .register(makeDuplicateScanTool(rows));
 
   const task = body.task ?? "chat";
   let userMessage = body.message ?? "";

@@ -10,7 +10,11 @@
 import { ToolRegistry } from "./tools.js";
 import { portfolioQueryTool } from "./tools/portfolio-query.js";
 import { simulateValueTool } from "./tools/simulate-value.js";
+import { gateReadinessTool } from "./tools/gate-readiness.js";
 
 export function createDefaultRegistry(): ToolRegistry {
-  return new ToolRegistry().register(portfolioQueryTool).register(simulateValueTool);
+  return new ToolRegistry()
+    .register(portfolioQueryTool)
+    .register(simulateValueTool)
+    .register(gateReadinessTool);
 }

@@ -103,6 +103,26 @@ export function paginate(rows: readonly RegistryRow[], page: number, pageSize: n
 }
 
 /**
+ * Decide which scope a `/demands` visitor should actually see. Pure, so the page's
+ * "don't show a fresh operator an empty list" behavior is unit-testable.
+ *
+ * Rule: an EXPLICIT `?scope=` is always honored (a clicked "My demands" stays
+ * honestly empty). Only when the visitor made no choice AND their personal slice is
+ * empty while the funnel is not do we auto-broaden to "all" — so the portal never
+ * greets a leader with a blank page over a full funnel.
+ */
+export function chooseEffectiveScope(opts: {
+  explicit?: string;
+  mineTotal: number;
+  allTotal: number;
+}): { scope: FunnelScope; autoBroadened: boolean } {
+  if (opts.explicit === "all") return { scope: "all", autoBroadened: false };
+  if (opts.explicit === "mine") return { scope: "mine", autoBroadened: false };
+  if (opts.mineTotal === 0 && opts.allTotal > 0) return { scope: "all", autoBroadened: true };
+  return { scope: "mine", autoBroadened: false };
+}
+
+/**
  * The read-model entry point: scope → filter/search → paginate. One call per view.
  */
 export async function queryFunnel(q: FunnelQuery = {}): Promise<FunnelPage> {

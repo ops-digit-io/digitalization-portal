@@ -491,3 +491,47 @@ export function parseRequirementsMarkdown(markdown: string): RequirementsDoc {
     outOfScope: listItems(sections["out of scope"] ?? ""),
   };
 }
+
+export interface RequirementsScore {
+  /** 0–100 completeness score. */
+  score: number;
+  storiesTotal: number;
+  storiesWithAcceptance: number;
+  hasNfrs: boolean;
+  hasRisks: boolean;
+  hasAssumptions: boolean;
+  /** Human-readable gaps, most important first. */
+  missing: string[];
+}
+
+/**
+ * Score how complete a `requirements.md` is — a reviewable quality signal before a
+ * case advances. Pure over a parsed `RequirementsDoc`. Weights: stories exist (20),
+ * every story has acceptance criteria (40, proportional), NFRs present (20), risks
+ * (10), assumptions (10).
+ */
+export function scoreRequirements(doc: RequirementsDoc): RequirementsScore {
+  const storiesTotal = doc.stories.length;
+  const storiesWithAcceptance = doc.stories.filter((s) => s.acceptance.length > 0).length;
+  const hasNfrs = doc.nfrs.length > 0;
+  const hasRisks = doc.risks.length > 0;
+  const hasAssumptions = doc.assumptions.length > 0;
+
+  let score = 0;
+  if (storiesTotal > 0) score += 20;
+  if (storiesTotal > 0) score += Math.round(40 * (storiesWithAcceptance / storiesTotal));
+  if (hasNfrs) score += 20;
+  if (hasRisks) score += 10;
+  if (hasAssumptions) score += 10;
+
+  const missing: string[] = [];
+  if (storiesTotal === 0) missing.push("No user stories");
+  else if (storiesWithAcceptance < storiesTotal) {
+    missing.push(`${storiesTotal - storiesWithAcceptance} of ${storiesTotal} stories lack acceptance criteria`);
+  }
+  if (!hasNfrs) missing.push("No non-functional requirements");
+  if (!hasRisks) missing.push("No risks captured");
+  if (!hasAssumptions) missing.push("No assumptions captured");
+
+  return { score, storiesTotal, storiesWithAcceptance, hasNfrs, hasRisks, hasAssumptions, missing };
+}

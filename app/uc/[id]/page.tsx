@@ -9,6 +9,8 @@ import { StageBadge } from "@/components/portal/stage-badge";
 import { GateTimeline, type GateNode } from "@/components/portal/gate-timeline";
 import { MarkdownDoc } from "@/components/portal/markdown-doc";
 import { GateAction } from "@/components/portal/gate-action";
+import { GateReadinessCard } from "@/components/portal/gate-readiness-card";
+import { gateReadinessTool } from "@/lib/agent/tools/gate-readiness";
 import { AdvanceStage } from "@/components/portal/advance-stage";
 import { HeatDot, LaneBadge, LevelBadge } from "@/components/portal/badges";
 import { AttachmentsCard } from "@/components/portal/attachments-card";
@@ -64,8 +66,17 @@ export default async function UseCasePage({ params }: { params: { id: string } }
 
   const uc = parseUseCase(markdown);
   const people = parsePeople(markdown);
-  // Real business case for this demand (never seed) — gates the simulate link.
-  const hasBusinessCase = (await readArtifact(params.id, "business-case")) !== undefined;
+  // Real business case for this demand (never seed) — gates the simulate link and
+  // feeds the gate-readiness check (baseline-verified before G5).
+  const businessCaseMd = await readArtifact(params.id, "business-case");
+  const hasBusinessCase = businessCaseMd !== undefined;
+
+  // Full next-gate readiness (verdict + met/missing checklist), reusing the same
+  // gate-readiness tool the assistant runs. Read-only: opens nothing, passes no gate.
+  const readiness = await gateReadinessTool.run(
+    { readme: markdown, ...(businessCaseMd ? { businessCase: businessCaseMd } : {}) },
+    { session },
+  );
 
   // In-portal management affordances — all server-enforced by the routes too.
   const canEdit = canEditDemand(session, markdown);
@@ -193,6 +204,8 @@ export default async function UseCasePage({ params }: { params: { id: string } }
             targetGate && <GateAction gate={targetGate} decision={decision} approvers="Portfolio forum" />
           )}
 
+          <GateReadinessCard report={readiness} />
+
           {live && (
             <DemandTriageActions
               id={params.id}
@@ -261,17 +274,13 @@ export default async function UseCasePage({ params }: { params: { id: string } }
             </Link>
           )}
 
-          {/* The agentic PoC builder still runs on seed use cases, not the real
-              funnel — surfaced as "soon" rather than a flow that can't act on this
-              demand. */}
-          <div
-            className="relative flex items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-3 text-sm font-medium text-muted-foreground opacity-60"
-            aria-disabled
-            title="The agentic PoC builder is not yet wired to the real funnel"
+          {/* The agentic PoC builder now reads this real demand from the funnel. */}
+          <Link
+            href={`/uc/${params.id}/poc`}
+            className="flex items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-3 text-sm font-medium hover:border-foreground/40"
           >
             🛠 Build PoC with agents
-            <span className="absolute right-3 text-[10px] uppercase tracking-wide">soon</span>
-          </div>
+          </Link>
         </aside>
       </div>
     </main>
