@@ -45,6 +45,28 @@ function hasScaffoldedRepo(stage?: Stage): boolean {
  * `derived`: it is as reliable as the demand's stage, and no more — there is no
  * repository listing to confirm it against (the git host exposes no `listRepos`).
  */
+/**
+ * The playbook→skill edges a playbook implies: one per skill it declares that
+ * actually exists in the registry. Pure, so the connection is unit-tested. A
+ * reference to an unknown skill is dropped — that is a registry data issue, not an
+ * edge for the mesh to invent (and inventing it would read as `dangling`).
+ */
+export function playbookSkillEdges(
+  playbook: string,
+  uses: readonly string[],
+  skillIds: Map<string, string>,
+): MeshEdge[] {
+  return uses
+    .map((s) => skillIds.get(s.toLowerCase()))
+    .filter((id): id is string => id !== undefined)
+    .map((id) => ({
+      from: { kind: "playbook" as const, id: playbook },
+      to: { kind: "skill" as const, id },
+      note: "runs this skill",
+      source: "derived" as const,
+    }));
+}
+
 export function repoDocForDemand(d: { id: string; title: string; stage?: Stage }): MeshDocument | null {
   if (!hasScaffoldedRepo(d.stage)) return null;
   const id = repoNameFor(d.id, d.title);
@@ -134,10 +156,20 @@ export async function loadCorpus(opts: CorpusOptions = {}): Promise<{
   // Skills and playbooks live in the external agent registry (du-agent-registry),
   // read through the content seam. Unreachable → no nodes, so an edge to one then
   // reads as `unverifiable` rather than `dangling` — the same honest degrade every
-  // other store makes. They carry no markdown here: a skill's own `## Related` is
-  // not the mesh's to parse, so they enter as nodes other artifacts reach toward.
+  // other store makes.
   const skillDocs: MeshDocument[] = registry.skills.map((e) => ({ kind: "skill", id: e.name, title: e.title }));
-  const playbookDocs: MeshDocument[] = registry.playbooks.map((e) => ({ kind: "playbook", id: e.name, title: e.title }));
+
+  // A playbook declares the skills it runs; the registry already knows this, so the
+  // mesh derives a playbook→skill edge rather than leaving both as orphans. Only edges
+  // to a skill that actually exists are drawn — a reference to an unknown skill is a
+  // registry data issue, not an edge to invent. This is what connects the library.
+  const skillIds = new Map(registry.skills.map((s) => [s.name.toLowerCase(), s.name]));
+  const playbookDocs: MeshDocument[] = registry.playbooks.map((e) => ({
+    kind: "playbook",
+    id: e.name,
+    title: e.title,
+    derived: playbookSkillEdges(e.name, e.skills ?? [], skillIds),
+  }));
 
   // A use case earns its own uc-* repository at the PoC stage; derive that node and
   // the demand→repo edge from the demands that have reached it.

@@ -18,8 +18,8 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { loadCorpus, repoDocForDemand } from "./mesh-corpus";
-import { buildGraph, duplicateClusters } from "./mesh-graph";
+import { loadCorpus, repoDocForDemand, playbookSkillEdges } from "./mesh-corpus";
+import { buildGraph, duplicateClusters, orphans, type MeshDocument } from "./mesh-graph";
 
 describe("the markdown corpus reads as a graph", () => {
   it("loads without throwing, whatever is on disk", async () => {
@@ -91,5 +91,31 @@ describe("repoDocForDemand — scaffolded repos derived from PoC-stage demands",
     expect(graph.sound).toBe(true);
     expect(graph.edges).toHaveLength(1);
     expect(graph.nodes.find((n) => n.kind === "repo")?.in).toBe(1);
+  });
+});
+
+describe("playbookSkillEdges — the library is connected, not 67 orphans", () => {
+  const skillIds = new Map([
+    ["demand-classification", "demand-classification"],
+    ["persona-analysis", "persona-analysis"],
+  ]);
+
+  it("derives one edge per known skill a playbook runs, dropping unknowns", () => {
+    const edges = playbookSkillEdges("s1-intake", ["demand-classification", "persona-analysis", "made-up"], skillIds);
+    expect(edges.map((e) => e.to.id)).toEqual(["demand-classification", "persona-analysis"]);
+    expect(edges[0]!.from).toEqual({ kind: "playbook", id: "s1-intake" });
+    expect(edges[0]!.source).toBe("derived");
+  });
+
+  it("connects the playbook and skill in the graph — neither is an orphan", () => {
+    const docs: MeshDocument[] = [
+      { kind: "skill", id: "demand-classification", title: "Classify" },
+      { kind: "playbook", id: "s1-intake", title: "Intake", derived: playbookSkillEdges("s1-intake", ["demand-classification"], skillIds) },
+    ];
+    const g = buildGraph(docs);
+    expect(g.sound).toBe(true);
+    const looseIds = orphans(g).map((n) => n.id);
+    expect(looseIds).not.toContain("s1-intake");
+    expect(looseIds).not.toContain("demand-classification");
   });
 });
