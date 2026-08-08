@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { filterGraph, egoGraph, toMermaidView, KIND_STYLE } from "./mesh-view.js";
+import { filterGraph, egoGraph, toMermaidView, toGraphData, KIND_STYLE } from "./mesh-view.js";
 import { buildGraph, type MeshDocument } from "./mesh-graph.js";
 
 // A small corpus: two duplicate demands, one depending on a third, a persona a demand cites.
@@ -66,5 +66,27 @@ describe("toMermaidView", () => {
   it("bounds the edge count and states the omission", () => {
     const mmd = toMermaidView(filterGraph(graph), { maxEdges: 1 });
     expect(mmd).toMatch(/further edges omitted/);
+  });
+});
+
+describe("toGraphData", () => {
+  it("emits D3-shaped nodes/links keyed by kind:id, only for connected nodes", () => {
+    const d = toGraphData(filterGraph(graph));
+    // Every node key is the lower-cased kind:id the focus links use.
+    expect(d.nodes.every((n) => n.id === n.id.toLowerCase())).toBe(true);
+    expect(d.nodes.some((n) => n.id === "persona:p-03")).toBe(true);
+    // Links use D3's source/target and carry the authored/derived distinction.
+    const dup = d.links.find((l) => l.relation === "duplicate");
+    expect(dup).toBeTruthy();
+    expect(dup!.source).toBe("demand:uc-2026-0001");
+    expect(dup!.authored).toBe(true);
+    // A node the reader can click through to.
+    expect(d.nodes.find((n) => n.id === "demand:uc-2026-0001")!.href).toContain("/uc/");
+  });
+
+  it("carries degree so the renderer can size by connectedness", () => {
+    const d = toGraphData(filterGraph(graph));
+    const first = d.nodes.find((n) => n.id === "demand:uc-2026-0001")!;
+    expect(first.degree).toBeGreaterThan(0);
   });
 });

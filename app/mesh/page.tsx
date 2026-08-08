@@ -3,9 +3,9 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { loadCorpus } from "@/lib/mesh-corpus";
 import { buildGraph, orphans, duplicateClusters, type MeshIssue } from "@/lib/mesh-graph";
-import { filterGraph, egoGraph, toMermaidView, KIND_STYLE } from "@/lib/mesh-view";
+import { filterGraph, egoGraph, toGraphData, KIND_STYLE } from "@/lib/mesh-view";
 import { referenceHref, referenceKind, RELATIONS, type ReferenceKind, type Relation } from "@/lib/references";
-import { Mermaid } from "@/components/process/mermaid";
+import { MeshForceGraph } from "@/components/mesh/force-graph";
 import type { MeshRef } from "@/lib/mesh";
 
 export const dynamic = "force-dynamic";
@@ -107,7 +107,7 @@ export default async function MeshPage({ searchParams }: { searchParams: Params 
         ...(fRelation ? { relations: new Set([fRelation]) } : {}),
         ...(fSource ? { sources: new Set([fSource]) } : {}),
       });
-  const diagram = view.edges.length > 0 ? toMermaidView(view, { ...(focus ? { focus } : {}), maxEdges: 120 }) : null;
+  const graphData = view.edges.length > 0 ? toGraphData(view) : null;
   const focusNode = focus ? graph.nodes.find((n) => `${n.kind}:${n.id}`.toLowerCase() === focus.toLowerCase()) : undefined;
   const kindsInGraph = [...new Set(graph.nodes.map((n) => n.kind))].sort();
   const relationsPresent = RELATIONS.filter((r) => graph.edges.some((e) => e.relation === r));
@@ -204,9 +204,9 @@ export default async function MeshPage({ searchParams }: { searchParams: Params 
             </div>
           )}
 
-          {diagram ? (
-            <Card className="overflow-x-auto p-4">
-              <Mermaid chart={diagram} />
+          {graphData ? (
+            <Card className="overflow-hidden p-2">
+              <MeshForceGraph data={graphData} {...(focus ? { focus: focus.toLowerCase() } : {})} />
             </Card>
           ) : (
             <Card className="p-8 text-center text-sm text-muted-foreground">Nothing matches this view. <Link href="/mesh" className="underline">Show the whole graph.</Link></Card>
@@ -220,8 +220,14 @@ export default async function MeshPage({ searchParams }: { searchParams: Params 
                 {KIND_STYLE[k].label}
               </span>
             ))}
-            <span className="inline-flex items-center gap-1"><span aria-hidden>→</span> authored</span>
-            <span className="inline-flex items-center gap-1"><span aria-hidden>⇢</span> derived (from state)</span>
+            <span className="inline-flex items-center gap-1">
+              <svg width="22" height="6" aria-hidden className="overflow-visible"><line x1="0" y1="3" x2="22" y2="3" stroke="currentColor" strokeWidth="1.4" /></svg>
+              authored
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <svg width="22" height="6" aria-hidden className="overflow-visible"><line x1="0" y1="3" x2="22" y2="3" stroke="currentColor" strokeWidth="1.4" strokeDasharray="4 3" /></svg>
+              derived (from state)
+            </span>
           </div>
         </section>
       )}

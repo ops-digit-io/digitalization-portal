@@ -12,12 +12,38 @@
 
 import { sameRef, type MeshEdge, type MeshRef } from "./mesh.js";
 import type { MeshGraph, MeshNode } from "./mesh-graph.js";
-import type { ReferenceKind, Relation } from "./references.js";
+import { referenceHref, type ReferenceKind, type Relation } from "./references.js";
 
 /** A reshaped slice of the graph — just what a rendering needs. */
 export interface MeshView {
   nodes: MeshNode[];
   edges: MeshEdge[];
+}
+
+/** A node in the serialized graph the client renderer (D3) receives. */
+export interface GraphNode {
+  /** Stable `kind:id` key, lower-cased — the same key the page's focus links use. */
+  id: string;
+  kind: ReferenceKind;
+  label: string;
+  /** Where the artifact lives, so a click can navigate to it. */
+  href: string;
+  /** in + out, so the renderer can size a node by how connected it is. */
+  degree: number;
+}
+
+/** An edge in the serialized graph. `source`/`target` are D3's link convention. */
+export interface GraphLink {
+  source: string;
+  target: string;
+  relation?: Relation;
+  /** Authored (`## Related`) vs derived (from state) — drawn solid vs dotted. */
+  authored: boolean;
+}
+
+export interface GraphData {
+  nodes: GraphNode[];
+  links: GraphLink[];
 }
 
 const key = (r: MeshRef): string => `${r.kind}:${r.id.toLowerCase()}`;
@@ -81,6 +107,33 @@ function nodesOf(graph: MeshGraph, edges: readonly MeshEdge[]): MeshNode[] {
   const touched = new Set<string>();
   for (const e of edges) { touched.add(key(e.from)); touched.add(key(e.to)); }
   return graph.nodes.filter((n) => touched.has(key(n)));
+}
+
+/**
+ * The view as plain data for the client force-graph (D3). Isolated nodes are left
+ * out — they carry no edge, so they only add drift to a physics layout; the
+ * "Unconnected" tile already answers for them. The keys are the same lower-cased
+ * `kind:id` the page's focus links use, so a click can round-trip to the server.
+ */
+export function toGraphData(view: MeshView): GraphData {
+  const drawn = new Set<string>();
+  for (const e of view.edges) { drawn.add(key(e.from)); drawn.add(key(e.to)); }
+  const nodes: GraphNode[] = view.nodes
+    .filter((n) => drawn.has(key(n)))
+    .map((n) => ({
+      id: key(n),
+      kind: n.kind,
+      label: n.title ?? n.id,
+      href: referenceHref({ kind: n.kind, id: n.id, note: "" }),
+      degree: n.in + n.out,
+    }));
+  const links: GraphLink[] = view.edges.map((e) => ({
+    source: key(e.from),
+    target: key(e.to),
+    ...(e.relation ? { relation: e.relation } : {}),
+    authored: e.source === "authored",
+  }));
+  return { nodes, links };
 }
 
 const MERMAID_SAFE = /[^A-Za-z0-9_]/g;
