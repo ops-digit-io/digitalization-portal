@@ -70,7 +70,7 @@ describe("toMermaidView", () => {
 });
 
 describe("toGraphData", () => {
-  it("emits D3-shaped nodes/links keyed by kind:id, only for connected nodes", () => {
+  it("emits D3-shaped nodes/links keyed by kind:id", () => {
     const d = toGraphData(filterGraph(graph));
     // Every node key is the lower-cased kind:id the focus links use.
     expect(d.nodes.every((n) => n.id === n.id.toLowerCase())).toBe(true);
@@ -88,5 +88,15 @@ describe("toGraphData", () => {
     const d = toGraphData(filterGraph(graph));
     const first = d.nodes.find((n) => n.id === "demand:uc-2026-0001")!;
     expect(first.degree).toBeGreaterThan(0);
+  });
+
+  it("includes isolated nodes — a single item must be navigable, not dropped", () => {
+    // A whole-graph view carries every node, including one with no edge.
+    const withLoner = buildGraph([...corpus, { kind: "skill", id: "orphan-skill", title: "Lonely" }]);
+    const d = toGraphData({ nodes: withLoner.nodes, edges: withLoner.edges });
+    const loner = d.nodes.find((n) => n.id === "skill:orphan-skill");
+    expect(loner).toBeTruthy();
+    expect(loner!.degree).toBe(0);
+    expect(d.links.some((l) => l.source === "skill:orphan-skill" || l.target === "skill:orphan-skill")).toBe(false);
   });
 });
