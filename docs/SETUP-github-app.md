@@ -35,15 +35,19 @@ project env, etc.):
 
 ```
 GITHUB_APP_ID=<numeric app id>
-GITHUB_APP_INSTALLATION_ID=<installation id>
 GITHUB_ORG=<your org login>
 # the .pem contents; escape newlines as \n if your platform needs single-line values
 GITHUB_APP_PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----
+# optional — the installation is auto-discovered from GITHUB_ORG; leave unset
+# GITHUB_APP_INSTALLATION_ID=<installation id>
 ```
 
 `lib/git/index.ts#getGitHost` switches to the live `GitHubHost` automatically once
-all four are present (`hasGitHubCredentials`). No code change, no redeploy logic —
-same pattern as the model key.
+the **three required** vars are present — `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`,
+`GITHUB_ORG` (`hasGitHubCredentials`). The installation id is **optional**: the App
+discovers it from the org (`GET /orgs/{org}/installation`), and a stale pinned id
+self-heals by re-discovering. No code change, no redeploy logic — same pattern as
+the model key.
 
 ## 4. (Optional) Model reasoning
 
@@ -58,6 +62,35 @@ deterministic offline generators.
   repository and the opened pull request should appear in your org.
 - Confirm there is **no merge button** and no automated merge — a human merges the
   PR under CODEOWNERS.
+
+## Troubleshooting — "scaffolding a use-case repo doesn't work"
+
+The scaffold step runs `POST /orgs/{org}/repos`, then commits the scaffold files,
+then (on approval) opens a PR. Each precondition below fails in a distinct,
+diagnosable way. The route returns the underlying message as an HTTP 500, so read
+what the *Scaffold* step actually says.
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Step-2 badge says **"local workspace"**; nothing appears in the org | `GITHUB_ORG`, `GITHUB_APP_ID` or `GITHUB_APP_PRIVATE_KEY` unset → `getGitHost()` returns `LocalHost`, writing to `.poc-workspace/` on disk | Set the three required env vars (above) and redeploy. This is the most common "it succeeded but nothing happened". |
+| `GitHub App is not installed on org "…" (404)` | The App is not installed on **this** org | App → **Install App** → install on the org, scoped to `uc-*` (and `du-demands`, `du-agent-registry`). |
+| `GitHub App JWT rejected (401)` | `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` are from **different** Apps, or the key is truncated / newlines not escaped | Re-copy the numeric App id and the **full** `.pem` from the same App; escape newlines as `\n` if your platform stores single-line values. |
+| `403` on repo creation | The App lacks **Administration: write** | Add the permission on the App, then **re-accept** the permission on the org installation (GitHub does not apply new permissions until re-approved). |
+| `403` on the commit or PR step | Missing **Contents: write** (commit) or **Pull requests: write** (PR) | Same as above — add the permission and re-accept the installation. |
+| `422` on repo creation | A repo of that name already exists | Delete/rename the stale `uc-yyyy-nnnn-slug` repo, or advance a different demand. |
+| Repo + PR created, but **no reviewer can approve** (branch protection never satisfied) | CODEOWNERS names `@org/du-triage` etc. because the org wasn't threaded through, **or** the four owner teams don't exist | This build now namespaces CODEOWNERS to `GITHUB_ORG` (see `lib/poc/scaffold.ts`). Also create the teams `du-triage`, `portfolio-forum`, `it-liaison`, `du-value` in the org (`docs/DEPLOYMENT.md §Teams`). |
+
+**Org one-time setup that scaffolding assumes** (beyond installing the App):
+- The four CODEOWNERS **teams** above exist in `GITHUB_ORG`.
+- Branch protection on `uc-*` `main`: require a PR and CODEOWNERS review; **no**
+  app auto-merge and **no** bypass for Apps — the gate depends on merges staying a
+  human act.
+- Org member privilege that permits the App to create repositories (Administration:
+  write on the installation covers this for App-created repos).
+
+A quick way to isolate the layer: hit `GET <portal>/api/status?probe=1` — it probes
+the git identity and reports a revoked key or missing installation in the header
+instead of surfacing later as the next scaffold failing.
 
 ## What stays true regardless
 

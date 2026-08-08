@@ -88,11 +88,16 @@ export interface ScaffoldFile {
 
 /** The initial commit's files for a new use-case repository. */
 export function buildScaffoldFiles(seed: UseCaseSeed): ScaffoldFile[] {
+  // The CODEOWNERS teams are namespaced to the org the repo is created in. Prefer
+  // an explicit seed.org, else the deployment's GITHUB_ORG — without this the file
+  // falls back to "@org/..." (non-existent teams), so branch-protection review on
+  // the uc-* repo can never be satisfied and the gate is silently broken.
+  const org = seed.org ?? process.env.GITHUB_ORG;
   return [
     { path: "README.md", content: readme(seed) },
     {
       path: ".github/CODEOWNERS",
-      content: generateCodeowners({ id: seed.id, plant: seed.plant, lane: seed.lane, ...(seed.org ? { org: seed.org } : {}) }),
+      content: generateCodeowners({ id: seed.id, plant: seed.plant, lane: seed.lane, ...(org ? { org } : {}) }),
     },
     {
       path: "intake/conversation.md",
