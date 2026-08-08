@@ -87,10 +87,10 @@ export const POC_STACK_META: readonly StackMeta[] = [
   {
     id: "jupyter-report",
     upstream: { name: "cookiecutter-data-science", url: "https://github.com/drivendataorg/cookiecutter-data-science" },
-    label: "Jupyter analysis (Python)",
+    label: "Analytics project (Cookiecutter Data Science)",
     category: "report",
     language: "python",
-    description: "A notebook that reads the extract, plots the signal, and states the finding for the gate.",
-    run: "jupyter notebook analysis.ipynb",
+    description: "A full CCDS project — data/ hierarchy, a reusable analysis package, and an exploratory notebook.",
+    run: "jupyter lab notebooks/",
   },
 ];

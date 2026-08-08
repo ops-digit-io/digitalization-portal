@@ -462,28 +462,95 @@ function jupyterNotebook(seed: UseCaseSeed): string {
     nbformat_minor: 5,
     metadata: { kernelspec: { display_name: "Python 3", language: "python", name: "python3" } },
     cells: [
-      md(`# ${seed.id} · ${seed.title}\n\n${runNote(seed)}`),
-      code(["import pandas as pd\n", "df = pd.read_csv('data/sample.csv', parse_dates=['period'])\n", "df.head()"]),
+      md(`# ${seed.id} · ${seed.title}\n\n${runNote(seed)}\n\nCookiecutter Data Science layout — raw data in \`data/raw/\`, reusable code in the\n\`analysis\` package, this exploratory notebook in \`notebooks/\`.`),
+      code(["from analysis.dataset import load_raw\n", "from analysis import plots\n", "\n", "df = load_raw()\n", "df.head()"]),
       md("## Trend"),
-      code(["df.groupby('period')['value'].sum().plot(title='Trend')"]),
+      code(["plots.trend(df)"]),
       md("## By line"),
-      code(["df.groupby('category')['value'].sum().plot.bar(title='By line')"]),
+      code(["plots.by_category(df)"]),
       md("## Finding\n\n_State whether the signal is computable and worth a pilot. Success/kill criteria are in `poc/spec.md`._"),
     ],
   };
   return JSON.stringify(nb, null, 1) + "\n";
 }
 
+// The analytics stack follows drivendataorg/cookiecutter-data-science (CCDS): a
+// standard data/ hierarchy, a source package holding the reusable code, notebooks
+// numbered by convention, a Makefile, and pinned requirements. The layout IS the
+// point — a reviewer knows exactly where the data, the code, and the analysis live.
 function jupyterFiles(seed: UseCaseSeed): ScaffoldFile[] {
+  const config = `"""Project paths — the CCDS convention, so code never hard-codes a directory."""
+from pathlib import Path
+
+PROJ_ROOT = Path(__file__).resolve().parents[1]
+DATA_DIR = PROJ_ROOT / "data"
+RAW_DATA_DIR = DATA_DIR / "raw"
+PROCESSED_DATA_DIR = DATA_DIR / "processed"
+REPORTS_DIR = PROJ_ROOT / "reports"
+FIGURES_DIR = REPORTS_DIR / "figures"
+`;
+  const dataset = `import pandas as pd
+
+from .config import RAW_DATA_DIR
+
+
+def load_raw() -> pd.DataFrame:
+    """The immutable raw extract. Swap sample.csv for a real export to validate."""
+    return pd.read_csv(RAW_DATA_DIR / "sample.csv", parse_dates=["period"])
+`;
+  const plots = `import matplotlib.pyplot as plt
+import pandas as pd
+
+
+def trend(df: pd.DataFrame):
+    ax = df.groupby("period")["value"].sum().plot(title="Trend")
+    plt.tight_layout()
+    return ax.figure
+
+
+def by_category(df: pd.DataFrame):
+    ax = df.groupby("category")["value"].sum().plot.bar(title="By line")
+    plt.tight_layout()
+    return ax.figure
+`;
+  const makefile = `.PHONY: requirements lint clean
+requirements:
+\tpip install -r requirements.txt
+lint:
+\truff check analysis
+clean:
+\tfind . -type d -name __pycache__ -exec rm -rf {} +
+`;
+  const pyproject = `[project]
+name = "analysis"
+version = "0.0.1"
+description = "PoC analytics for ${seed.id}"
+requires-python = ">=3.10"
+dependencies = ["pandas>=2.2", "matplotlib>=3.9"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+`;
+  const keep = ".gitkeep";
   return [
-    { path: "poc/analysis.ipynb", content: jupyterNotebook(seed) },
-    { path: "poc/requirements.txt", content: "pandas>=2.2\nmatplotlib>=3.9\nnotebook>=7.2\n" },
-    { path: "poc/data/sample.csv", content: sampleCsv(seed) },
+    { path: "poc/README.md", content: `# ${seed.id} · Analytics PoC (Cookiecutter Data Science)\n\n${runNote(seed)}\n\nStructure from [cookiecutter-data-science](https://github.com/drivendataorg/cookiecutter-data-science):\nraw data in \`data/raw/\`, reusable code in the \`analysis\` package, exploratory work in\n\`notebooks/\`, outputs in \`reports/\`.\n\n\`\`\`bash\ncd poc\nmake requirements\npip install -e .            # make the analysis package importable in notebooks\njupyter lab notebooks/\n\`\`\`\n` },
+    { path: "poc/Makefile", content: makefile },
+    { path: "poc/pyproject.toml", content: pyproject },
+    { path: "poc/requirements.txt", content: "pandas>=2.2\nmatplotlib>=3.9\njupyterlab>=4.2\nruff>=0.5\n" },
     { path: "poc/.gitignore", content: PY_GITIGNORE },
-    {
-      path: "poc/README.md",
-      content: `# ${seed.id} · Analysis notebook PoC\n\n${runNote(seed)}\n\n\`\`\`bash\ncd poc\npip install -r requirements.txt\njupyter notebook analysis.ipynb\n\`\`\`\n`,
-    },
+    { path: "poc/data/raw/sample.csv", content: sampleCsv(seed) },
+    { path: `poc/data/interim/${keep}`, content: "" },
+    { path: `poc/data/processed/${keep}`, content: "" },
+    { path: `poc/data/external/${keep}`, content: "" },
+    { path: "poc/notebooks/0.01-poc-exploration.ipynb", content: jupyterNotebook(seed) },
+    { path: `poc/reports/figures/${keep}`, content: "" },
+    { path: `poc/references/${keep}`, content: "" },
+    { path: `poc/models/${keep}`, content: "" },
+    { path: "poc/analysis/__init__.py", content: "" },
+    { path: "poc/analysis/config.py", content: config },
+    { path: "poc/analysis/dataset.py", content: dataset },
+    { path: "poc/analysis/plots.py", content: plots },
   ];
 }
 
@@ -576,13 +643,13 @@ export const POC_STACKS: readonly PocStack[] = [
   },
   {
     id: "jupyter-report",
-    templateRepo: "du-template-jupyter",
+    templateRepo: "du-template-analytics",
     upstream: { name: "cookiecutter-data-science", url: "https://github.com/drivendataorg/cookiecutter-data-science" },
-    label: "Jupyter analysis (Python)",
+    label: "Analytics project (Cookiecutter Data Science)",
     category: "report",
     language: "python",
-    description: "A notebook that reads the extract, plots the signal, and states the finding for the gate.",
-    run: "jupyter notebook analysis.ipynb",
+    description: "A full CCDS project — data/ hierarchy, a reusable analysis package, and an exploratory notebook.",
+    run: "jupyter lab notebooks/",
     files: (seed) => jupyterFiles(seed),
     previewHtml: (seed) => generateDashboardMockup(seed),
   },

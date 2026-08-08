@@ -22,7 +22,7 @@ describe("every stack produces a runnable, self-contained file set under poc/", 
       expect(files.some((f) => /readme/i.test(f.path))).toBe(true);
       // No file reaches out to a CDN; none is empty except the ones that are empty
       // by convention (Python package markers, Streamlit's apt packages.txt).
-      const emptyByDesign = /(__init__\.py|packages\.txt)$/;
+      const emptyByDesign = /(__init__\.py|packages\.txt|\.gitkeep)$/;
       for (const f of files) {
         if (!emptyByDesign.test(f.path)) {
           expect(f.content.length, `${stack.id} · ${f.path} is empty`).toBeGreaterThan(0);
@@ -73,8 +73,18 @@ describe("stacks carry the tech they claim", () => {
     expect(model.panels.length).toBeGreaterThan(0);
   });
 
-  it("jupyter analysis.ipynb is a valid notebook with cells", () => {
-    const nb = JSON.parse(pocStack("jupyter-report")!.files(seed).find((f) => f.path === "poc/analysis.ipynb")!.content);
+  it("analytics stack follows the cookiecutter-data-science layout", () => {
+    const files = pocStack("jupyter-report")!.files(seed);
+    const paths = files.map((f) => f.path);
+    // The recognisable CCDS skeleton: data hierarchy, source package, notebooks, Makefile.
+    expect(paths).toContain("poc/data/raw/sample.csv");
+    expect(paths).toContain("poc/data/processed/.gitkeep");
+    expect(paths).toContain("poc/analysis/dataset.py");
+    expect(paths).toContain("poc/analysis/config.py");
+    expect(paths).toContain("poc/Makefile");
+    expect(paths).toContain("poc/pyproject.toml");
+    const nbPath = paths.find((p) => p.startsWith("poc/notebooks/") && p.endsWith(".ipynb"))!;
+    const nb = JSON.parse(files.find((f) => f.path === nbPath)!.content);
     expect(nb.nbformat).toBe(4);
     expect(nb.cells.some((c: { cell_type: string }) => c.cell_type === "code")).toBe(true);
   });

@@ -20,7 +20,7 @@ written directly.
 | HTML mockup (from requirements) | `du-template-html-mockup` | `index.html` (features read from the demand's requirements) |
 | Self-contained HTML dashboard | `du-template-html-dashboard` | `index.html` (inline CSS/SVG) |
 | Grafana dashboard (JSON) | `du-template-grafana` | `dashboard.json`, `provisioning/dashboards.yaml` |
-| Jupyter analysis (Python) | `du-template-jupyter` | `analysis.ipynb`, `requirements.txt`, `data/sample.csv` |
+| Analytics project (Cookiecutter Data Science) | `du-template-analytics` | full CCDS layout: `data/{raw,processed,…}`, `analysis/` package, `notebooks/`, `Makefile`, `pyproject.toml` |
 
 The template files carry **neutral placeholders** (`UC-XXXX-XXXX`, `Use-Case PoC`).
 GitHub copies a template verbatim, so the portal overlays the case's real README,
