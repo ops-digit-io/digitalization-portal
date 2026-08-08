@@ -111,23 +111,20 @@ function nodesOf(graph: MeshGraph, edges: readonly MeshEdge[]): MeshNode[] {
 }
 
 /**
- * The view as plain data for the client force-graph (D3). Isolated nodes are left
- * out — they carry no edge, so they only add drift to a physics layout; the
- * "Unconnected" tile already answers for them. The keys are the same lower-cased
- * `kind:id` the page's focus links use, so a click can round-trip to the server.
+ * The view as plain data for the client force-graph (D3). EVERY node in the view is
+ * emitted, including isolated ones — a single item you cannot see is a single item
+ * you cannot navigate to, and reaching a dedicated artifact is the whole point. An
+ * isolated node simply carries no link and drifts to the edge of the layout. The keys
+ * are the same lower-cased `kind:id` the page's focus links use, so a click round-trips.
  */
 export function toGraphData(view: MeshView): GraphData {
-  const drawn = new Set<string>();
-  for (const e of view.edges) { drawn.add(key(e.from)); drawn.add(key(e.to)); }
-  const nodes: GraphNode[] = view.nodes
-    .filter((n) => drawn.has(key(n)))
-    .map((n) => ({
-      id: key(n),
-      kind: n.kind,
-      label: n.title ?? n.id,
-      href: referenceHref({ kind: n.kind, id: n.id, note: "" }),
-      degree: n.in + n.out,
-    }));
+  const nodes: GraphNode[] = view.nodes.map((n) => ({
+    id: key(n),
+    kind: n.kind,
+    label: n.title ?? n.id,
+    href: referenceHref({ kind: n.kind, id: n.id, note: "" }),
+    degree: n.in + n.out,
+  }));
   const links: GraphLink[] = view.edges.map((e) => ({
     source: key(e.from),
     target: key(e.to),
