@@ -63,8 +63,9 @@ export interface PutFileOptions {
 
 export interface GitHost {
   readonly kind: "github" | "local";
-  /** Create a repository under the configured org/workspace. */
-  createRepo(name: string, opts?: { description?: string; private?: boolean }): Promise<RepoRef>;
+  /** Create a repository under the configured org/workspace. `template: true` marks
+   *  it as a GitHub template repository (so others can generate from it). */
+  createRepo(name: string, opts?: { description?: string; private?: boolean; template?: boolean }): Promise<RepoRef>;
   /**
    * Create a repository FROM a GitHub template repository (generate-from-template).
    * Optional: a host that cannot do this omits it, and the caller falls back to

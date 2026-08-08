@@ -26,39 +26,50 @@ The template files carry **neutral placeholders** (`UC-XXXX-XXXX`, `Use-Case PoC
 GitHub copies a template verbatim, so the portal overlays the case's real README,
 PoC spec, and seeded files on top after generating the repo.
 
-## 1. Generate the content from the single source of truth
+## 1. Create + populate all seven, in one command (recommended)
 
-The template content lives in `lib/poc/templates.ts` (so the in-app fallback and the
-template repos never drift). Materialize it to a local directory:
+Once the portal's GitHub App has **Administration: write** on the org (see below), it
+can create the repos itself — flagged as templates and populated in one run:
+
+```bash
+# where the portal's App secrets are set (its deployment env, or exported locally):
+GITHUB_APP_ID=…  GITHUB_APP_PRIVATE_KEY="…"  GITHUB_ORG=ops-digit-io \
+  node scripts/create-template-repos.mjs        # add --private for private repos
+```
+
+This uses the **portal's own App** (not the Claude integration, which has no
+org-repo-creation scope), creates each `du-template-*` repo with `is_template: true`,
+and pushes the file set from the single source of truth (`lib/poc/templates.ts`, so
+the in-app fallback and the repos never drift). Skip to step 3.
+
+### Granting the permission
+
+Org → **Settings → GitHub Apps →** the portal's App → **Permissions**:
+**Organization permissions → Administration → Read & write** (this is what authorises
+`POST /orgs/{org}/repos`). Save, then an org owner **approves** the pending request.
+Also ensure the installation's **Repository access** is **All repositories** so the
+new repos are writable immediately.
+
+## 2. …or create them by hand (no App admin rights)
+
+If you'd rather not grant the App that scope, materialize the content and push with
+your own credentials:
 
 ```bash
 node scripts/materialize-templates.mjs --out template-repos
-#   → template-repos/du-template-streamlit/…, du-template-dash/…, etc.
-```
-
-## 2. Create the repos and push (the App can't create org repos)
-
-The portal's GitHub App integration lacks org repo-creation rights — creating a repo
-under the org returns `403 Resource not accessible by integration` (the same wall as
-`du-specifications`). So create the repos yourself, then push the generated content:
-
-```bash
 cd template-repos
 for d in du-template-*; do
-  gh repo create "ops-digit-io/$d" --private --source "$d" --push \
-    --description "PoC template · $d"
+  gh repo create "ops-digit-io/$d" --public --source "$d" --push --description "PoC template · $d"
+  gh repo edit "ops-digit-io/$d" --template
 done
 ```
 
-(or create each in the GitHub UI and `git push` the folder). To let the App **read**
-them for generation, add each repo to the same GitHub App installation the PoC
-builder uses (Contents: read, Metadata: read).
+## 3. Confirm each repo is a template
 
-## 3. Mark each repo as a template
-
-For every `du-template-*` repo: **Settings → General → check "Template repository"**.
-Generate-from-template (`POST /repos/{owner}/{repo}/generate`) refuses a source that
-is not flagged a template (422), so this step is required.
+The scripts above set it, but verify: **Settings → General → "Template repository"**
+is checked. Generate-from-template (`POST /repos/{owner}/{repo}/generate`) refuses a
+source that is not flagged a template (422). Also add each repo to the App
+installation (Contents: read, Metadata: read) so the portal can read it.
 
 ## 4. Turn the path on
 

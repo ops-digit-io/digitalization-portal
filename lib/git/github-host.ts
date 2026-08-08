@@ -156,7 +156,7 @@ export class GitHubHost implements GitHost {
     return (await res.json()) as T;
   }
 
-  async createRepo(name: string, opts?: { description?: string; private?: boolean }): Promise<RepoRef> {
+  async createRepo(name: string, opts?: { description?: string; private?: boolean; template?: boolean }): Promise<RepoRef> {
     const data = await this.api<{ full_name: string; html_url: string }>(`/orgs/${this.cfg.org}/repos`, {
       method: "POST",
       body: JSON.stringify({
@@ -164,6 +164,9 @@ export class GitHubHost implements GitHost {
         description: opts?.description ?? "",
         private: opts?.private ?? true,
         auto_init: true,
+        // The create endpoint accepts is_template, so a template repo is one call —
+        // no follow-up PATCH, which generate-from-template requires to be set.
+        ...(opts?.template ? { is_template: true } : {}),
       }),
     });
     return { owner: this.cfg.org, name, url: data.html_url, local: false };
