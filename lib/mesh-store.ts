@@ -37,7 +37,6 @@ import {
   dedupeEdges,
   edgesFrom,
   neighbourhood,
-  sameRef,
   type MeshEdge,
   type MeshRef,
   type Neighbourhood,
@@ -158,51 +157,12 @@ async function ownEdges(subject: MeshRef): Promise<MeshEdge[]> {
   return edges;
 }
 
-/**
- * Authored backlinks — the bounded scan. Only demands are opened, and only until
- * the limit, because this is the one collection that costs a read per document.
- */
-async function authoredBacklinks(subject: MeshRef): Promise<{ edges: MeshEdge[]; truncated: boolean }> {
-  const { rows } = await getFunnelRows();
-  const candidates = rows.filter((r) => !sameRef({ kind: "demand", id: r.id }, subject));
-  const scan = candidates.slice(0, AUTHORED_SCAN_LIMIT);
-
-  const found = await Promise.all(
-    scan.map(async (r) => {
-      const md = await readDemand(r.id).catch(() => undefined);
-      if (!md) return [];
-      return edgesFrom({ kind: "demand", id: r.id }, parseReferences(md)).filter((e) => sameRef(e.to, subject));
-    }),
-  );
-  return { edges: found.flat(), truncated: candidates.length > scan.length };
-}
+const refKey = (r: MeshRef): string => `${r.kind}:${r.id.toLowerCase()}`;
 
 /**
- * A subject's neighbourhood, both directions, ready to render.
- *
- * Never throws: every store is read defensively, because a mesh is an aid to
- * navigation and must never be the reason a demand page fails to open.
- */
-export async function loadNeighbourhood(subject: MeshRef): Promise<LoadedMesh> {
-  try {
-    const [{ edges: base, titles }, own, back] = await Promise.all([
-      derived(),
-      ownEdges(subject),
-      authoredBacklinks(subject),
-    ]);
-    const all = dedupeEdges([...base, ...own, ...back.edges]);
-    const n = neighbourhood(all, subject, (ref) => titles.get(`${ref.kind}:${ref.id.toLowerCase()}`));
-    return { ...n, truncated: back.truncated };
-  } catch {
-    return { outbound: [], inbound: [], truncated: false };
-  }
-}
-
-/**
- * The whole cheap edge set in ONE pass — the derived edges plus the authored edges
- * from a bounded scan of the funnel — so a LIST page (the persona library, the
- * champion register) can render every item's neighbourhood without re-deriving the
- * mesh per row. One bounded scan for the page, not one per card.
+ * The whole cheap edge set — the derived edges plus every authored edge from one
+ * bounded scan of the funnel. It backs both the per-artifact neighbourhood and the
+ * list-page mesh, and it is CACHED (below), so neither re-derives per request.
  */
 export interface MeshEdges {
   edges: MeshEdge[];
@@ -224,11 +184,62 @@ async function allAuthoredEdges(): Promise<{ edges: MeshEdge[]; truncated: boole
   return { edges: found.flat(), truncated: rows.length > scan.length };
 }
 
+const BASE_TTL_MS = 60_000;
+let baseCache: { at: number; value: MeshEdges } | null = null;
+let baseInflight: Promise<MeshEdges> | null = null;
+
+/**
+ * The shared base edge set, built at most once per TTL and reused across requests —
+ * and concurrent callers share one in-flight build. This is the read the projection
+ * exists to avoid doing per page: without it, every artifact page re-derives the whole
+ * mesh and re-scans the funnel for its backlinks. (Persisting `## Related` into the
+ * funnel projection at save-time would remove even the one scan — the permanent fix
+ * the spec names; this caches it rather than materialising to disk.)
+ */
+async function baseMeshEdges(now: number): Promise<MeshEdges> {
+  if (baseCache && now - baseCache.at < BASE_TTL_MS) return baseCache.value;
+  if (baseInflight) return baseInflight;
+  baseInflight = (async () => {
+    const [{ edges: d, titles }, authored] = await Promise.all([derived(), allAuthoredEdges()]);
+    const title: TitleLookup = (ref) => titles.get(refKey(ref));
+    const value: MeshEdges = { edges: dedupeEdges([...d, ...authored.edges]), titles, truncated: authored.truncated, title };
+    baseCache = { at: now, value };
+    return value;
+  })();
+  try {
+    return await baseInflight;
+  } finally {
+    baseInflight = null;
+  }
+}
+
+/** Drop the cached mesh — call after a write that changes edges. */
+export function clearMeshCache(): void {
+  baseCache = null;
+}
+
+/**
+ * A subject's neighbourhood, both directions, ready to render.
+ *
+ * Reads the shared (cached) base edge set plus the subject's own artifact edges, so a
+ * page render is one cheap lookup, not a re-derivation. Never throws: a mesh is an aid
+ * to navigation and must never be the reason a page fails to open.
+ */
+export async function loadNeighbourhood(subject: MeshRef): Promise<LoadedMesh> {
+  try {
+    const [base, own] = await Promise.all([baseMeshEdges(Date.now()), ownEdges(subject)]);
+    const all = dedupeEdges([...base.edges, ...own]);
+    const n = neighbourhood(all, subject, base.title);
+    return { ...n, truncated: base.truncated };
+  } catch {
+    return { outbound: [], inbound: [], truncated: false };
+  }
+}
+
+/** The whole cheap edge set for a LIST page — the cached base, shared by every card. */
 export async function loadMeshEdges(): Promise<MeshEdges> {
   try {
-    const [{ edges: base, titles }, authored] = await Promise.all([derived(), allAuthoredEdges()]);
-    const title: TitleLookup = (ref) => titles.get(`${ref.kind}:${ref.id.toLowerCase()}`);
-    return { edges: dedupeEdges([...base, ...authored.edges]), titles, truncated: authored.truncated, title };
+    return await baseMeshEdges(Date.now());
   } catch {
     return { edges: [], titles: new Map(), truncated: false, title: () => undefined };
   }

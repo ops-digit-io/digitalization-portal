@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { loadCorpus } from "@/lib/mesh-corpus";
+import { loadCorpusCached } from "@/lib/mesh-corpus";
 import { buildGraph, orphans, duplicateClusters, type MeshIssue } from "@/lib/mesh-graph";
 import { meshGaps, blastRadius } from "@/lib/mesh-insights";
 import { filterGraph, egoGraph, toGraphData, KIND_STYLE, type MeshView } from "@/lib/mesh-view";
@@ -85,7 +85,7 @@ function IssueRow({ i }: { i: MeshIssue }) {
 }
 
 export default async function MeshPage({ searchParams }: { searchParams: Params }) {
-  const { docs, counts } = await loadCorpus();
+  const { docs, counts } = await loadCorpusCached();
   const graph = buildGraph(docs);
   const errors = graph.issues.filter((i) => i.severity === "error");
   const warnings = graph.issues.filter((i) => i.severity === "warning");
