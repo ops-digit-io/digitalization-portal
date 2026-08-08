@@ -32,7 +32,7 @@ import { getGitHost, hasGitHubCredentials, type DirEntry, type RepoRef } from ".
 
 export interface ContentRepo {
   /** Short name used in messages and env-var docs. */
-  key: "registry" | "templates" | "specifications";
+  key: "registry" | "templates" | "specifications" | "organization";
   repoName: string;
   mirrorDir: string;
   /** Directory to list when probing reachability (a repo is "there" if this lists ≥1). */
@@ -67,6 +67,20 @@ export function specificationsRepo(env = process.env): ContentRepo {
     mirrorDir: env.SPECIFICATIONS_MIRROR_DIR ?? path.join(os.tmpdir(), "du-specifications"),
     // Specs live at the repo root as flat markdown; the root itself is the probe.
     probe: "",
+  };
+}
+
+/**
+ * The organization context — Department OS. Each department is a folder of the
+ * declarative context layer (charter, strategy, service-catalog, …), read so the
+ * portal's tools know the org behind the demands and processes they run.
+ */
+export function organizationRepo(env = process.env): ContentRepo {
+  return {
+    key: "organization",
+    repoName: env.ORGANIZATION_REPO ?? "du-organization-context",
+    mirrorDir: env.ORGANIZATION_MIRROR_DIR ?? path.join(os.tmpdir(), "du-organization-context"),
+    probe: "departments",
   };
 }
 

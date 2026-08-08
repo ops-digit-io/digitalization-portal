@@ -47,6 +47,8 @@ const DE: Strings = {
   "cat.Govern & operate": "Steuern & Betreiben",
 
   // Tiles — title / subtitle
+  "tile.org.title": "Department OS",
+  "tile.org.subtitle": "Die Organisation hinter den Bedarfen — Mandat, Entscheidungsrechte, Kennzahlen",
   "tile.process.title": "Prozess-Funnel",
   "tile.process.subtitle": "Prozess vor der Erfassung diagnostizieren & bewerten",
   "tile.intake.title": "Erfassung",
