@@ -60,6 +60,8 @@ PoC template · **${stack.label}**.
 
 ${stack.description}
 
+Follows [${stack.upstream.name}](${stack.upstream.url}).
+
 Used by the digitalization portal's PoC builder via GitHub "generate from template".
 The portal creates a use-case repository **from** this template, then overlays the
 case's own README, PoC spec, and seeded files. Placeholders here (\`UC-XXXX-XXXX\`,

@@ -89,7 +89,7 @@ describe("builder pipeline with LocalHost", () => {
     const result = await scaffoldRepo(host, seed, plan);
     expect(result.repo.local).toBe(true);
     expect(result.committedPaths).toContain("README.md"); // case skeleton
-    expect(result.committedPaths).toContain("poc/app.py"); // the runnable stack
+    expect(result.committedPaths).toContain("poc/streamlit_app.py"); // the runnable stack
     expect(result.committedPaths).toContain("poc/requirements.txt");
     expect(result.committedPaths).toContain("poc/spec.md");
     expect(result.fromTemplate).toBe(false); // LocalHost has no template generation

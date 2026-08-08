@@ -113,6 +113,7 @@ export default function PocBuilder() {
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">{s.description}</p>
                         <code className="mt-1.5 block font-mono text-[11px] text-muted-foreground">$ {s.run}</code>
+                        <div className="mt-1 text-[10px] text-muted-foreground">based on {s.upstream.name}</div>
                       </button>
                     ))}
                   </div>

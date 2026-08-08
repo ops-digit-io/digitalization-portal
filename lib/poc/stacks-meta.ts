@@ -16,6 +16,8 @@ export interface StackMeta {
   category: ArtifactKind;
   language: "python" | "html" | "json" | "sql";
   description: string;
+  /** The public starter this template follows, shown in the picker. */
+  upstream: { name: string; url: string };
   run: string;
 }
 
@@ -30,14 +32,16 @@ export const STACK_CATEGORIES: { category: ArtifactKind; label: string }[] = [
 export const POC_STACK_META: readonly StackMeta[] = [
   {
     id: "python-streamlit",
+    upstream: { name: "streamlit/app-starter-kit", url: "https://github.com/streamlit/app-starter-kit" },
     label: "Streamlit app (Python)",
     category: "app",
     language: "python",
     description: "A data app in pure Python — KPIs, trend, and a breakdown from a CSV extract.",
-    run: "streamlit run app.py",
+    run: "streamlit run streamlit_app.py",
   },
   {
     id: "python-dash",
+    upstream: { name: "Plotly Dash minimal app", url: "https://dash.plotly.com/minimal-app" },
     label: "Dash app (Python)",
     category: "app",
     language: "python",
@@ -46,14 +50,16 @@ export const POC_STACK_META: readonly StackMeta[] = [
   },
   {
     id: "fastapi-service",
+    upstream: { name: "FastAPI Bigger Applications", url: "https://fastapi.tiangolo.com/tutorial/bigger-applications/" },
     label: "FastAPI service (Python)",
     category: "app",
     language: "python",
     description: "A small HTTP API exposing the computed metric — when the PoC is a service, not a screen.",
-    run: "uvicorn main:app --reload",
+    run: "uvicorn app.main:app --reload",
   },
   {
     id: "html-mockup",
+    upstream: { name: "HTML5 Boilerplate", url: "https://github.com/h5bp/html5-boilerplate" },
     label: "HTML mockup (from requirements)",
     category: "mockup",
     language: "html",
@@ -62,6 +68,7 @@ export const POC_STACK_META: readonly StackMeta[] = [
   },
   {
     id: "html-dashboard",
+    upstream: { name: "Self-contained (no framework)", url: "https://developer.mozilla.org/en-US/docs/Web/HTML" },
     label: "Self-contained HTML dashboard",
     category: "dashboard",
     language: "html",
@@ -70,6 +77,7 @@ export const POC_STACK_META: readonly StackMeta[] = [
   },
   {
     id: "grafana-dashboard",
+    upstream: { name: "Grafana provisioning", url: "https://grafana.com/docs/grafana/latest/administration/provisioning/" },
     label: "Grafana dashboard (JSON)",
     category: "dashboard",
     language: "json",
@@ -78,6 +86,7 @@ export const POC_STACK_META: readonly StackMeta[] = [
   },
   {
     id: "jupyter-report",
+    upstream: { name: "cookiecutter-data-science", url: "https://github.com/drivendataorg/cookiecutter-data-science" },
     label: "Jupyter analysis (Python)",
     category: "report",
     language: "python",

@@ -20,9 +20,13 @@ describe("every stack produces a runnable, self-contained file set under poc/", 
       expect(files.length).toBeGreaterThan(0);
       expect(files.every((f) => f.path.startsWith("poc/"))).toBe(true);
       expect(files.some((f) => /readme/i.test(f.path))).toBe(true);
-      // No file is empty, and none reaches out to a CDN.
+      // No file reaches out to a CDN; none is empty except the ones that are empty
+      // by convention (Python package markers, Streamlit's apt packages.txt).
+      const emptyByDesign = /(__init__\.py|packages\.txt)$/;
       for (const f of files) {
-        expect(f.content.length, `${stack.id} · ${f.path} is empty`).toBeGreaterThan(0);
+        if (!emptyByDesign.test(f.path)) {
+          expect(f.content.length, `${stack.id} · ${f.path} is empty`).toBeGreaterThan(0);
+        }
         expect(f.content).not.toMatch(/https?:\/\/[^"'\s]*\.(js|css)\b/);
       }
     });
@@ -30,21 +34,36 @@ describe("every stack produces a runnable, self-contained file set under poc/", 
 });
 
 describe("stacks carry the tech they claim", () => {
-  it("streamlit imports streamlit and pins it in requirements", () => {
+  it("streamlit follows the app-starter-kit entry and caches its data", () => {
     const files = pocStack("python-streamlit")!.files(seed);
-    expect(files.find((f) => f.path === "poc/app.py")!.content).toMatch(/import streamlit/);
+    const app = files.find((f) => f.path === "poc/streamlit_app.py")!.content;
+    expect(app).toMatch(/import streamlit/);
+    expect(app).toMatch(/@st\.cache_data/);
     expect(files.find((f) => f.path === "poc/requirements.txt")!.content).toMatch(/streamlit/);
   });
 
-  it("dash imports dash", () => {
-    expect(pocStack("python-dash")!.files(seed).find((f) => f.path === "poc/app.py")!.content).toMatch(/from dash import/);
+  it("dash wires a callback (its whole point) and a gunicorn server", () => {
+    const files = pocStack("python-dash")!.files(seed);
+    const app = files.find((f) => f.path === "poc/app.py")!.content;
+    expect(app).toMatch(/from dash import/);
+    expect(app).toMatch(/@callback/);
+    expect(app).toMatch(/server = app\.server/);
+    expect(files.some((f) => f.path === "poc/Procfile")).toBe(true);
   });
 
-  it("fastapi ships an app, a Dockerfile and a smoke test", () => {
+  it("fastapi uses the app/ package layout, typed models, a Dockerfile and a test", () => {
     const paths = pocStack("fastapi-service")!.files(seed).map((f) => f.path);
-    expect(paths).toContain("poc/main.py");
+    expect(paths).toContain("poc/app/main.py");
+    expect(paths).toContain("poc/app/models.py");
     expect(paths).toContain("poc/Dockerfile");
     expect(paths).toContain("poc/tests/test_main.py");
+  });
+
+  it("every stack cites a public upstream", () => {
+    for (const s of POC_STACKS) {
+      expect(s.upstream.name.length, `${s.id} upstream name`).toBeGreaterThan(0);
+      expect(s.upstream.url).toMatch(/^https:\/\//);
+    }
   });
 
   it("grafana dashboard.json is valid JSON with panels", () => {
@@ -95,7 +114,9 @@ describe("the light picker metadata stays in step with the registry", () => {
     expect(POC_STACK_META.map((m) => m.id)).toEqual(POC_STACKS.map((s) => s.id));
     for (const m of POC_STACK_META) {
       const s = pocStack(m.id)!;
-      expect(`${m.id}:${m.label}:${m.category}:${m.language}:${m.run}`).toBe(`${s.id}:${s.label}:${s.category}:${s.language}:${s.run}`);
+      expect(`${m.id}:${m.label}:${m.category}:${m.language}:${m.run}:${m.upstream.name}:${m.upstream.url}`).toBe(
+        `${s.id}:${s.label}:${s.category}:${s.language}:${s.run}:${s.upstream.name}:${s.upstream.url}`,
+      );
     }
   });
 

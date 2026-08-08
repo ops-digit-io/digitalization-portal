@@ -38,6 +38,9 @@ export interface PocStack {
   language: "python" | "html" | "json" | "sql";
   /** One line: what you get and when to pick it. */
   description: string;
+  /** The public starter this template follows — its conventions/layout, cited so the
+   *  org's template repo tracks a recognised, maintained upstream rather than a toy. */
+  upstream: { name: string; url: string };
   /** How a reviewer runs it, shown in the UI. */
   run: string;
   /** The files laid under `poc/` at scaffold time. */
@@ -120,25 +123,46 @@ const runNote = (seed: UseCaseSeed): string =>
 // --- Python: Streamlit ------------------------------------------------------
 
 function streamlitFiles(seed: UseCaseSeed): ScaffoldFile[] {
+  // Layout follows the official streamlit/app-starter-kit: streamlit_app.py entry,
+  // @st.cache_data for the data load, a sidebar for controls, requirements.txt +
+  // .streamlit/config.toml. Runs on Streamlit Community Cloud unchanged.
   const app = `"""${seed.id} · ${seed.title} — Streamlit PoC.
 
-Run: streamlit run app.py   (from the poc/ directory)
+Run: streamlit run streamlit_app.py   (from the poc/ directory)
 Reads its own data/sample.csv, so it runs offline. Not production data.
+Layout follows streamlit/app-starter-kit.
 """
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-st.set_page_config(page_title="${seed.id} · ${seed.title}", layout="wide")
+st.set_page_config(page_title="${seed.id} · ${seed.title}", page_icon="📊", layout="wide")
+
+
+@st.cache_data
+def load_data() -> pd.DataFrame:
+    """Cache the extract so reruns are instant. Swap for a real query to validate."""
+    return pd.read_csv("data/sample.csv", parse_dates=["period"])
+
+
+df = load_data()
+
 st.title("${seed.title}")
 st.caption("${runNote(seed)}")
 
-df = pd.read_csv("data/sample.csv", parse_dates=["period"])
-trend = df.groupby("period")["value"].sum().sort_index()
+with st.sidebar:
+    st.header("Filters")
+    lines = st.multiselect("Line", sorted(df["category"].unique()), default=list(df["category"].unique()))
+    window = st.slider("Months", 1, int(df["period"].nunique()), int(df["period"].nunique()))
+
+kept = df[df["category"].isin(lines)]
+periods = sorted(kept["period"].unique())[-window:]
+kept = kept[kept["period"].isin(periods)]
+trend = kept.groupby("period")["value"].sum().sort_index()
 
 c1, c2, c3 = st.columns(3)
-c1.metric("Current", f"{trend.iloc[-1]:.0f}")
-c2.metric("vs. start", f"{trend.iloc[-1] - trend.iloc[0]:+.0f}")
+c1.metric("Current", f"{trend.iloc[-1]:.0f}" if len(trend) else "—")
+c2.metric("vs. start", f"{trend.iloc[-1] - trend.iloc[0]:+.0f}" if len(trend) > 1 else "—")
 c3.metric("Coverage", "78% of cases")
 
 left, right = st.columns(2)
@@ -147,7 +171,7 @@ with left:
     st.plotly_chart(px.line(trend.reset_index(), x="period", y="value"), use_container_width=True)
 with right:
     st.subheader("By line")
-    by_cat = df.groupby("category", as_index=False)["value"].sum()
+    by_cat = kept.groupby("category", as_index=False)["value"].sum()
     st.plotly_chart(px.bar(by_cat, x="category", y="value"), use_container_width=True)
 
 with st.expander("What this PoC proves"):
@@ -157,14 +181,15 @@ with st.expander("What this PoC proves"):
     )
 `;
   return [
-    { path: "poc/app.py", content: app },
+    { path: "poc/streamlit_app.py", content: app },
     { path: "poc/requirements.txt", content: "streamlit>=1.36\npandas>=2.2\nplotly>=5.22\n" },
+    { path: "poc/packages.txt", content: "" },
     { path: "poc/data/sample.csv", content: sampleCsv(seed) },
     { path: "poc/.streamlit/config.toml", content: `[theme]\nbase = "light"\nprimaryColor = "#3577c9"\n` },
     { path: "poc/.gitignore", content: PY_GITIGNORE },
     {
       path: "poc/README.md",
-      content: `# ${seed.id} · Streamlit PoC\n\n${runNote(seed)}\n\n\`\`\`bash\ncd poc\npython -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt\nstreamlit run app.py\n\`\`\`\n\nData is \`data/sample.csv\` (illustrative). Swap it for a real extract to validate.\n`,
+      content: `# ${seed.id} · Streamlit PoC\n\n${runNote(seed)}\n\nLayout follows the official [streamlit/app-starter-kit](https://github.com/streamlit/app-starter-kit).\n\n\`\`\`bash\ncd poc\npython -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt\nstreamlit run streamlit_app.py\n\`\`\`\n\nData is \`data/sample.csv\` (illustrative). Swap it for a real extract to validate.\nDeploys to Streamlit Community Cloud as-is (entry: \`streamlit_app.py\`).\n`,
     },
   ];
 }
@@ -172,48 +197,64 @@ with st.expander("What this PoC proves"):
 // --- Python: Dash -----------------------------------------------------------
 
 function dashFiles(seed: UseCaseSeed): ScaffoldFile[] {
+  // Follows the Plotly Dash minimal-app layout: app.py with assets/, a callback
+  // driving the figure from a control, and `server = app.server` + a Procfile so it
+  // deploys under gunicorn (Heroku/Render/Railway) unchanged.
   const app = `"""${seed.id} · ${seed.title} — Plotly Dash PoC.
 
 Run: python app.py   (from the poc/ directory), then open http://127.0.0.1:8050
 Reads its own data/sample.csv, so it runs offline. Not production data.
+Layout follows the Plotly Dash minimal app (https://dash.plotly.com/minimal-app).
 """
 import pandas as pd
 import plotly.express as px
-from dash import Dash, dcc, html
+from dash import Dash, Input, Output, callback, dcc, html
 
 df = pd.read_csv("data/sample.csv", parse_dates=["period"])
-trend = df.groupby("period", as_index=False)["value"].sum()
-by_cat = df.groupby("category", as_index=False)["value"].sum()
+LINES = sorted(df["category"].unique())
 
 app = Dash(__name__)
 app.title = "${seed.id} · ${seed.title}"
+server = app.server  # gunicorn entrypoint
+
 app.layout = html.Div(
     className="wrap",
     children=[
         html.H1("${seed.title}"),
         html.P("${runNote(seed)}", className="sub"),
+        dcc.Dropdown(LINES, LINES, multi=True, id="lines"),
         html.Div(
             className="charts",
-            children=[
-                dcc.Graph(figure=px.line(trend, x="period", y="value", title="Trend")),
-                dcc.Graph(figure=px.bar(by_cat, x="category", y="value", title="By line")),
-            ],
+            children=[dcc.Graph(id="trend"), dcc.Graph(id="by-line")],
         ),
     ],
 )
+
+
+@callback(Output("trend", "figure"), Output("by-line", "figure"), Input("lines", "value"))
+def update(lines):
+    kept = df[df["category"].isin(lines or LINES)]
+    trend = kept.groupby("period", as_index=False)["value"].sum()
+    by_cat = kept.groupby("category", as_index=False)["value"].sum()
+    return (
+        px.line(trend, x="period", y="value", title="Trend"),
+        px.bar(by_cat, x="category", y="value", title="By line"),
+    )
+
 
 if __name__ == "__main__":
     app.run(debug=True)
 `;
   return [
     { path: "poc/app.py", content: app },
-    { path: "poc/requirements.txt", content: "dash>=2.17\npandas>=2.2\nplotly>=5.22\n" },
+    { path: "poc/requirements.txt", content: "dash>=2.17\npandas>=2.2\nplotly>=5.22\ngunicorn>=22.0\n" },
+    { path: "poc/Procfile", content: "web: gunicorn app:server\n" },
     { path: "poc/data/sample.csv", content: sampleCsv(seed) },
     { path: "poc/assets/style.css", content: `.wrap{max-width:960px;margin:0 auto;padding:24px;font-family:system-ui,sans-serif}\n.sub{color:#6b7280}\n.charts{display:grid;grid-template-columns:1fr 1fr;gap:16px}\n@media(max-width:720px){.charts{grid-template-columns:1fr}}\n` },
     { path: "poc/.gitignore", content: PY_GITIGNORE },
     {
       path: "poc/README.md",
-      content: `# ${seed.id} · Dash PoC\n\n${runNote(seed)}\n\n\`\`\`bash\ncd poc\npython -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt\npython app.py   # http://127.0.0.1:8050\n\`\`\`\n`,
+      content: `# ${seed.id} · Dash PoC\n\n${runNote(seed)}\n\nFollows the [Plotly Dash minimal app](https://dash.plotly.com/minimal-app) — a\ncallback drives the charts from the line filter.\n\n\`\`\`bash\ncd poc\npython -m venv .venv && source .venv/bin/activate\npip install -r requirements.txt\npython app.py            # http://127.0.0.1:8050\ngunicorn app:server      # production (see Procfile)\n\`\`\`\n`,
     },
   ];
 }
@@ -221,40 +262,65 @@ if __name__ == "__main__":
 // --- Python: FastAPI service ------------------------------------------------
 
 function fastapiFiles(seed: UseCaseSeed): ScaffoldFile[] {
-  const main = `"""${seed.id} · ${seed.title} — FastAPI PoC service.
+  // Follows FastAPI's recommended "Bigger Applications" layout: an `app/` package
+  // with typed Pydantic response models, a data module, and a tests/ suite driven by
+  // httpx TestClient — not a single throwaway main.py.
+  const appMain = `"""${seed.id} · ${seed.title} — FastAPI PoC service.
 
-Run: uvicorn main:app --reload   (from the poc/ directory)
+Run: uvicorn app.main:app --reload   (from the poc/ directory)
 Serves the metric computed from data/sample.csv. Offline; not production data.
+Structure follows https://fastapi.tiangolo.com/tutorial/bigger-applications/.
 """
-from pathlib import Path
-
-import pandas as pd
 from fastapi import FastAPI
 
+from app.data import by_category, current_total
+from app.models import Health, Metric
+
 app = FastAPI(title="${seed.id} · ${seed.title}")
-DATA = Path(__file__).parent / "data" / "sample.csv"
+
+
+@app.get("/health", response_model=Health)
+def health() -> Health:
+    return Health(status="ok", case="${seed.id}")
+
+
+@app.get("/metric", response_model=Metric)
+def metric() -> Metric:
+    return Metric(current=current_total(), by_category=by_category())
+`;
+  const models = `from pydantic import BaseModel
+
+
+class Health(BaseModel):
+    status: str
+    case: str
+
+
+class Metric(BaseModel):
+    current: float
+    by_category: dict[str, float]
+`;
+  const data = `from pathlib import Path
+
+import pandas as pd
+
+DATA = Path(__file__).resolve().parent.parent / "data" / "sample.csv"
 
 
 def _frame() -> pd.DataFrame:
     return pd.read_csv(DATA, parse_dates=["period"])
 
 
-@app.get("/health")
-def health() -> dict:
-    return {"status": "ok", "case": "${seed.id}"}
+def current_total() -> float:
+    return float(_frame()["value"].sum())
 
 
-@app.get("/metric")
-def metric() -> dict:
-    df = _frame()
-    return {
-        "current": float(df["value"].sum()),
-        "by_category": df.groupby("category")["value"].sum().round().to_dict(),
-    }
+def by_category() -> dict[str, float]:
+    return _frame().groupby("category")["value"].sum().round().to_dict()
 `;
   const test = `from fastapi.testclient import TestClient
 
-from main import app
+from app.main import app
 
 client = TestClient(app)
 
@@ -269,18 +335,22 @@ def test_metric_has_categories():
     assert body["by_category"]
 `;
   return [
-    { path: "poc/main.py", content: main },
+    { path: "poc/app/__init__.py", content: "" },
+    { path: "poc/app/main.py", content: appMain },
+    { path: "poc/app/models.py", content: models },
+    { path: "poc/app/data.py", content: data },
+    { path: "poc/tests/__init__.py", content: "" },
     { path: "poc/tests/test_main.py", content: test },
     { path: "poc/requirements.txt", content: "fastapi>=0.111\nuvicorn[standard]>=0.30\npandas>=2.2\nhttpx>=0.27\npytest>=8.2\n" },
     { path: "poc/data/sample.csv", content: sampleCsv(seed) },
     { path: "poc/.gitignore", content: PY_GITIGNORE },
     {
       path: "poc/Dockerfile",
-      content: `FROM python:3.12-slim\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\nCOPY . .\nEXPOSE 8000\nCMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]\n`,
+      content: `FROM python:3.12-slim\nWORKDIR /code\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\nCOPY . .\nEXPOSE 8000\nCMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]\n`,
     },
     {
       path: "poc/README.md",
-      content: `# ${seed.id} · FastAPI PoC\n\n${runNote(seed)}\n\n\`\`\`bash\ncd poc\npip install -r requirements.txt\nuvicorn main:app --reload   # http://127.0.0.1:8000/metric\npytest                      # smoke tests\n\`\`\`\n`,
+      content: `# ${seed.id} · FastAPI PoC\n\n${runNote(seed)}\n\nStructure follows FastAPI's [Bigger Applications](https://fastapi.tiangolo.com/tutorial/bigger-applications/) layout (\`app/\` package, typed models).\n\n\`\`\`bash\ncd poc\npip install -r requirements.txt\nuvicorn app.main:app --reload   # http://127.0.0.1:8000/docs\npytest                          # smoke tests\n\`\`\`\n`,
     },
   ];
 }
@@ -423,17 +493,19 @@ export const POC_STACKS: readonly PocStack[] = [
   {
     id: "python-streamlit",
     templateRepo: "du-template-streamlit",
+    upstream: { name: "streamlit/app-starter-kit", url: "https://github.com/streamlit/app-starter-kit" },
     label: "Streamlit app (Python)",
     category: "app",
     language: "python",
     description: "A data app in pure Python — KPIs, trend, and a breakdown from a CSV extract.",
-    run: "streamlit run app.py",
+    run: "streamlit run streamlit_app.py",
     files: (seed) => streamlitFiles(seed),
     previewHtml: (seed) => generateDashboardMockup(seed),
   },
   {
     id: "python-dash",
     templateRepo: "du-template-dash",
+    upstream: { name: "Plotly Dash minimal app", url: "https://dash.plotly.com/minimal-app" },
     label: "Dash app (Python)",
     category: "app",
     language: "python",
@@ -445,17 +517,19 @@ export const POC_STACKS: readonly PocStack[] = [
   {
     id: "fastapi-service",
     templateRepo: "du-template-fastapi",
+    upstream: { name: "FastAPI Bigger Applications", url: "https://fastapi.tiangolo.com/tutorial/bigger-applications/" },
     label: "FastAPI service (Python)",
     category: "app",
     language: "python",
     description: "A small HTTP API exposing the computed metric — when the PoC is a service, not a screen.",
-    run: "uvicorn main:app --reload",
+    run: "uvicorn app.main:app --reload",
     files: (seed) => fastapiFiles(seed),
     previewHtml: (seed) => generateDashboardMockup(seed),
   },
   {
     id: "html-mockup",
     templateRepo: "du-template-html-mockup",
+    upstream: { name: "HTML5 Boilerplate", url: "https://github.com/h5bp/html5-boilerplate" },
     label: "HTML mockup (from requirements)",
     category: "mockup",
     language: "html",
@@ -473,6 +547,7 @@ export const POC_STACKS: readonly PocStack[] = [
   {
     id: "html-dashboard",
     templateRepo: "du-template-html-dashboard",
+    upstream: { name: "Self-contained (no framework)", url: "https://developer.mozilla.org/en-US/docs/Web/HTML" },
     label: "Self-contained HTML dashboard",
     category: "dashboard",
     language: "html",
@@ -490,6 +565,7 @@ export const POC_STACKS: readonly PocStack[] = [
   {
     id: "grafana-dashboard",
     templateRepo: "du-template-grafana",
+    upstream: { name: "Grafana provisioning", url: "https://grafana.com/docs/grafana/latest/administration/provisioning/" },
     label: "Grafana dashboard (JSON)",
     category: "dashboard",
     language: "json",
@@ -501,6 +577,7 @@ export const POC_STACKS: readonly PocStack[] = [
   {
     id: "jupyter-report",
     templateRepo: "du-template-jupyter",
+    upstream: { name: "cookiecutter-data-science", url: "https://github.com/drivendataorg/cookiecutter-data-science" },
     label: "Jupyter analysis (Python)",
     category: "report",
     language: "python",
