@@ -67,6 +67,39 @@ export function playbookSkillEdges(
     }));
 }
 
+/**
+ * Which playbooks govern which stage, from the `sN-` naming convention the portal's
+ * playbooks use (`s1-intake`, `s2-…`). Pure, so the bridge from the library to the
+ * funnel is testable. A playbook that does not name a stage simply isn't mapped.
+ */
+export function stagePlaybooks(playbooks: readonly { name: string }[]): Map<Stage, string[]> {
+  const byStage = new Map<Stage, string[]>();
+  for (const pb of playbooks) {
+    const m = /^s([1-8])\b/i.exec(pb.name);
+    if (!m) continue;
+    const stage = `S${m[1]}` as Stage;
+    const list = byStage.get(stage) ?? [];
+    list.push(pb.name);
+    byStage.set(stage, list);
+  }
+  return byStage;
+}
+
+/**
+ * The demand→playbook edges bridging a demand to the playbook(s) that govern its
+ * stage — the link that joins the work funnel to the agent library (which in turn
+ * links to its skills). Derived from the demand's stage, no document opened.
+ */
+export function demandPlaybookEdges(demandId: string, stage: Stage | undefined, byStage: Map<Stage, string[]>): MeshEdge[] {
+  if (!stage) return [];
+  return (byStage.get(stage) ?? []).map((pb) => ({
+    from: { kind: "demand" as const, id: demandId },
+    to: { kind: "playbook" as const, id: pb },
+    note: `governed by the ${stage} playbook`,
+    source: "derived" as const,
+  }));
+}
+
 export function repoDocForDemand(d: { id: string; title: string; stage?: Stage }): MeshDocument | null {
   if (!hasScaffoldedRepo(d.stage)) return null;
   const id = repoNameFor(d.id, d.title);
@@ -107,22 +140,29 @@ export async function loadCorpus(opts: CorpusOptions = {}): Promise<{
 
   const wanted = opts.limit ? demands.slice(0, opts.limit) : demands;
 
+  // Which playbook governs each stage — the bridge that joins the funnel to the
+  // library (demand → its stage's playbook → the skills that playbook runs).
+  const byStage = stagePlaybooks(registry.playbooks);
+
   // Demands carry their own `## Related`, and their artifacts are derived edges.
   const demandDocs = await mapPool(wanted, READ_CONCURRENCY, async (d): Promise<MeshDocument> => {
     const [markdown, artifacts] = await Promise.all([
       readDemand(d.id).catch(() => undefined),
       listArtifacts(d.id).catch((): string[] => []),
     ]);
-    const derived: MeshEdge[] = artifacts.includes("requirements")
-      ? [
-          {
-            from: { kind: "demand", id: d.id },
-            to: { kind: "requirement", id: d.id },
-            note: "standardized requirements derived from this intake",
-            source: "derived",
-          },
-        ]
-      : [];
+    const derived: MeshEdge[] = [
+      ...(artifacts.includes("requirements")
+        ? [
+            {
+              from: { kind: "demand" as const, id: d.id },
+              to: { kind: "requirement" as const, id: d.id },
+              note: "standardized requirements derived from this intake",
+              source: "derived" as const,
+            },
+          ]
+        : []),
+      ...demandPlaybookEdges(d.id, d.stage, byStage),
+    ];
     return {
       kind: "demand",
       id: d.id,
@@ -200,4 +240,36 @@ export async function loadCorpus(opts: CorpusOptions = {}): Promise<{
       repo: repoDocs.length,
     },
   };
+}
+
+export type Corpus = Awaited<ReturnType<typeof loadCorpus>>;
+
+const CORPUS_TTL_MS = 60_000;
+let corpusCache: { at: number; value: Corpus } | null = null;
+let corpusInflight: Promise<Corpus> | null = null;
+
+/**
+ * `loadCorpus`, cached — the whole-corpus read is the heaviest in the portal (it opens
+ * every artifact), and `/mesh` is a page people revisit. Built at most once per TTL,
+ * with concurrent callers sharing one in-flight build. Only the unbounded (no `limit`)
+ * read is cached; a limited read is a one-off and bypasses the cache.
+ */
+export async function loadCorpusCached(now: number = Date.now()): Promise<Corpus> {
+  if (corpusCache && now - corpusCache.at < CORPUS_TTL_MS) return corpusCache.value;
+  if (corpusInflight) return corpusInflight;
+  corpusInflight = (async () => {
+    const value = await loadCorpus();
+    corpusCache = { at: now, value };
+    return value;
+  })();
+  try {
+    return await corpusInflight;
+  } finally {
+    corpusInflight = null;
+  }
+}
+
+/** Drop the cached corpus — call after a write that changes the graph. */
+export function clearCorpusCache(): void {
+  corpusCache = null;
 }
