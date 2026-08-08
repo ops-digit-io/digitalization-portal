@@ -9,6 +9,7 @@ import { buildScaffoldFiles, repoName, repoNameFor, slugify, type UseCaseSeed } 
 import { draftPocSpec } from "./spec.js";
 import { generateDashboardMockup } from "./mockup.js";
 import { planPoc, scaffoldRepo, buildArtifact } from "./builder.js";
+import { pocStack } from "./templates.js";
 
 const seed: UseCaseSeed = {
   id: "UC-2026-0041",
@@ -81,26 +82,30 @@ describe("spec + mockup", () => {
 
 describe("builder pipeline with LocalHost", () => {
   const host = new LocalHost({ root: mkdtempSync(join(tmpdir(), "poc-")) });
+  const streamlit = pocStack("python-streamlit")!;
 
-  it("scaffolds a repo, commits files, and drafts the spec", async () => {
-    const plan = planPoc(seed, "dashboard");
+  it("scaffolds a repo with the stack's tech files, and drafts the spec", async () => {
+    const plan = planPoc(seed, streamlit);
     const result = await scaffoldRepo(host, seed, plan);
     expect(result.repo.local).toBe(true);
-    expect(result.committedPaths).toContain("README.md");
+    expect(result.committedPaths).toContain("README.md"); // case skeleton
+    expect(result.committedPaths).toContain("poc/app.py"); // the runnable stack
+    expect(result.committedPaths).toContain("poc/requirements.txt");
     expect(result.committedPaths).toContain("poc/spec.md");
+    expect(result.fromTemplate).toBe(false); // LocalHost has no template generation
   });
 
   it("refuses to build the artifact until the spec is approved", async () => {
-    const plan = planPoc(seed, "dashboard");
+    const plan = planPoc(seed, streamlit);
     const { repo } = await scaffoldRepo(host, seed, plan);
-    await expect(buildArtifact(host, repo, seed, "dashboard", false)).rejects.toThrow(/approved/i);
+    await expect(buildArtifact(host, repo, seed, streamlit, false)).rejects.toThrow(/approved/i);
   });
 
-  it("builds the artifact and opens a PR once approved (never merges)", async () => {
-    const plan = planPoc(seed, "dashboard");
+  it("builds the evidence snapshot and opens a PR once approved (never merges)", async () => {
+    const plan = planPoc(seed, streamlit);
     const { repo } = await scaffoldRepo(host, seed, plan);
-    const art = await buildArtifact(host, repo, seed, "dashboard", true);
-    expect(art.artifactPath).toBe("poc/mockup.html");
+    const art = await buildArtifact(host, repo, seed, streamlit, true);
+    expect(art.artifactPath).toBe("poc/evidence.html");
     expect(art.pullRequest.number).toBeGreaterThan(0);
     expect(art.artifact).toContain("<!doctype html>");
     // The GitHost interface has no merge method — assert it structurally.

@@ -17,9 +17,10 @@ const KIND_LABEL: Record<ArtifactKind, string> = {
   report: "analysis report",
 };
 
-export function draftPocSpec(seed: UseCaseSeed, kind: ArtifactKind): string {
+export function draftPocSpec(seed: UseCaseSeed, kind: ArtifactKind, stackLabel?: string): string {
   const what = KIND_LABEL[kind];
-  return `# PoC spec · ${seed.id}
+  const builtAs = stackLabel ? `\n\n**Built as:** ${stackLabel}.` : "";
+  return `# PoC spec · ${seed.id}${builtAs}
 
 <!-- Drafted by the assistant. Review and approve before the artifact is built.
      The portal drafts; a human decides. -->

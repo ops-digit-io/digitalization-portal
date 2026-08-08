@@ -169,6 +169,29 @@ export class GitHubHost implements GitHost {
     return { owner: this.cfg.org, name, url: data.html_url, local: false };
   }
 
+  /** Generate a new repo from a template repository (POST …/generate). The template
+   *  repo must have `is_template: true`, else GitHub returns 422. */
+  async createRepoFromTemplate(
+    name: string,
+    template: { owner: string; repo: string },
+    opts?: { description?: string; private?: boolean },
+  ): Promise<RepoRef> {
+    const data = await this.api<{ full_name: string; html_url: string }>(
+      `/repos/${template.owner}/${template.repo}/generate`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          owner: this.cfg.org,
+          name,
+          description: opts?.description ?? "",
+          private: opts?.private ?? true,
+          include_all_branches: false,
+        }),
+      },
+    );
+    return { owner: this.cfg.org, name, url: data.html_url, local: false };
+  }
+
   /** The current blob sha of a path, or undefined when the path is new. */
   private async shaOf(repo: RepoRef, path: string, branch: string): Promise<string | undefined> {
     try {
