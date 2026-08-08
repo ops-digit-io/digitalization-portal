@@ -7,8 +7,9 @@
  * check, an export, a graph view). It is deliberately NOT on any page's read path.
  *
  * Every node the mesh can name has to appear here, including the ones that hold no
- * references of their own — a champion in the register, a persona in the library.
- * An artifact missing from the corpus is indistinguishable from one that was
+ * references of their own — a champion in the register, a persona in the library, a
+ * skill or playbook in the agent registry, the uc-* repository a use case earns at
+ * PoC. An artifact missing from the corpus is indistinguishable from one that was
  * deleted, so leaving a kind out manufactures `dangling` errors for edges that are
  * perfectly fine.
  */
@@ -16,8 +17,11 @@
 import { listChampions } from "./champions-store.js";
 import { listDemands, readDemand, listArtifacts } from "./demands-store.js";
 import { listPersonas } from "./persona-library-store.js";
+import { listRegistry } from "./registry-store.js";
+import { repoNameFor } from "./poc/scaffold.js";
 import * as processStore from "./process/store.js";
 import { mapPool } from "./pool.js";
+import { STAGES, type Stage } from "./types.js";
 import type { MeshDocument } from "./mesh-graph.js";
 import type { MeshEdge } from "./mesh.js";
 
@@ -27,6 +31,36 @@ const READ_CONCURRENCY = 8;
 export interface CorpusOptions {
   /** Cap on demands read, for a very large funnel. Omit to read all of them. */
   limit?: number;
+}
+
+/** Stages at or past PoC — where a use case has earned its own `uc-*` repository
+ *  (G3, S3→S4, is the PoC gate). Before S4 there is no repo to point at. */
+function hasScaffoldedRepo(stage?: Stage): boolean {
+  return stage !== undefined && STAGES.indexOf(stage) >= STAGES.indexOf("S4");
+}
+
+/**
+ * The scaffolded-repo node a demand implies, or null before the PoC stage. Pure, so
+ * the derivation is unit-tested without reading the funnel. The demand→repo edge is
+ * `derived`: it is as reliable as the demand's stage, and no more — there is no
+ * repository listing to confirm it against (the git host exposes no `listRepos`).
+ */
+export function repoDocForDemand(d: { id: string; title: string; stage?: Stage }): MeshDocument | null {
+  if (!hasScaffoldedRepo(d.stage)) return null;
+  const id = repoNameFor(d.id, d.title);
+  return {
+    kind: "repo",
+    id,
+    title: id,
+    derived: [
+      {
+        from: { kind: "demand", id: d.id },
+        to: { kind: "repo", id },
+        note: "PoC repository scaffolded for this use case at the PoC stage",
+        source: "derived",
+      },
+    ],
+  };
 }
 
 /**
@@ -41,11 +75,12 @@ export async function loadCorpus(opts: CorpusOptions = {}): Promise<{
   docs: MeshDocument[];
   counts: Record<string, number>;
 }> {
-  const [demands, engagements, personas, champions] = await Promise.all([
+  const [demands, engagements, personas, champions, registry] = await Promise.all([
     listDemands().catch(() => []),
     processStore.list().catch(() => []),
     listPersonas().catch(() => []),
     listChampions().catch(() => []),
+    listRegistry().catch(() => ({ skills: [], playbooks: [], contracts: [] })),
   ]);
 
   const wanted = opts.limit ? demands.slice(0, opts.limit) : demands;
@@ -96,7 +131,30 @@ export async function loadCorpus(opts: CorpusOptions = {}): Promise<{
   const personaDocs: MeshDocument[] = personas.map((p) => ({ kind: "persona", id: p.id, title: p.name }));
   const championDocs: MeshDocument[] = champions.map((c) => ({ kind: "champion", id: c.id, title: c.name || c.email }));
 
-  const docs = [...demandDocs, ...requirementDocs, ...engagementDocs, ...personaDocs, ...championDocs];
+  // Skills and playbooks live in the external agent registry (du-agent-registry),
+  // read through the content seam. Unreachable → no nodes, so an edge to one then
+  // reads as `unverifiable` rather than `dangling` — the same honest degrade every
+  // other store makes. They carry no markdown here: a skill's own `## Related` is
+  // not the mesh's to parse, so they enter as nodes other artifacts reach toward.
+  const skillDocs: MeshDocument[] = registry.skills.map((e) => ({ kind: "skill", id: e.name, title: e.title }));
+  const playbookDocs: MeshDocument[] = registry.playbooks.map((e) => ({ kind: "playbook", id: e.name, title: e.title }));
+
+  // A use case earns its own uc-* repository at the PoC stage; derive that node and
+  // the demand→repo edge from the demands that have reached it.
+  const repoDocs: MeshDocument[] = wanted
+    .map((d) => repoDocForDemand(d))
+    .filter((d): d is MeshDocument => d !== null);
+
+  const docs = [
+    ...demandDocs,
+    ...requirementDocs,
+    ...engagementDocs,
+    ...personaDocs,
+    ...championDocs,
+    ...skillDocs,
+    ...playbookDocs,
+    ...repoDocs,
+  ];
   return {
     docs,
     counts: {
@@ -105,6 +163,9 @@ export async function loadCorpus(opts: CorpusOptions = {}): Promise<{
       process: engagementDocs.length,
       persona: personaDocs.length,
       champion: championDocs.length,
+      skill: skillDocs.length,
+      playbook: playbookDocs.length,
+      repo: repoDocs.length,
     },
   };
 }

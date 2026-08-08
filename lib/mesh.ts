@@ -157,7 +157,7 @@ function titleOf(title: TitleLookup | undefined, ref: MeshRef): { title?: string
  * a reader wants all the demands together, not the authored ones above the
  * derived ones.
  */
-const KIND_ORDER: ReferenceKind[] = ["demand", "requirement", "process", "persona", "champion", "skill", "playbook"];
+const KIND_ORDER: ReferenceKind[] = ["demand", "requirement", "process", "persona", "champion", "skill", "playbook", "repo"];
 function sortNeighbours(ns: Neighbour[]): Neighbour[] {
   return [...ns].sort(
     (a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || a.id.localeCompare(b.id),

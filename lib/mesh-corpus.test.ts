@@ -18,7 +18,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { loadCorpus } from "./mesh-corpus";
+import { loadCorpus, repoDocForDemand } from "./mesh-corpus";
 import { buildGraph, duplicateClusters } from "./mesh-graph";
 
 describe("the markdown corpus reads as a graph", () => {
@@ -56,5 +56,40 @@ describe("the markdown corpus reads as a graph", () => {
     // terminate on the real corpus, not just on the fixtures.
     const { docs } = await loadCorpus();
     expect(() => duplicateClusters(buildGraph(docs))).not.toThrow();
+  });
+
+  it("counts every asset kind the mesh can hold", async () => {
+    const { counts } = await loadCorpus();
+    // The keys must exist even at zero, so the graph view can list every kind and a
+    // dropped store is a 0, not a silently missing category.
+    for (const kind of ["demand", "requirement", "process", "persona", "champion", "skill", "playbook", "repo"]) {
+      expect(counts, `counts is missing the "${kind}" kind`).toHaveProperty(kind);
+    }
+  });
+});
+
+describe("repoDocForDemand — scaffolded repos derived from PoC-stage demands", () => {
+  it("is null before the PoC stage (no repo has been scaffolded yet)", () => {
+    expect(repoDocForDemand({ id: "UC-2026-0041", title: "Scrap attribution", stage: "S3" })).toBeNull();
+    expect(repoDocForDemand({ id: "UC-2026-0041", title: "Scrap attribution" })).toBeNull();
+  });
+
+  it("derives a repo node and a demand→repo edge from S4 onward", () => {
+    const doc = repoDocForDemand({ id: "UC-2026-0041", title: "Scrap attribution", stage: "S4" });
+    expect(doc).not.toBeNull();
+    expect(doc!.kind).toBe("repo");
+    expect(doc!.id).toBe("uc-2026-0041-scrap-attribution");
+    const edge = doc!.derived?.[0];
+    expect(edge?.from).toEqual({ kind: "demand", id: "UC-2026-0041" });
+    expect(edge?.to).toEqual({ kind: "repo", id: "uc-2026-0041-scrap-attribution" });
+    expect(edge?.source).toBe("derived");
+  });
+
+  it("a demand and its derived repo build as a sound two-node graph", () => {
+    const doc = repoDocForDemand({ id: "UC-2026-0041", title: "Scrap attribution", stage: "S5" })!;
+    const graph = buildGraph([{ kind: "demand", id: "UC-2026-0041", title: "Scrap attribution" }, doc]);
+    expect(graph.sound).toBe(true);
+    expect(graph.edges).toHaveLength(1);
+    expect(graph.nodes.find((n) => n.kind === "repo")?.in).toBe(1);
   });
 });

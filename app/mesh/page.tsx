@@ -2,12 +2,23 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { loadCorpus } from "@/lib/mesh-corpus";
-import { buildGraph, orphans, duplicateClusters, toMermaid, type MeshIssue } from "@/lib/mesh-graph";
-import { referenceHref, referenceKind } from "@/lib/references";
-import { Mermaid } from "@/components/process/mermaid";
+import { buildGraph, orphans, duplicateClusters, type MeshIssue } from "@/lib/mesh-graph";
+import { filterGraph, egoGraph, toGraphData, KIND_STYLE } from "@/lib/mesh-view";
+import { referenceHref, referenceKind, RELATIONS, type ReferenceKind, type Relation } from "@/lib/references";
+import { MeshForceGraph } from "@/components/mesh/force-graph";
 import type { MeshRef } from "@/lib/mesh";
 
 export const dynamic = "force-dynamic";
+
+type Params = { kind?: string; relation?: string; source?: string; focus?: string; depth?: string };
+
+/** A /mesh URL from the current params plus an override (drops empties). */
+function meshHref(current: Params, patch: Partial<Params>): string {
+  const m: Record<string, string> = {};
+  for (const [k, v] of Object.entries({ ...current, ...patch })) if (v) m[k] = v as string;
+  const qs = new URLSearchParams(m).toString();
+  return qs ? `/mesh?${qs}` : "/mesh";
+}
 
 /**
  * The context mesh, seen whole.
@@ -72,7 +83,7 @@ function IssueRow({ i }: { i: MeshIssue }) {
   );
 }
 
-export default async function MeshPage() {
+export default async function MeshPage({ searchParams }: { searchParams: Params }) {
   const { docs, counts } = await loadCorpus();
   const graph = buildGraph(docs);
   const errors = graph.issues.filter((i) => i.severity === "error");
@@ -80,9 +91,27 @@ export default async function MeshPage() {
   const clusters = duplicateClusters(graph);
   const loose = orphans(graph);
   const authored = graph.edges.filter((e) => e.source === "authored").length;
-  // The graph drawn — every node carrying at least one relation. Solid arrows are
-  // authored (`## Related`), dotted are derived. Bounded so a large corpus stays legible.
-  const diagram = graph.edges.length > 0 ? toMermaid(graph, { maxEdges: 120 }) : null;
+
+  // View controls (server-driven, like the board): filter by kind / relation /
+  // source, or focus one artifact's neighbourhood to a chosen depth.
+  const focus = searchParams.focus?.trim() || undefined;
+  const depth = Math.min(3, Math.max(1, Number.parseInt(searchParams.depth ?? "1", 10) || 1));
+  const fKind = KIND_STYLE[searchParams.kind as ReferenceKind] ? (searchParams.kind as ReferenceKind) : undefined;
+  const fRelation = (RELATIONS as readonly string[]).includes(searchParams.relation ?? "") ? (searchParams.relation as Relation) : undefined;
+  const fSource = searchParams.source === "authored" || searchParams.source === "derived" ? searchParams.source : undefined;
+
+  const view = focus
+    ? egoGraph(graph, focus, depth)
+    : filterGraph(graph, {
+        ...(fKind ? { kinds: new Set([fKind]) } : {}),
+        ...(fRelation ? { relations: new Set([fRelation]) } : {}),
+        ...(fSource ? { sources: new Set([fSource]) } : {}),
+      });
+  const graphData = view.edges.length > 0 ? toGraphData(view) : null;
+  const focusNode = focus ? graph.nodes.find((n) => `${n.kind}:${n.id}`.toLowerCase() === focus.toLowerCase()) : undefined;
+  const kindsInGraph = [...new Set(graph.nodes.map((n) => n.kind))].sort();
+  const relationsPresent = RELATIONS.filter((r) => graph.edges.some((e) => e.relation === r));
+  const filtered = Boolean(fKind || fRelation || fSource || focus);
 
   return (
     <main className="mx-auto max-w-[1100px] px-6 py-6">
@@ -125,17 +154,81 @@ export default async function MeshPage() {
         </Card>
       )}
 
-      {diagram && (
+      {graph.edges.length > 0 && (
         <section className="mt-6">
-          <h2 className="mb-1 text-sm font-semibold">The graph</h2>
-          <p className="mb-2 max-w-3xl text-xs text-muted-foreground">
-            Every artifact carrying at least one relation, drawn from the corpus. <span className="whitespace-nowrap">Solid arrows</span> are
-            authored in a <code className="font-mono">## Related</code> line; <span className="whitespace-nowrap">dotted arrows</span> are
-            derived from state. Node ids match the lists below.
-          </p>
-          <Card className="overflow-x-auto p-4">
-            <Mermaid chart={diagram} />
-          </Card>
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-semibold">The graph</h2>
+            {filtered && (
+              <Link href="/mesh" className="rounded-md border px-2 py-0.5 text-xs text-muted-foreground hover:border-foreground/40 hover:text-foreground">
+                ↺ whole graph
+              </Link>
+            )}
+          </div>
+
+          {focusNode ? (
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-info/40 bg-info/5 px-3 py-2 text-sm">
+              <span className="text-muted-foreground">Focused on</span>
+              <span className="font-medium">{focusNode.title ?? focusNode.id}</span>
+              <span className="font-mono text-xs text-muted-foreground">{focusNode.id}</span>
+              <span className="ml-2 text-xs text-muted-foreground">neighbourhood · depth {depth}</span>
+              <span className="ml-auto flex items-center gap-1">
+                {depth > 1 && <Link href={meshHref(searchParams, { depth: String(depth - 1) })} className="rounded border px-1.5 text-xs hover:border-foreground/40">− depth</Link>}
+                {depth < 3 && <Link href={meshHref(searchParams, { depth: String(depth + 1) })} className="rounded border px-1.5 text-xs hover:border-foreground/40">+ depth</Link>}
+              </span>
+            </div>
+          ) : (
+            <div className="mb-3 space-y-1.5">
+              {/* Filter by kind */}
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="w-16 text-muted-foreground">Kind</span>
+                <Link href={meshHref(searchParams, { kind: undefined })} className={`rounded-md border px-2 py-0.5 ${!fKind ? "bg-foreground text-background" : "hover:border-foreground/40"}`}>all</Link>
+                {kindsInGraph.map((k) => (
+                  <Link key={k} href={meshHref(searchParams, { kind: fKind === k ? undefined : k })} className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 ${fKind === k ? "bg-foreground text-background" : "hover:border-foreground/40"}`}>
+                    <span className="inline-block size-2 rounded-full" style={{ background: KIND_STYLE[k].color }} aria-hidden />
+                    {KIND_STYLE[k].label}
+                  </Link>
+                ))}
+              </div>
+              {/* Filter by relation + source */}
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="w-16 text-muted-foreground">Relation</span>
+                <Link href={meshHref(searchParams, { relation: undefined })} className={`rounded-md border px-2 py-0.5 ${!fRelation ? "bg-foreground text-background" : "hover:border-foreground/40"}`}>all</Link>
+                {relationsPresent.map((r) => (
+                  <Link key={r} href={meshHref(searchParams, { relation: fRelation === r ? undefined : r })} className={`rounded-md border px-2 py-0.5 ${fRelation === r ? "bg-foreground text-background" : "hover:border-foreground/40"}`}>{r}</Link>
+                ))}
+                <span className="ml-3 text-muted-foreground">Edge</span>
+                {(["authored", "derived"] as const).map((s) => (
+                  <Link key={s} href={meshHref(searchParams, { source: fSource === s ? undefined : s })} className={`rounded-md border px-2 py-0.5 ${fSource === s ? "bg-foreground text-background" : "hover:border-foreground/40"}`}>{s}</Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {graphData ? (
+            <Card className="overflow-hidden p-2">
+              <MeshForceGraph data={graphData} {...(focus ? { focus: focus.toLowerCase() } : {})} />
+            </Card>
+          ) : (
+            <Card className="p-8 text-center text-sm text-muted-foreground">Nothing matches this view. <Link href="/mesh" className="underline">Show the whole graph.</Link></Card>
+          )}
+
+          {/* Legend */}
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            {kindsInGraph.map((k) => (
+              <span key={k} className="inline-flex items-center gap-1">
+                <span className="inline-block size-2.5 rounded-full" style={{ background: KIND_STYLE[k].color }} aria-hidden />
+                {KIND_STYLE[k].label}
+              </span>
+            ))}
+            <span className="inline-flex items-center gap-1">
+              <svg width="22" height="6" aria-hidden className="overflow-visible"><line x1="0" y1="3" x2="22" y2="3" stroke="currentColor" strokeWidth="1.4" /></svg>
+              authored
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <svg width="22" height="6" aria-hidden className="overflow-visible"><line x1="0" y1="3" x2="22" y2="3" stroke="currentColor" strokeWidth="1.4" strokeDasharray="4 3" /></svg>
+              derived (from state)
+            </span>
+          </div>
         </section>
       )}
 
@@ -201,8 +294,10 @@ export default async function MeshPage() {
               .slice(0, 12)
               .map((n) => (
                 <div key={`${n.kind}:${n.id}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 p-3">
+                  <span className="inline-block size-2 shrink-0 rounded-full" style={{ background: KIND_STYLE[n.kind].color }} aria-hidden />
                   <RefLink r={n} label={n.title ?? n.id} />
                   <span className="text-xs text-muted-foreground">{referenceKind(n.kind)?.label ?? n.kind}</span>
+                  <Link href={meshHref({}, { focus: `${n.kind}:${n.id}` })} className="text-xs text-info hover:underline" title="Focus the graph on this artifact's neighbourhood">⊙ focus</Link>
                   <span className="ml-auto font-mono text-xs text-muted-foreground">
                     {n.in} in · {n.out} out
                   </span>
