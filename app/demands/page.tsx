@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { queryFunnel, type FunnelScope } from "@/lib/funnel/query";
+import { queryFunnel, chooseEffectiveScope, type FunnelScope } from "@/lib/funnel/query";
 import { getCurrentUser } from "@/lib/auth/current";
 import { LANES, STAGES } from "@/lib/types";
 import { getCategories } from "@/lib/category-store";
@@ -32,12 +32,10 @@ function href(current: Params, over: Partial<Params>): string {
 export default async function Demands({ searchParams }: { searchParams: Params }) {
   const { session } = await getCurrentUser();
   const plants = await getCategories("plant");
-  const scope: FunnelScope = searchParams.scope === "all" ? "all" : "mine";
   const page = Math.max(1, Number.parseInt(searchParams.page ?? "1", 10) || 1);
   const q = (searchParams.q ?? "").trim();
 
-  const result = await queryFunnel({
-    scope,
+  const baseArgs = {
     requester: session.user,
     ...(q ? { search: q } : {}),
     ...(searchParams.lane ? { lane: searchParams.lane } : {}),
@@ -45,7 +43,20 @@ export default async function Demands({ searchParams }: { searchParams: Params }
     ...(searchParams.stage ? { stage: searchParams.stage } : {}),
     page,
     pageSize: 25,
-  });
+  };
+
+  // First read the scope the visitor asked for (default: their own inbox). If they
+  // made NO explicit choice and their inbox is empty, auto-broaden to the whole
+  // funnel so a fresh operator / leader is never greeted with a blank page (§review).
+  const explicit = searchParams.scope;
+  let scope: FunnelScope = explicit === "all" ? "all" : "mine";
+  let result = await queryFunnel({ scope, ...baseArgs });
+  let autoBroadened = false;
+  if (!explicit && scope === "mine" && result.total === 0) {
+    const all = await queryFunnel({ scope: "all", ...baseArgs });
+    const decision = chooseEffectiveScope({ explicit, mineTotal: 0, allTotal: all.total });
+    if (decision.autoBroadened) { scope = "all"; result = all; autoBroadened = true; }
+  }
 
   // Params that scope tabs / pagination must preserve (page resets on a tab/filter change).
   const keep: Params = { scope, q: q || undefined, lane: searchParams.lane, plant: searchParams.plant, stage: searchParams.stage };
@@ -81,6 +92,12 @@ export default async function Demands({ searchParams }: { searchParams: Params }
           </Link>
         ))}
       </div>
+
+      {autoBroadened && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Showing <span className="font-medium text-foreground">all demands</span> — you haven&apos;t raised any yet.
+        </p>
+      )}
 
       {/* Search + filters (GET form — no client JS, scale-safe) */}
       <form method="get" action="/demands" className="mt-3 flex flex-wrap items-center gap-2 text-sm">

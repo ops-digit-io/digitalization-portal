@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyScope, applyFilter, paginate } from "./query.js";
+import { applyScope, applyFilter, paginate, chooseEffectiveScope } from "./query.js";
 import { getProjectionStore } from "../projection/store.js";
 import { verifyGithubSignature } from "../projection/webhook.js";
 import { createHmac } from "node:crypto";
@@ -22,6 +22,23 @@ describe("applyScope", () => {
   });
   it("all → everything", () => {
     expect(applyScope(rows, "all")).toHaveLength(4);
+  });
+});
+
+describe("chooseEffectiveScope", () => {
+  it("honors an explicit scope, even when it is empty", () => {
+    expect(chooseEffectiveScope({ explicit: "all", mineTotal: 0, allTotal: 9 })).toEqual({ scope: "all", autoBroadened: false });
+    // A clicked "My demands" stays honestly empty — no surprise broadening.
+    expect(chooseEffectiveScope({ explicit: "mine", mineTotal: 0, allTotal: 9 })).toEqual({ scope: "mine", autoBroadened: false });
+  });
+  it("auto-broadens to all when no choice was made and the inbox is empty but the funnel is not", () => {
+    expect(chooseEffectiveScope({ mineTotal: 0, allTotal: 9 })).toEqual({ scope: "all", autoBroadened: true });
+  });
+  it("stays on mine when the inbox has demands", () => {
+    expect(chooseEffectiveScope({ mineTotal: 3, allTotal: 9 })).toEqual({ scope: "mine", autoBroadened: false });
+  });
+  it("stays on mine when the whole funnel is empty (nothing to broaden to)", () => {
+    expect(chooseEffectiveScope({ mineTotal: 0, allTotal: 0 })).toEqual({ scope: "mine", autoBroadened: false });
   });
 });
 

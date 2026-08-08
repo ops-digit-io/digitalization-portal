@@ -15,28 +15,19 @@ import { can } from "@/lib/rbac";
 import { getGitHost } from "@/lib/git";
 import type { RepoRef } from "@/lib/git";
 import { planPoc, scaffoldRepo, buildArtifact } from "@/lib/poc/builder";
-import { slugify, type UseCaseSeed } from "@/lib/poc/scaffold";
+import type { UseCaseSeed } from "@/lib/poc/scaffold";
+import { seedFromDemandMarkdown } from "@/lib/poc/seed-from-demand";
 import type { ArtifactKind } from "@/lib/poc/spec";
-import { DEMO_NOW, SEED_ROWS } from "@/lib/seed";
+import { readDemand } from "@/lib/demands-store";
 import { getSession } from "@/lib/auth/current";
 
 export const runtime = "nodejs";
 
-function seedFor(useCaseId: string): UseCaseSeed | undefined {
-  const row = SEED_ROWS.find((r) => r.id === useCaseId);
-  if (!row) return undefined;
-  const seed: UseCaseSeed = {
-    id: row.id,
-    title: row.title,
-    slug: slugify(row.title),
-    plant: row.plant ?? "ALL",
-    lane: row.lane ?? "transform",
-    createdOn: DEMO_NOW.slice(0, 10),
-    problem: "Captured at intake — see the use case.",
-    requester: "requester@example.com",
-  };
-  if (row.domain) seed.domain = row.domain;
-  return seed;
+/** Build a PoC seed from the REAL funnel case (du-demands live, or local workspace). */
+async function seedFor(useCaseId: string): Promise<UseCaseSeed | undefined> {
+  const md = await readDemand(useCaseId);
+  if (md === undefined) return undefined;
+  return seedFromDemandMarkdown(useCaseId, md);
 }
 
 export async function POST(req: Request) {
@@ -61,7 +52,7 @@ export async function POST(req: Request) {
     if (!can(session, "create_uc")) {
       return NextResponse.json({ error: "missing capability: create_uc" }, { status: 403 });
     }
-    const seed = body.useCaseId ? seedFor(body.useCaseId) : undefined;
+    const seed = body.useCaseId ? await seedFor(body.useCaseId) : undefined;
     if (!seed) return NextResponse.json({ error: "unknown use case" }, { status: 404 });
     try {
       const plan = planPoc(seed, kind);
@@ -82,7 +73,7 @@ export async function POST(req: Request) {
     if (!can(session, "draft")) {
       return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
     }
-    const seed = body.useCaseId ? seedFor(body.useCaseId) : undefined;
+    const seed = body.useCaseId ? await seedFor(body.useCaseId) : undefined;
     if (!seed || !body.repo) return NextResponse.json({ error: "missing repo or use case" }, { status: 400 });
     try {
       const result = await buildArtifact(host, body.repo, seed, kind, body.approved === true);

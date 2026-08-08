@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyseIntake, buildRequirementsMarkdown, buildAnalysisMarkdown, parseRequirementsMarkdown } from "./requirements.js";
+import { analyseIntake, buildRequirementsMarkdown, buildAnalysisMarkdown, parseRequirementsMarkdown, scoreRequirements } from "./requirements.js";
 import { EMPTY_ANSWERS, type DemandAnswers } from "./demand.js";
 
 const answers: DemandAnswers = {
@@ -138,5 +138,44 @@ describe("parseRequirementsMarkdown (round-trip)", () => {
     const empty = parseRequirementsMarkdown("# Something else\n\nno sections here");
     expect(empty.epics).toEqual([]);
     expect(empty.stories).toEqual([]);
+  });
+});
+
+describe("scoreRequirements", () => {
+  it("scores a complete doc at or near 100", () => {
+    const doc = {
+      epics: [{ id: "E1", title: "e", description: "" }],
+      stories: [
+        { id: "US-1", epic: "E1", persona: "p", capability: "c", benefit: "b", acceptance: ["a1"], priority: "must" as const },
+        { id: "US-2", epic: "E1", persona: "p", capability: "c", benefit: "b", acceptance: ["a1", "a2"], priority: "should" as const },
+      ],
+      nfrs: [{ id: "NFR-1", category: "perf", requirement: "fast" }],
+      assumptions: ["a"], risks: ["r"], openQuestions: [], outOfScope: [],
+    };
+    const s = scoreRequirements(doc);
+    expect(s.score).toBe(100);
+    expect(s.storiesWithAcceptance).toBe(2);
+    expect(s.missing).toEqual([]);
+  });
+
+  it("penalizes missing acceptance criteria and NFRs, and lists gaps", () => {
+    const doc = {
+      epics: [], stories: [
+        { id: "US-1", epic: "E1", persona: "p", capability: "c", benefit: "b", acceptance: [], priority: "must" as const },
+        { id: "US-2", epic: "E1", persona: "p", capability: "c", benefit: "b", acceptance: ["a"], priority: "must" as const },
+      ],
+      nfrs: [], assumptions: [], risks: [], openQuestions: [], outOfScope: [],
+    };
+    const s = scoreRequirements(doc);
+    // 20 (stories exist) + round(40 * 1/2)=20 + 0 nfr + 0 risk + 0 assump = 40
+    expect(s.score).toBe(40);
+    expect(s.missing).toContain("1 of 2 stories lack acceptance criteria");
+    expect(s.missing).toContain("No non-functional requirements");
+  });
+
+  it("scores an empty doc at 0", () => {
+    const s = scoreRequirements({ epics: [], stories: [], nfrs: [], assumptions: [], risks: [], openQuestions: [], outOfScope: [] });
+    expect(s.score).toBe(0);
+    expect(s.missing).toContain("No user stories");
   });
 });

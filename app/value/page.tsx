@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { loadPortfolioRows } from "@/lib/portfolio";
+import { valueAtRisk } from "@/lib/funnel/value-at-risk";
+import { getSession } from "@/lib/auth/current";
+import { can } from "@/lib/rbac";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { RegistryRow } from "@/lib/registry";
@@ -20,10 +23,16 @@ function layers(rows: readonly RegistryRow[]) {
 
 export default async function ValueCockpit() {
   // Real funnel; value comes from actual business-case.md artifacts, not seed.
-  const { rows } = await loadPortfolioRows();
+  const { rows, now } = await loadPortfolioRows();
   const l = layers(rows);
   const portfolio = l.committed + l.realized; // headline = committed + realized ONLY
   const s8 = rows.filter((r) => r.stage === "S8");
+
+  // Value at risk = pipeline value in stalled S3–S4 cases. € figures are restricted
+  // content, so gate them to view_all; the count is portfolio-transparent.
+  const session = await getSession();
+  const canValue = can(session, "view_all");
+  const atRisk = valueAtRisk(rows, now);
 
   const cards = [
     { label: "Pipeline", sub: "indicative · S3–S4", value: l.pipeline, tone: "--info", note: "Not counted as expected value." },
@@ -65,6 +74,42 @@ export default async function ValueCockpit() {
           Pipeline of {EUR(l.pipeline)} shown separately, not added.
         </span>
       </Card>
+
+      {atRisk.cases.length > 0 && (
+        <Card className="mt-6 overflow-hidden border-warn/40">
+          <div className="flex items-center justify-between border-b border-warn/30 bg-warn/5 px-4 py-3">
+            <span className="flex items-center gap-2 text-sm font-semibold">
+              <span className="text-warn" aria-hidden>⚠</span> Value at risk
+            </span>
+            <span className="text-sm text-muted-foreground">
+              {canValue ? EUR(atRisk.total) : `${atRisk.cases.length} case${atRisk.cases.length > 1 ? "s" : ""}`}
+              <span className="ml-2 text-xs">pipeline stalled &gt; 30 days in stage</span>
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <tr className="border-b">
+                  <th className="px-4 py-2 font-medium">Use case</th>
+                  <th className="px-4 py-2 font-medium">Stage</th>
+                  <th className="px-4 py-2 text-right font-medium">Waiting</th>
+                  {canValue && <th className="px-4 py-2 text-right font-medium">Projected</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {atRisk.cases.map((c) => (
+                  <tr key={c.id} className="border-b last:border-0">
+                    <td className="px-4 py-2"><Link href={`/uc/${c.id}`} className="hover:underline"><span className="text-muted-foreground">{c.id}</span> {c.title}</Link></td>
+                    <td className="px-4 py-2 tabular-nums text-muted-foreground">{c.stage}</td>
+                    <td className="px-4 py-2 text-right tabular-nums text-warn">{c.daysInStage}d</td>
+                    {canValue && <td className="px-4 py-2 text-right tabular-nums">{EUR(c.valueProjected)}</td>}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       <Card className="mt-6 overflow-hidden">
         <div className="border-b px-4 py-3 text-sm font-semibold">Realized vs. business case (S8)</div>

@@ -1,10 +1,13 @@
 import Link from "next/link";
-import { listDemands } from "@/lib/demands-store";
+import { listDemands, readArtifact } from "@/lib/demands-store";
+import { parseRequirementsMarkdown, scoreRequirements, type RequirementsScore } from "@/lib/requirements";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AnalyseButton, AnalyseAll } from "./render";
 
 export const dynamic = "force-dynamic";
+
+const scoreTone = (n: number) => (n >= 80 ? "--ok" : n >= 50 ? "--warn" : "--destructive");
 
 const LANE_LABEL: Record<string, string> = {
   run: "run", regulatory: "regulatory", continuous_improvement: "continuous improvement",
@@ -14,6 +17,17 @@ const LANE_LABEL: Record<string, string> = {
 export default async function Requirements() {
   const demands = await listDemands();
   const unanalysed = demands.filter((d) => !d.artifacts.includes("requirements")).map((d) => d.id);
+
+  // Completeness score per analysed case (reuses the existing parser).
+  const scores: Record<string, RequirementsScore> = {};
+  await Promise.all(
+    demands
+      .filter((d) => d.artifacts.includes("requirements"))
+      .map(async (d) => {
+        const md = await readArtifact(d.id, "requirements").catch(() => undefined);
+        if (md) scores[d.id] = scoreRequirements(parseRequirementsMarkdown(md));
+      }),
+  );
 
   return (
     <main className="mx-auto max-w-[1100px] px-6 py-6">
@@ -41,6 +55,7 @@ export default async function Requirements() {
               <th className="px-4 py-2.5 font-medium">Domain</th>
               <th className="px-4 py-2.5 font-medium">Lane</th>
               <th className="px-4 py-2.5 font-medium">Requirements</th>
+              <th className="px-4 py-2.5 font-medium">Completeness</th>
               <th className="px-4 py-2.5 font-medium"></th>
             </tr>
           </thead>
@@ -60,6 +75,17 @@ export default async function Requirements() {
                       ? <Badge variant="outline" className="border-ok/50 font-normal text-ok">generated</Badge>
                       : <Badge variant="outline" className="font-normal text-muted-foreground">not analysed</Badge>}
                   </td>
+                  <td className="px-4 py-2.5">
+                    {scores[d.id]
+                      ? <span
+                          className="inline-flex items-center gap-1.5 tabular-nums"
+                          title={scores[d.id]!.missing.length ? `Gaps: ${scores[d.id]!.missing.join("; ")}` : "Complete"}
+                        >
+                          <span className="font-medium" style={{ color: `hsl(var(${scoreTone(scores[d.id]!.score)}))` }}>{scores[d.id]!.score}%</span>
+                          {scores[d.id]!.missing.length > 0 && <span className="text-xs text-muted-foreground">{scores[d.id]!.missing.length} gap{scores[d.id]!.missing.length > 1 ? "s" : ""}</span>}
+                        </span>
+                      : <span className="text-muted-foreground">—</span>}
+                  </td>
                   <td className="px-4 py-2.5 text-right">
                     {analysed
                       ? <Link href={`/requirements/${d.id}`} className="text-sm font-medium hover:underline">View →</Link>
@@ -69,7 +95,7 @@ export default async function Requirements() {
               );
             })}
             {demands.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">No demands in the funnel yet. <Link href="/intake" className="underline">Capture one.</Link></td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">No demands in the funnel yet. <Link href="/intake" className="underline">Capture one.</Link></td></tr>
             )}
           </tbody>
         </table>

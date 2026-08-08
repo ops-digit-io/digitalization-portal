@@ -43,6 +43,19 @@ describe("assembleBoard", () => {
     expect(card.valueProjected).toBeUndefined();
   });
 
+  it("carries the derived next-gate readiness onto the card", () => {
+    const withReadiness: RegistryRow[] = [
+      { id: "UC-R", title: "ready case", stage: "S3", targetGate: "G3", nextGateReady: true, since: "2026-05-01" },
+      { id: "UC-N", title: "not ready", stage: "S3", targetGate: "G3", since: "2026-05-01" },
+    ];
+    const board = assembleBoard(withReadiness, forum, NOW);
+    const ready = board.columns.S3.find((c) => c.id === "UC-R");
+    const notReady = board.columns.S3.find((c) => c.id === "UC-N");
+    expect(ready?.nextGateReady).toBe(true);
+    expect(ready?.targetGate).toBe("G3");
+    expect(notReady?.nextGateReady).toBeUndefined();
+  });
+
   it("surfaces needs-attention use cases separately, even with no stage", () => {
     const board = assembleBoard(rows, forum, NOW);
     expect(board.needsAttention.map((c) => c.id)).toContain("UC-4");

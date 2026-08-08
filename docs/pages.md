@@ -87,6 +87,8 @@ graph LR
 | `/admin/usage` | `/api/usage` |
 | `/analysis` | _server-rendered_ |
 | `/assistant` | `/api/agent` |
+| `/attention` | _server-rendered_ |
+| `/backlog` | _server-rendered_ |
 | `/board` | _server-rendered_ |
 | `/build` | `/api/poc` |
 | `/catalog/[type]/[name]` | `/api/registry`<br/>`/api/registry/item`<br/>`/api/registry/save` |
@@ -95,6 +97,8 @@ graph LR
 | `/champions` | `/api/champions`<br/>`/api/champions/analyse` |
 | `/demands` | _server-rendered_ |
 | `/digest` | _server-rendered_ |
+| `/docs/[slug]` | _server-rendered_ |
+| `/docs` | _server-rendered_ |
 | `/funnel` | _server-rendered_ |
 | `/handovers` | _server-rendered_ |
 | `/intake/chat` | `/api/intake/turn` |
@@ -112,6 +116,7 @@ graph LR
 | `/process` | _server-rendered_ |
 | `/requirements/[id]` | `/api/demands/${encodeURIComponent`<br/>`/api/demands/[id]/requirements-edits`<br/>`/api/demands/[id]/verification` |
 | `/requirements` | `/api/requirements` |
+| `/roadmap` | _server-rendered_ |
 | `/settings` | `/api/model-settings`<br/>`/api/status` |
 | `/simulate` | _server-rendered_ |
 | `/skill-library` | `/api/registry/import`<br/>`/api/registry/search` |
