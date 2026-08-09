@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { newFileTemplate, readEntryFile, ENTRY_FILE, type EntryType } from "@/lib/registry-store";
+import { getSession } from "@/lib/auth/current";
+import { can } from "@/lib/rbac";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** Read a single file within an entry (default: the entry file). */
 export async function GET(req: Request) {
+  if (!can(await getSession(), "view_board")) return NextResponse.json({ error: "not authenticated" }, { status: 401 });
   const url = new URL(req.url);
   const type = url.searchParams.get("type") as EntryType | null;
   const name = url.searchParams.get("name");

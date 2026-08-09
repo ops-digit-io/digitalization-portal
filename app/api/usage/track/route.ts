@@ -13,6 +13,8 @@
 import { NextResponse } from "next/server";
 import { recordUiEvents, type UiEvent } from "@/lib/usage-meter";
 import { isUiEventType } from "@/lib/portal-tools";
+import { getSession } from "@/lib/auth/current";
+import { can } from "@/lib/rbac";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +23,9 @@ export const dynamic = "force-dynamic";
 const MAX_EVENTS = 100;
 
 export async function POST(req: Request) {
+  // A member's activity is worth counting; an anonymous caller's is just pollutable
+  // noise — require a session so aggregate counts can't be inflated from outside.
+  if (!can(await getSession(), "view_board")) return NextResponse.json({ ok: false }, { status: 401 });
   let body: { events?: unknown };
   try {
     body = await req.json();

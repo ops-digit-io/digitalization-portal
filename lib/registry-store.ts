@@ -261,10 +261,12 @@ export interface RegistryFile {
 
 export interface SaveResult {
   host: "github" | "local";
-  /** Where it was written: "main" for github, "working tree" for local. */
+  /** Where it was written: the PR branch (github) or "working tree" (local). */
   target: string;
   repo: string;
   paths: string[];
+  /** The pull request opened for a github save (never auto-merged). */
+  pullRequest?: string;
 }
 
 function registryRepoName(env = process.env): string {
@@ -318,10 +320,23 @@ export async function saveEntry(
 
   const org = process.env.GITHUB_ORG ?? "org";
   const repo: RepoRef = { owner: org, name: registryRepoName(), url: `https://github.com/${org}/${registryRepoName()}`, local: false };
+
+  // Governance is never committed straight to main: skills/playbooks/contracts are the
+  // agent's authoritative prompt material, so a change opens a PR for a second approver
+  // (enforced by CODEOWNERS at merge). The portal never merges it (§4.5).
+  const slug = slugify(input.name) || safe(input.name).toLowerCase();
+  const branch = `registry/${input.type}-${slug}-${Date.now().toString(36)}`;
+  await host.createBranch(repo, branch, "main");
   for (const f of input.files) {
     const path = repoPath(input.type, input.name, input.bundle, f.path);
-    await host.putFile(repo, { path, content: f.content }, message, "main"); // commit to main
+    await host.putFile(repo, { path, content: f.content }, message, branch);
     paths.push(path);
   }
-  return { host: "github", target: "main", repo: repo.name, paths };
+  const pr = await host.openPullRequest(repo, {
+    title: `Registry: ${message}`,
+    head: branch,
+    base: "main",
+    body: `Proposed ${input.type} change to \`${input.name}\`, drafted in the portal. Review and merge with a second approver (CODEOWNERS) — the portal never merges governance.\n\nFiles:\n${paths.map((p) => `- \`${p}\``).join("\n")}`,
+  });
+  return { host: "github", target: branch, repo: repo.name, paths, pullRequest: pr.url };
 }
