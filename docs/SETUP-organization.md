@@ -15,21 +15,26 @@ This is the one-time setup that turns the live path on.
 section of the grammar (`lib/org/model.ts`), plus the framework:
 
 ```
-departments/<slug>/charter.md
-departments/<slug>/strategy.md
-departments/<slug>/objectives.md
-departments/<slug>/service-catalog.md
-departments/<slug>/intake.md
-departments/<slug>/operating-rhythm.md
-departments/<slug>/metrics.md
-departments/<slug>/decision-rights.md
-departments/<slug>/risks.md
-departments/<slug>/handover-contracts.md
-departments/<slug>/standards.md
-departments/<slug>/portfolio.md
-departments/<slug>/<module>.md        optional (landscape, systems-of-record, …)
-framework.md                           the framework itself (read-only in the app)
+departments/<slug>/00-core/charter.md
+departments/<slug>/00-core/strategy.md
+departments/<slug>/00-core/objectives.md
+departments/<slug>/00-core/service-catalog.md
+departments/<slug>/00-core/intake.md
+departments/<slug>/00-core/operating-rhythm.md
+departments/<slug>/00-core/metrics.md
+departments/<slug>/00-core/decision-rights.md
+departments/<slug>/00-core/risks.md
+departments/<slug>/00-core/handover-contracts.md
+departments/<slug>/00-core/standards.md
+departments/<slug>/00-core/portfolio.md
+departments/<slug>/10-modules/<module>.md   optional (systems-of-record, landscape, …)
+framework.md                                the framework itself (read-only in the app)
 ```
+
+The `00-core/` and `10-modules/` split follows the framework's own repository layout
+(`01-framework.md`). The critical sections that carry the validity contract
+(`valid-until`, `verification-method`, `source-of-truth`) are `strategy`, `metrics`,
+`decision-rights`, and the `systems-of-record` module.
 
 **Kept in this app repo** (machinery, not method): the grammar (`lib/org/model.ts`),
 the scorer (`lib/org/scoring.ts`), the store (`lib/org/store.ts`), and the bundled
