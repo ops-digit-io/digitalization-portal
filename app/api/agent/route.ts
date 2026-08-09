@@ -18,6 +18,7 @@ import { makeDuplicateScanTool } from "@/lib/agent/tools/duplicate-scan";
 import { agentToolsEnabled } from "@/lib/agent/tools";
 import { factsBlock } from "@/lib/agent/prompt";
 import { loadAnalystGuideline, analystSystemPrompt, ANALYST_GOVERNED_BY } from "@/lib/agent/analyst-guideline";
+import { orgContextDigest } from "@/lib/org/digest";
 import { wrapExternal } from "@/lib/agent/wrap";
 import { parseBusinessCase, toSimulationInput } from "@/lib/businesscase";
 import { listDemandRowsWithValue, readArtifact } from "@/lib/demands-store";
@@ -94,8 +95,11 @@ export async function POST(req: Request) {
   }
 
   // Behaviour comes from the library (portfolio-query playbook + portfolio-analysis
-  // skill), loaded dynamically — never a hardcoded prompt.
-  const system = analystSystemPrompt(await loadAnalystGuideline());
+  // skill), loaded dynamically — never a hardcoded prompt. The organization context
+  // (Department OS) is appended so the analyst reasons about the org behind the demand,
+  // not in a vacuum; it degrades to nothing when no department is written down.
+  const [guideline, orgContext] = await Promise.all([loadAnalystGuideline(), orgContextDigest()]);
+  const system = orgContext ? `${analystSystemPrompt(guideline)}\n\n${orgContext}` : analystSystemPrompt(guideline);
 
   try {
     const result = await runAgent({

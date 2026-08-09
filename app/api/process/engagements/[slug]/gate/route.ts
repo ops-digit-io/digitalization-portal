@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { GATES } from "@/lib/process/sections";
 import * as store from "@/lib/process/store";
 import { denyGate, now } from "@/lib/process/guard";
+import { getSession } from "@/lib/auth/current";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,5 +21,8 @@ export async function POST(req: Request, { params }: { params: { slug: string } 
   if (!body.passed && !String(body.reason || "").trim()) {
     return NextResponse.json({ error: "a failed gate needs a reason" }, { status: 400 });
   }
-  return NextResponse.json(await store.setGate(slug, String(body.torId), body.passed, String(body.reason || ""), now()));
+  // Record WHO recorded the verdict — a gate is authority-bearing, so it must be
+  // attributable (accountability; the demand funnel's separation of duties, applied here).
+  const by = (await getSession()).user;
+  return NextResponse.json(await store.setGate(slug, String(body.torId), body.passed, String(body.reason || ""), now(), by));
 }

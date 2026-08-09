@@ -40,6 +40,8 @@ export interface GateVerdict {
   passed: boolean;
   reason: string;
   at: string;
+  /** Who recorded this verdict (the session user) — accountability for a gate. */
+  by?: string;
 }
 
 export interface EngagementMeta {
@@ -212,10 +214,10 @@ export async function writeMeta(slug: string, patch: Partial<EngagementMeta>, no
 }
 
 /** Record a gate (Tor) verdict; a failed gate needs a reason (enforced at the route). */
-export async function setGate(slug: string, torId: string, passed: boolean, reason: string, now: string): Promise<EngagementMeta> {
+export async function setGate(slug: string, torId: string, passed: boolean, reason: string, now: string, by?: string): Promise<EngagementMeta> {
   const m = (await meta(slug))!;
   m.gates = m.gates || {};
-  m.gates[torId] = { passed: !!passed, reason: String(reason || ""), at: now };
+  m.gates[torId] = { passed: !!passed, reason: String(reason || ""), at: now, ...(by ? { by } : {}) };
   return writeMeta(slug, { gates: m.gates }, now);
 }
 
