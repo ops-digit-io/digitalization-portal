@@ -1,7 +1,16 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { DEFAULT_LOCALE, translate, type Locale } from "@/lib/i18n";
+
+/** The cookie server components read (mirrors `LOCALE_COOKIE` in lib/i18n-server). */
+const LOCALE_COOKIE = "du-locale";
+
+function readLocaleCookie(): Locale | null {
+  const m = document.cookie.match(/(?:^|;\s*)du-locale=([^;]+)/);
+  return m ? (decodeURIComponent(m[1]!) as Locale) : null;
+}
 
 /* ---------------- Theme ---------------- */
 
@@ -35,6 +44,7 @@ export const useI18n = () => useContext(LocaleContext);
 /* ---------------- Provider ---------------- */
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [theme, setTheme] = useState<Theme>("light");
   const [locale, setLocaleState] = useState<Locale>(DEFAULT_LOCALE);
 
@@ -46,8 +56,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
     setTheme(initialTheme);
     applyTheme(initialTheme);
 
-    const storedLocale = localStorage.getItem("du-locale") as Locale | null;
-    if (storedLocale) setLocaleState(storedLocale);
+    // Prefer the cookie (server components read it), then localStorage.
+    const stored = readLocaleCookie() ?? (localStorage.getItem("du-locale") as Locale | null);
+    if (stored) {
+      setLocaleState(stored);
+      document.documentElement.lang = stored;
+    }
   }, []);
 
   const toggle = () => {
@@ -62,6 +76,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const setLocale = (l: Locale) => {
     setLocaleState(l);
     localStorage.setItem("du-locale", l);
+    // Write the cookie so SERVER components translate too, then refresh so the
+    // already-rendered server tree re-renders in the new locale (no full reload).
+    document.cookie = `${LOCALE_COOKIE}=${encodeURIComponent(l)}; path=/; max-age=31536000; samesite=lax`;
+    document.documentElement.lang = l;
+    router.refresh();
   };
 
   const t = (key: string, fallback?: string) => translate(locale, key, fallback);
