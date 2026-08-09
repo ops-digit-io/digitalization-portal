@@ -82,7 +82,10 @@ export default async function DepartmentDetail({ params }: { params: { dept: str
           <div className="mt-3 space-y-5">
             {dept.modules.map((m) => (
               <Card key={m.key} id={m.key} className="p-5">
-                <h3 className="text-sm font-semibold">{m.title}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold">{m.title}</h3>
+                  {m.critical && <Badge variant="outline" className="border-rose-300 text-rose-600">critical</Badge>}
+                </div>
                 <div className="mt-3"><MarkdownPage body={m.body} /></div>
               </Card>
             ))}

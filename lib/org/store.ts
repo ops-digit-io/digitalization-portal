@@ -6,10 +6,13 @@
  * when the App is configured, else the local mirror (`npm run content:pull`), else
  * the bundled seed that ships in this repo so `/org` is never blank on a fresh deploy.
  *
- *   departments/<slug>/charter.md          the mandate — name, purpose, non-scope
- *   departments/<slug>/strategy.md          …one file per core section (see model.ts)
- *   departments/<slug>/<module>.md          optional department-wide modules
- *   framework.md                            the framework itself, surfaced read-only
+ *   departments/<slug>/00-core/charter.md    the mandate — name, purpose, non-scope
+ *   departments/<slug>/00-core/<section>.md  …one file per core section (see model.ts)
+ *   departments/<slug>/10-modules/<mod>.md   optional department-wide modules
+ *   framework.md                             the framework itself, surfaced read-only
+ *
+ * The `00-core/` / `10-modules/` split follows the framework's own repository layout
+ * (01-framework.md); `sectionSubdir()` in model.ts is the single source of truth for it.
  *
  * Every department is scored against the grammar in `model.ts` as it is read, so the
  * org map shows not just which departments exist but how completely each has written
@@ -22,7 +25,7 @@
 
 import { listContent, organizationRepo, readContent } from "../content-repo.js";
 import { parseFrontmatter } from "../agent/frontmatter.js";
-import { CORE_SECTIONS, MODULE_SECTIONS, sectionDef } from "./model.js";
+import { CORE_SECTIONS, MODULE_SECTIONS, sectionDef, sectionSubdir } from "./model.js";
 import { scoreDepartment, type DepartmentScore, type SectionScore } from "./scoring.js";
 import { bundledDepartments, bundledDepartment, bundledFramework } from "./seed.js";
 
@@ -43,6 +46,8 @@ export interface DepartmentModule {
   key: string;
   title: string;
   body: string;
+  /** The one module that carries the validity contract (systems-of-record). */
+  critical: boolean;
 }
 
 export interface DepartmentSummary {
@@ -94,7 +99,7 @@ async function readCoreFiles(slug: string): Promise<Record<string, string | unde
   const files: Record<string, string | undefined> = {};
   await Promise.all(
     CORE_SECTIONS.map(async (s) => {
-      const live = await readContent(organizationRepo(), `${DEPTS}/${slug}/${s.key}.md`).catch(() => undefined);
+      const live = await readContent(organizationRepo(), `${DEPTS}/${slug}/${sectionSubdir(s.key)}/${s.key}.md`).catch(() => undefined);
       files[s.key] = live ?? bundledDepartment(slug)?.[s.key];
     }),
   );
@@ -152,9 +157,9 @@ export async function readDepartment(slugInput: string): Promise<Department | nu
   const modules: DepartmentModule[] = [];
   await Promise.all(
     MODULE_SECTIONS.map(async (m) => {
-      const live = await readContent(organizationRepo(), `${DEPTS}/${slug}/${m.key}.md`).catch(() => undefined);
+      const live = await readContent(organizationRepo(), `${DEPTS}/${slug}/${sectionSubdir(m.key)}/${m.key}.md`).catch(() => undefined);
       const source = live ?? bundledDepartment(slug)?.[m.key];
-      if (source && source.trim()) modules.push({ key: m.key, title: m.title, body: parseFrontmatter(source).body });
+      if (source && source.trim()) modules.push({ key: m.key, title: m.title, body: parseFrontmatter(source).body, critical: m.critical === true });
     }),
   );
   modules.sort((a, b) => a.title.localeCompare(b.title));

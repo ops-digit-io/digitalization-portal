@@ -18,11 +18,10 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getGitHost, hasGitHubCredentials, type RepoRef } from "../git/index.js";
 import { organizationRepo } from "../content-repo.js";
-import { CORE_KEYS, MODULE_SECTIONS } from "./model.js";
+import { CORE_KEYS, MODULE_KEYS, sectionSubdir } from "./model.js";
 import { scaffoldSection, slugifyDept } from "./scaffold.js";
 
 const DEPTS = "departments";
-const MODULE_KEYS = MODULE_SECTIONS.map((m) => m.key);
 const KNOWN_KEYS = new Set<string>([...CORE_KEYS, ...MODULE_KEYS]);
 
 function live(): boolean {
@@ -67,7 +66,7 @@ export async function saveSection(
   if (!slug) throw new OrgWriteError(`invalid department slug: ${slugInput}`);
   if (!KNOWN_KEYS.has(key)) throw new OrgWriteError(`unknown section: ${key}`);
 
-  const rel = `${DEPTS}/${slug}/${key}.md`;
+  const rel = `${DEPTS}/${slug}/${sectionSubdir(key)}/${key}.md`;
   const msg = message?.trim() || `Update ${slug}/${key}`;
 
   if (live()) {

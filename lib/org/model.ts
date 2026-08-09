@@ -227,7 +227,10 @@ export const CORE_SECTIONS: readonly SectionDef[] = [
       { type: "column", pattern: "(?i)(waiver|ausnahme|exception)", weight: 12, label: "a waiver / exception procedure" },
     ],
     coaching: "Which standard is most often quietly worked around — and is its waiver path written down?",
-    critical: true,
+    // Not a "critical" section in the framework's sense: standards carry a per-row
+    // `valid until` column, but the section-level validity contract (valid-until +
+    // verification-method + source-of-truth) is reserved for strategy, metrics,
+    // decision-rights and the systems-of-record module (01-framework.md §Mechanik).
   },
   {
     key: "portfolio",
@@ -244,9 +247,13 @@ export const CORE_SECTIONS: readonly SectionDef[] = [
   },
 ];
 
-/** The department-wide modules — additive, switched on when their trigger fires. */
-export const MODULE_SECTIONS: readonly { key: string; title: string; trigger: string }[] = [
-  { key: "systems-of-record", title: "Systems of record", trigger: "Mandatory the moment an agent reads. Two sources for one object is the surest way to a wrong answer." },
+/**
+ * The department-wide modules — additive, switched on when their trigger fires.
+ * `critical` marks the one module that carries the validity contract: `systems-of-record`
+ * is the fourth critical section in the framework (with strategy, metrics, decision-rights).
+ */
+export const MODULE_SECTIONS: readonly { key: string; title: string; trigger: string; critical?: boolean }[] = [
+  { key: "systems-of-record", title: "Systems of record", trigger: "Mandatory the moment an agent reads. Two sources for one object is the surest way to a wrong answer.", critical: true },
   { key: "landscape", title: "Landscape (per facility)", trigger: "When a chain starts with a stock-taking — so it is not redone in the same plant next time." },
   { key: "capabilities", title: "Capabilities & gaps", trigger: "Before any automation decision." },
   { key: "shared-controls", title: "Shared controls", trigger: "Cross-cutting rules (budget, procurement, hiring, privacy, security) that bind several lanes at once." },
@@ -256,7 +263,18 @@ export const MODULE_SECTIONS: readonly { key: string; title: string; trigger: st
 ];
 
 export const CORE_KEYS: readonly string[] = CORE_SECTIONS.map((s) => s.key);
+export const MODULE_KEYS: readonly string[] = MODULE_SECTIONS.map((m) => m.key);
 const BY_KEY = new Map(CORE_SECTIONS.map((s) => [s.key, s]));
 export function sectionDef(key: string): SectionDef | undefined {
   return BY_KEY.get(key);
+}
+
+const MODULE_KEY_SET = new Set(MODULE_KEYS);
+/**
+ * The in-department subdirectory a section file lives in, per the framework's layout
+ * (01-framework.md): core files under `00-core/`, department-wide modules under
+ * `10-modules/`. A single point of truth so the reader and the writer never diverge.
+ */
+export function sectionSubdir(key: string): "00-core" | "10-modules" {
+  return MODULE_KEY_SET.has(key) ? "10-modules" : "00-core";
 }
