@@ -26,7 +26,7 @@
 import { listContent, organizationRepo, readContent } from "../content-repo.js";
 import { parseFrontmatter } from "../agent/frontmatter.js";
 import { CORE_SECTIONS, MODULE_SECTIONS, sectionDef, sectionSubdir } from "./model.js";
-import { scoreDepartment, type DepartmentScore, type SectionScore } from "./scoring.js";
+import { scoreDepartment, scoreSection, type DepartmentScore, type SectionScore } from "./scoring.js";
 import { bundledDepartments, bundledDepartment, bundledFramework } from "./seed.js";
 
 const DEPTS = "departments";
@@ -45,9 +45,18 @@ export interface DepartmentSection {
 export interface DepartmentModule {
   key: string;
   title: string;
+  /** When this module becomes necessary. */
+  trigger: string;
+  /** Rendered body (frontmatter stripped). */
   body: string;
+  /** Raw source including frontmatter, for the editor. */
+  source: string;
   /** The one module that carries the validity contract (systems-of-record). */
   critical: boolean;
+  /** The module file exists with content. */
+  present: boolean;
+  /** Scored against the module's grammar, the same as a core section. */
+  score: SectionScore;
 }
 
 export interface DepartmentSummary {
@@ -154,15 +163,24 @@ export async function readDepartment(slugInput: string): Promise<Department | nu
     };
   });
 
-  const modules: DepartmentModule[] = [];
-  await Promise.all(
-    MODULE_SECTIONS.map(async (m) => {
+  // Every module, scored — present ones filled, absent ones at 0 so the UI can offer to
+  // start them. Modules are first-class scored sections now, not read-only prose.
+  const modules: DepartmentModule[] = await Promise.all(
+    MODULE_SECTIONS.map(async (m): Promise<DepartmentModule> => {
       const live = await readContent(organizationRepo(), `${DEPTS}/${slug}/${sectionSubdir(m.key)}/${m.key}.md`).catch(() => undefined);
-      const source = live ?? bundledDepartment(slug)?.[m.key];
-      if (source && source.trim()) modules.push({ key: m.key, title: m.title, body: parseFrontmatter(source).body, critical: m.critical === true });
+      const source = live ?? bundledDepartment(slug)?.[m.key] ?? "";
+      return {
+        key: m.key,
+        title: m.title,
+        trigger: m.trigger,
+        source,
+        body: parseFrontmatter(source).body,
+        critical: m.critical === true,
+        present: source.trim() !== "",
+        score: scoreSection(m, source),
+      };
     }),
   );
-  modules.sort((a, b) => a.title.localeCompare(b.title));
 
   return {
     slug,

@@ -7,11 +7,12 @@ import {
   startingPoint,
   createLane,
   saveLaneFile,
+  saveLaneDoc,
   laneStartingPoint,
   OrgWriteError,
 } from "@/lib/org/authoring";
 import { scoreSection } from "@/lib/org/scoring";
-import { sectionDef } from "@/lib/org/model";
+import { anyDef } from "@/lib/org/model";
 import { laneFileDef } from "@/lib/org/lane";
 
 export const runtime = "nodejs";
@@ -31,11 +32,12 @@ export async function POST(req: Request) {
     name?: string;
     slug?: string;
     lane?: string;
+    dir?: string;
     key?: string;
     markdown?: string;
   };
 
-  const defFor = (key: string | undefined, isLane: boolean) => (key ? (isLane ? laneFileDef(key) : sectionDef(key)) : undefined);
+  const defFor = (key: string | undefined, isLane: boolean) => (key ? (isLane ? laneFileDef(key) : anyDef(key)) : undefined);
 
   // Live score of a draft — no write, so the lighter capability. `score-lane` scores
   // against the lane grammar; `score` against the department-section grammar.
@@ -56,7 +58,7 @@ export async function POST(req: Request) {
     if (body.action === "save") {
       if (!body.slug || !body.key) return NextResponse.json({ error: "slug and key are required" }, { status: 400 });
       const where = await saveSection(body.slug, body.key, body.markdown ?? "", `Update ${body.slug}/${body.key}`);
-      const def = sectionDef(body.key);
+      const def = anyDef(body.key);
       const score = def ? scoreSection(def, body.markdown ?? "") : undefined;
       return NextResponse.json({ ok: true, host: where.host, ...(score ? { score } : {}) });
     }
@@ -71,6 +73,13 @@ export async function POST(req: Request) {
       const def = laneFileDef(body.key);
       const score = def ? scoreSection(def, body.markdown ?? "") : undefined;
       return NextResponse.json({ ok: true, host: where.host, ...(score ? { score } : {}) });
+    }
+    if (body.action === "save-lane-doc") {
+      if (!body.slug || !body.lane || !body.dir || !body.name) {
+        return NextResponse.json({ error: "slug, lane, dir and name are required" }, { status: 400 });
+      }
+      const where = await saveLaneDoc(body.slug, body.lane, body.dir, body.name, body.markdown ?? "");
+      return NextResponse.json({ ok: true, host: where.host, slug: where.slug });
     }
     return NextResponse.json({ error: `unknown action: ${body.action}` }, { status: 400 });
   } catch (e) {
@@ -95,6 +104,6 @@ export async function GET(req: Request) {
     if (!laneFileDef(key)) return NextResponse.json({ error: `unknown lane file: ${key}` }, { status: 400 });
     return NextResponse.json({ markdown: laneStartingPoint(key, name) });
   }
-  if (!sectionDef(key)) return NextResponse.json({ error: `unknown section: ${key}` }, { status: 400 });
+  if (!anyDef(key)) return NextResponse.json({ error: `unknown section: ${key}` }, { status: 400 });
   return NextResponse.json({ markdown: startingPoint(key, name) });
 }

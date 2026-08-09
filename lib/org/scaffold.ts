@@ -12,7 +12,7 @@
  * test failure, not a silent regression.
  */
 
-import { CORE_SECTIONS, sectionDef } from "./model.js";
+import { CORE_SECTIONS, sectionDef, anyDef } from "./model.js";
 
 /** A URL/id-safe department slug from a free-text name. */
 export function slugifyDept(name: string): string {
@@ -27,7 +27,7 @@ export function slugifyDept(name: string): string {
 
 /** Frontmatter block for a section — validity keys added for the critical ones. */
 function frontmatter(key: string): string {
-  const critical = sectionDef(key)?.critical === true;
+  const critical = anyDef(key)?.critical === true;
   const lines = ["owner:", "review-cadence: quarterly", "last-verified:"];
   if (critical) lines.push("valid-until:", "verification-method:", "source-of-truth:");
   return ["---", ...lines, "---"].join("\n");
@@ -151,12 +151,64 @@ _The pipeline the initiatives move through, and the gate between each stage._
 |---|---|---|---|---|
 |  |  |  |  |  |
 `,
+
+  // ---- department-wide modules ----
+  "systems-of-record": () => `# Systems of record
+
+| Data object | Source (system) | Write-right / owner | Freshness | Fallback |
+|---|---|---|---|---|
+|  |  |  |  |  |
+|  |  |  |  |  |
+`,
+  landscape: () => `# Landscape (per facility)
+
+| Facility | Connectivity | Legacy systems | Known barriers |
+|---|---|---|---|
+|  |  |  |  |
+`,
+  capabilities: () => `# Capabilities & gaps
+
+## Capabilities
+_What this department can do today._
+
+## Bottlenecks & gaps
+_Where it is constrained, and the skill gaps that block the next automation._
+`,
+  "shared-controls": () => `# Shared controls
+
+| Control | Scope (which lanes) | Rule | Owner |
+|---|---|---|---|
+|  |  |  |  |
+|  |  |  |  |
+`,
+  guardrails: () => `# Guardrails
+
+## Guardrails — what must never happen
+_The lines an agent must not cross, even within its authority level._
+
+## Write / outward-action limits
+_What the agent may never do when it writes or acts outward unsupervised._
+`,
+  "iteration-loop": () => `# Iteration loop
+
+## The loop
+_Experiment → measure → adopt or discard, each time-boxed._
+
+## Metrics — decision latency · cycle time · reversal rate
+_Decision latency (idea → decision), cycle time (decision → effect), reversal rate._
+`,
+  "operating-context": () => `# Operating context
+
+| Unit / partner | Dependency | What we need from them | What they need from us |
+|---|---|---|---|
+|  |  |  |  |
+`,
 };
 
 /** The starter markdown for one section — frontmatter + a grammar-shaped skeleton. */
 export function scaffoldSection(key: string, deptName = "New department"): string {
   const body = BODY[key];
-  if (!body) return `${frontmatter(key)}\n\n# ${sectionDef(key)?.title ?? key}\n`;
+  if (!body) return `${frontmatter(key)}\n\n# ${anyDef(key)?.title ?? key}\n`;
   return `${frontmatter(key)}\n\n${body(deptName)}`;
 }
 

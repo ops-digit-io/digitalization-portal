@@ -247,26 +247,125 @@ export const CORE_SECTIONS: readonly SectionDef[] = [
   },
 ];
 
+/** A module is a full section (scored, coached) plus the trigger that switches it on. */
+export type ModuleDef = SectionDef & { trigger: string };
+
 /**
- * The department-wide modules — additive, switched on when their trigger fires.
- * `critical` marks the one module that carries the validity contract: `systems-of-record`
- * is the fourth critical section in the framework (with strategy, metrics, decision-rights).
+ * The department-wide modules — additive, switched on when their trigger fires. Each is
+ * a first-class scored section (same grammar as the core), so a module is filled with
+ * the same live coaching. `critical` marks `systems-of-record` — the fourth section that
+ * carries the validity contract (with strategy, metrics, decision-rights).
  */
-export const MODULE_SECTIONS: readonly { key: string; title: string; trigger: string; critical?: boolean }[] = [
-  { key: "systems-of-record", title: "Systems of record", trigger: "Mandatory the moment an agent reads. Two sources for one object is the surest way to a wrong answer.", critical: true },
-  { key: "landscape", title: "Landscape (per facility)", trigger: "When a chain starts with a stock-taking — so it is not redone in the same plant next time." },
-  { key: "capabilities", title: "Capabilities & gaps", trigger: "Before any automation decision." },
-  { key: "shared-controls", title: "Shared controls", trigger: "Cross-cutting rules (budget, procurement, hiring, privacy, security) that bind several lanes at once." },
-  { key: "guardrails", title: "Guardrails", trigger: "The moment an agent writes or acts outward." },
-  { key: "iteration-loop", title: "Iteration loop", trigger: "When speed itself becomes a goal (decision latency, cycle time, reversal rate)." },
-  { key: "operating-context", title: "Operating context", trigger: "On strong dependency on other units." },
+export const MODULE_SECTIONS: readonly ModuleDef[] = [
+  {
+    key: "systems-of-record",
+    title: "Systems of record",
+    trigger: "Mandatory the moment an agent reads. Two sources for one object is the surest way to a wrong answer.",
+    purpose: "Where the truth for each data object lives — so nobody, human or agent, reads a stale second copy.",
+    machineNeed: "An agent must know the source, its write-right and its freshness before it may act on a value.",
+    required: [
+      owner,
+      { type: "table", minRows: 2, weight: 20, label: "the data objects as a table" },
+      { type: "column", pattern: "(?i)(quelle|source|system)", weight: 16, label: "a Source (system) column" },
+      { type: "column", pattern: "(?i)(schreib|write|owner|verantwort)", weight: 14, label: "a write-right / data-owner column" },
+      { type: "column", pattern: "(?i)(aktualit|freshness|stand|updated)", weight: 8, label: "a freshness column" },
+    ],
+    coaching: "For the object two teams argue about — which system is the source of truth, and who may write it?",
+    critical: true,
+  },
+  {
+    key: "landscape",
+    title: "Landscape (per facility)",
+    trigger: "When a chain starts with a stock-taking — so it is not redone in the same plant next time.",
+    purpose: "The connectivity/legacy inventory per facility, kept so the next use case reads it instead of redoing the survey.",
+    machineNeed: "An agent can mirror a new use case against known barriers before anyone travels to site.",
+    required: [
+      owner,
+      { type: "table", minRows: 1, weight: 24, label: "the facilities as a table" },
+      { type: "column", pattern: "(?i)(barrier|legacy|konnektiv|connectivity|hindernis)", weight: 18, label: "a barriers / connectivity column" },
+    ],
+    coaching: "For one facility: what is already connected, what is legacy, and which barrier blocks value first?",
+  },
+  {
+    key: "capabilities",
+    title: "Capabilities & gaps",
+    trigger: "Before any automation decision.",
+    purpose: "What the department can do, where the bottlenecks are, and the skill gaps — read before any automation call.",
+    machineNeed: "An automation proposal is only sound if the capability to run it (or the gap) is written down.",
+    required: [
+      owner,
+      { type: "heading", pattern: "(?i)(fähigkeit|capabilit|können)", weight: 16, label: "a Capabilities section" },
+      { type: "heading", pattern: "(?i)(engpass|bottleneck|gap|lücke)", weight: 18, label: "a bottlenecks / gaps section" },
+    ],
+    coaching: "Which single capability gap, if unfilled, blocks the next automation you want to attempt?",
+  },
+  {
+    key: "shared-controls",
+    title: "Shared controls",
+    trigger: "Cross-cutting rules (budget, procurement, hiring, privacy, security) that bind several lanes at once.",
+    purpose: "The rules that bind several lanes at once — so they are written once, not duplicated and then contradicted.",
+    machineNeed: "An agent acting in any lane must honour the cross-cutting rule, so it needs one authoritative place to read it.",
+    required: [
+      owner,
+      { type: "table", minRows: 2, weight: 22, label: "the controls as a table" },
+      { type: "column", pattern: "(?i)(geltung|scope|bereich|applies)", weight: 12, label: "a scope column (which lanes it binds)" },
+    ],
+    coaching: "Which rule (budget, procurement, privacy, security) is currently written differently in two lanes?",
+  },
+  {
+    key: "guardrails",
+    title: "Guardrails",
+    trigger: "The moment an agent writes or acts outward.",
+    purpose: "The lines an agent must never cross once it writes or acts outward — the safety envelope around autonomy.",
+    machineNeed: "Before granting write/outward authority, the guardrails must be explicit, not assumed.",
+    required: [
+      owner,
+      { type: "heading", pattern: "(?i)(guardrail|leitplanke|grenze|never|verbot)", weight: 20, label: "the guardrails (what must never happen)" },
+      { type: "heading", pattern: "(?i)(außen|outward|extern|schreib|write)", weight: 14, label: "the write / outward-action limits" },
+    ],
+    coaching: "What is the one outward action an agent in this department must never take unsupervised?",
+  },
+  {
+    key: "iteration-loop",
+    title: "Iteration loop",
+    trigger: "When speed itself becomes a goal (decision latency, cycle time, reversal rate).",
+    purpose: "Experiment → measure → adopt or discard, each time-boxed — so improving how you decide is itself steered.",
+    machineNeed: "The loop's three clocks (decision latency, cycle time, reversal rate) are watchable values an agent can report.",
+    required: [
+      owner,
+      { type: "heading", pattern: "(?i)(experiment|loop|schleife|zyklus)", weight: 14, label: "the loop (experiment → measure → adopt/discard)" },
+      { type: "heading", pattern: "(?i)(latency|latenz|cycle|zyklus|reversal|rücknahme)", weight: 18, label: "the three metrics (decision latency, cycle time, reversal rate)" },
+    ],
+    coaching: "Of decision latency, cycle time and reversal rate — which is worst today, and what would move it?",
+  },
+  {
+    key: "operating-context",
+    title: "Operating context",
+    trigger: "On strong dependency on other units.",
+    purpose: "The other units this department strongly depends on, and the nature of each dependency.",
+    machineNeed: "An agent escalates or hands off correctly only if the external dependencies are named.",
+    required: [
+      owner,
+      { type: "table", minRows: 1, weight: 22, label: "the dependencies as a table" },
+      { type: "column", pattern: "(?i)(einheit|unit|abteilung|department|partner)", weight: 14, label: "a unit / partner column" },
+    ],
+    coaching: "Which other unit, if it stalled, would stall this department within a week?",
+  },
 ];
 
 export const CORE_KEYS: readonly string[] = CORE_SECTIONS.map((s) => s.key);
 export const MODULE_KEYS: readonly string[] = MODULE_SECTIONS.map((m) => m.key);
 const BY_KEY = new Map(CORE_SECTIONS.map((s) => [s.key, s]));
+const MODULE_BY_KEY = new Map(MODULE_SECTIONS.map((m) => [m.key, m]));
 export function sectionDef(key: string): SectionDef | undefined {
   return BY_KEY.get(key);
+}
+export function moduleDef(key: string): ModuleDef | undefined {
+  return MODULE_BY_KEY.get(key);
+}
+/** Grammar for any section — core OR module. The one lookup the authoring paths use. */
+export function anyDef(key: string): SectionDef | undefined {
+  return BY_KEY.get(key) ?? MODULE_BY_KEY.get(key);
 }
 
 const MODULE_KEY_SET = new Set(MODULE_KEYS);

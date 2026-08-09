@@ -19,12 +19,13 @@ import path from "node:path";
 import { getGitHost, hasGitHubCredentials, type RepoRef } from "../git/index.js";
 import { organizationRepo } from "../content-repo.js";
 import { CORE_KEYS, MODULE_KEYS, sectionSubdir } from "./model.js";
-import { LANE_KEYS } from "./lane.js";
+import { LANE_KEYS, LANE_DIRS } from "./lane.js";
 import { scaffoldSection, scaffoldLane, scaffoldLaneFile, slugifyDept } from "./scaffold.js";
 
 const DEPTS = "departments";
 const KNOWN_KEYS = new Set<string>([...CORE_KEYS, ...MODULE_KEYS]);
 const LANE_KEY_SET = new Set<string>(LANE_KEYS);
+const LANE_DIR_SET = new Set<string>(LANE_DIRS);
 
 function live(): boolean {
   return hasGitHubCredentials();
@@ -149,6 +150,42 @@ export async function createLane(deptSlugInput: string, laneName: string): Promi
     await saveLaneFile(deptSlug, laneSlug, key, md, `Create lane ${deptSlug}/${laneSlug}`);
   }
   return { slug: laneSlug };
+}
+
+/**
+ * Save a free-form lane-pack document under `procedures/` or `examples/`
+ * (`lanes/<lane>/<dir>/<slug>.md`). These are reusable procedures and real-case
+ * examples — not scored, but authored in the app like everything else. `name` becomes
+ * the file slug; `dir` must be a known lane directory.
+ */
+export async function saveLaneDoc(
+  deptSlugInput: string,
+  laneSlugInput: string,
+  dir: string,
+  name: string,
+  markdown: string,
+  message?: string,
+): Promise<{ host: "github" | "local"; path: string; slug: string }> {
+  const deptSlug = safeSlug(deptSlugInput);
+  const laneSlug = safeSlug(laneSlugInput);
+  if (!deptSlug) throw new OrgWriteError(`invalid department slug: ${deptSlugInput}`);
+  if (!laneSlug) throw new OrgWriteError(`invalid lane slug: ${laneSlugInput}`);
+  if (!LANE_DIR_SET.has(dir)) throw new OrgWriteError(`unknown lane directory: ${dir}`);
+  const fileSlug = slugifyDept(name);
+  if (!fileSlug) throw new OrgWriteError(`could not derive a file name from “${name}”`);
+
+  const rel = `${DEPTS}/${deptSlug}/lanes/${laneSlug}/${dir}/${fileSlug}.md`;
+  const msg = message?.trim() || `Update ${deptSlug}/lanes/${laneSlug}/${dir}/${fileSlug}`;
+
+  if (live()) {
+    await ensureRepo();
+    await getGitHost().putFile(repoRef(), { path: rel, content: markdown }, msg, "main");
+    return { host: "github", path: rel, slug: fileSlug };
+  }
+  const abs = path.join(organizationRepo().mirrorDir, rel);
+  await mkdir(path.dirname(abs), { recursive: true });
+  await writeFile(abs, markdown);
+  return { host: "local", path: abs, slug: fileSlug };
 }
 
 /** A blank section, scaffolded — for the editor's "start this section" action. */
