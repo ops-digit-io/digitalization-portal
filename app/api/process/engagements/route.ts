@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import * as store from "@/lib/process/store";
 import { byId, type Level } from "@/lib/process/criteria";
 import { summarize } from "@/lib/process/summary";
-import { deny, now } from "@/lib/process/guard";
+import { deny, denyWrite, now } from "@/lib/process/guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const d = await deny();
+  const d = await denyWrite();
   if (d) return d;
   const body = (await req.json().catch(() => ({}))) as {
     title?: string; owner?: string; champion?: string; unit?: string;

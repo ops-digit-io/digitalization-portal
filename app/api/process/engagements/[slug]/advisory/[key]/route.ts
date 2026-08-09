@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { advisoryByKey, readiness } from "@/lib/process/advisory";
 import * as store from "@/lib/process/store";
-import { deny, now } from "@/lib/process/guard";
+import { deny, denyWrite, now } from "@/lib/process/guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export async function GET(_req: Request, { params }: { params: { slug: string; k
 
 /** Hand-edit an advisory artefact. It stays a derived proposal either way. */
 export async function PUT(req: Request, { params }: { params: { slug: string; key: string } }) {
-  const d = await deny();
+  const d = await denyWrite();
   if (d) return d;
   const { slug, key } = params;
   if (!advisoryByKey[key]) return NextResponse.json({ error: "no such advisory pass" }, { status: 404 });

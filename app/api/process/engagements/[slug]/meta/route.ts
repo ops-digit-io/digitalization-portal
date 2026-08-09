@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { SECTION_GROUPS } from "@/lib/process/sections";
 import * as store from "@/lib/process/store";
-import { deny, now } from "@/lib/process/guard";
+import { denyWrite, now } from "@/lib/process/guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ const STAGE_IDS = new Set(SECTION_GROUPS.map((g) => g.id));
  * in the `diagnosis` section, where its evidence sits.
  */
 export async function PATCH(req: Request, { params }: { params: { slug: string } }) {
-  const d = await deny();
+  const d = await denyWrite();
   if (d) return d;
   const { slug } = params;
   if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });

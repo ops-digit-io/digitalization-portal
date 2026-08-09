@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { oidcEnabled } from "@/lib/auth/config";
+import { oidcEnabled, demoAllowed } from "@/lib/auth/config";
 import { SESSION_COOKIE, verifySession } from "@/lib/auth/cookie";
 
 /**
- * Route guard. When OIDC is configured, every request must carry a valid session
- * cookie; otherwise pages redirect to /login and API routes get a 401. When OIDC
- * is NOT configured, the portal runs on the demo session and nothing is gated.
+ * Route guard. Three postures (see `authMode`):
+ *   - oidc:   every request must carry a valid session cookie; pages redirect to
+ *             /login, API routes get 401.
+ *   - demo:   OIDC off but demo explicitly permitted (dev, or ALLOW_DEMO_SESSION=1)
+ *             — the portal runs on the demo session and nothing is gated here.
+ *   - closed: OIDC off AND demo not permitted (a misconfigured production) — fail
+ *             CLOSED: deny like the oidc posture, so no anonymous admin is served.
  *
  * Always-open paths: the login page, the auth endpoints themselves, and the
  * status endpoint (so the header can tell whether to show "Sign in").
@@ -14,12 +18,16 @@ import { SESSION_COOKIE, verifySession } from "@/lib/auth/cookie";
 const OPEN = ["/login", "/api/auth/", "/api/status", "/api/webhooks/", "/api/cron/"];
 
 export async function middleware(req: NextRequest) {
-  if (!oidcEnabled()) return NextResponse.next();
+  const oidc = oidcEnabled();
+  // Demo posture (dev, or an explicit prod opt-in): nothing gated at the edge.
+  if (!oidc && demoAllowed()) return NextResponse.next();
 
   const { pathname } = req.nextUrl;
   if (OPEN.some((p) => pathname === p || pathname.startsWith(p))) return NextResponse.next();
 
-  const token = req.cookies.get(SESSION_COOKIE)?.value;
+  // Only trust a session cookie under OIDC; in the closed posture there is no valid
+  // token and we must not attempt to honour one.
+  const token = oidc ? req.cookies.get(SESSION_COOKIE)?.value : undefined;
   if (token && (await verifySession(token))) return NextResponse.next();
 
   if (pathname.startsWith("/api/")) {

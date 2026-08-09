@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { byId } from "@/lib/process/criteria";
 import * as store from "@/lib/process/store";
 import { profileOf } from "@/lib/process/profile";
-import { deny, now } from "@/lib/process/guard";
+import { denyWrite, now } from "@/lib/process/guard";
 import type { Level, Confidence } from "@/lib/process/criteria";
 
 export const runtime = "nodejs";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 /** Set (or clear) one criterion's S1–S5 rating. For D7 pass componentId. */
 export async function POST(req: Request, { params }: { params: { slug: string } }) {
-  const d = await deny();
+  const d = await denyWrite();
   if (d) return d;
   const { slug } = params;
   if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });

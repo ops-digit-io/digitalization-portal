@@ -5,15 +5,18 @@ import { schemaOf } from "@/lib/process/schemas";
 import * as store from "@/lib/process/store";
 import * as coach from "@/lib/process/coach";
 import * as llm from "@/lib/process/llm";
-import { deny, now } from "@/lib/process/guard";
+import { denyWrite, now } from "@/lib/process/guard";
+import { throttle, AI_BUDGET } from "@/lib/api/throttle";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** Generate the section document live and save it. 503 when no key. */
 export async function POST(req: Request, { params }: { params: { slug: string; key: string } }) {
-  const d = await deny();
+  const d = await denyWrite();
   if (d) return d;
+  const throttled = await throttle("proc-generate", AI_BUDGET);
+  if (throttled) return throttled;
   const { slug, key } = params;
   if (!sectionByKey[key]) return NextResponse.json({ error: "no such section" }, { status: 404 });
   if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });

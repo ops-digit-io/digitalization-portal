@@ -22,6 +22,7 @@ import { wrapExternal } from "@/lib/agent/wrap";
 import { parseBusinessCase, toSimulationInput } from "@/lib/businesscase";
 import { listDemandRowsWithValue, readArtifact } from "@/lib/demands-store";
 import { getSession } from "@/lib/auth/current";
+import { throttle, AI_BUDGET } from "@/lib/api/throttle";
 
 export const runtime = "nodejs";
 
@@ -48,6 +49,9 @@ export async function POST(req: Request) {
   if (!can(session, "view_board")) {
     return NextResponse.json({ error: "authentication required" }, { status: 401 });
   }
+  // The analyst is a paid model call plus a whole-corpus read — throttle per user.
+  const throttled = await throttle("agent", AI_BUDGET);
+  if (throttled) return throttled;
   const provider = await resolveProvider();
   // Real funnel rows (with real business-case value), never seed.
   const rows = await listDemandRowsWithValue();

@@ -14,7 +14,7 @@
 import { cookies } from "next/headers";
 import type { Session } from "../rbac.js";
 import { DEMO_SESSION } from "../seed.js";
-import { oidcEnabled } from "./config.js";
+import { oidcEnabled, demoAllowed } from "./config.js";
 import { SESSION_COOKIE, verifySession } from "./cookie.js";
 
 /** No portal role → visible-to-nobody; every `can()` check fails. */
@@ -33,7 +33,10 @@ export interface CurrentUser {
 /** Resolve the current user (session + display context). */
 export async function getCurrentUser(): Promise<CurrentUser> {
   if (!oidcEnabled()) {
-    return { session: DEMO_SESSION, demo: true, authenticated: false, name: "Demo user" };
+    // Demo session (which carries admin) only when explicitly permitted — otherwise
+    // fail closed to anonymous so a misconfigured production never serves admin.
+    if (demoAllowed()) return { session: DEMO_SESSION, demo: true, authenticated: false, name: "Demo user" };
+    return { session: ANONYMOUS, demo: false, authenticated: false };
   }
   const token = cookies().get(SESSION_COOKIE)?.value;
   const claims = token ? await verifySession(token) : null;

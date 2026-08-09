@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import * as store from "@/lib/process/store";
 import { analyse } from "@/lib/process/analysis";
-import { deny } from "@/lib/process/guard";
+import { denyWrite } from "@/lib/process/guard";
+import { throttle, AI_BUDGET } from "@/lib/api/throttle";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,8 +10,10 @@ export const dynamic = "force-dynamic";
 /** Run the analysis agent — disassemble the diagnosis into proposed demands.
  *  Returns proposals only; creation is a separate, confirmed step. */
 export async function POST(req: Request, { params }: { params: { slug: string } }) {
-  const d = await deny();
+  const d = await denyWrite();
   if (d) return d;
+  const throttled = await throttle("proc-analyse", AI_BUDGET);
+  if (throttled) return throttled;
   const { slug } = params;
   if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
   try {

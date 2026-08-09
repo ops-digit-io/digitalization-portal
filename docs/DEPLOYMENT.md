@@ -92,7 +92,13 @@ The portal switches from the local workspace to the live App automatically once
      `.pem`; Vercel preserves newlines — the code also accepts `\n`-escaped),
      `GITHUB_APP_INSTALLATION_ID`, `GITHUB_ORG`, `GITHUB_WEBHOOK_SECRET`.
    - Repos: `DEMANDS_REPO=du-demands`, `REGISTRY_REPO=du-agent-registry`.
-   - Auth (when wired): `AUTH_SECRET`, `OIDC_*`.
+   - Auth (when wired): `AUTH_SECRET`, `OIDC_*`. **Security:** the app now fails
+     CLOSED — if OIDC is not fully configured in Production, it serves an anonymous
+     session (every `can()` denies) rather than the admin demo session. To run a
+     Production deployment intentionally in demo mode (no OIDC), set
+     `ALLOW_DEMO_SESSION=1` explicitly; without it, a misconfigured/partial OIDC no
+     longer silently grants anonymous admin. Non-production (dev/preview) still
+     defaults to the demo session for zero-config work.
    - Ops: `KV_REST_API_URL`/`KV_REST_API_TOKEN` (playbook state), `CRON_SECRET`,
      `AGENT_TOOLS` (`off` is the global kill switch).
 4. **Preview vs Production credentials.** Give **Production** the live keys. Give

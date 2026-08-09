@@ -22,6 +22,28 @@ export function oidcEnabled(env: Record<string, string | undefined> = process.en
   return has(env.OIDC_ISSUER) && has(env.OIDC_CLIENT_ID) && has(env.OIDC_CLIENT_SECRET) && has(env.AUTH_SECRET);
 }
 
+/**
+ * Whether the app may fall back to the built-in DEMO session when OIDC is not
+ * configured. The demo session carries the `admin` role, so this must NOT be the
+ * silent default in production — a single missing OIDC env var would otherwise
+ * serve the whole portal to any anonymous visitor AS ADMIN (fail-open).
+ *
+ * So: allowed in non-production (local dev, CI) for zero-config DX, and in
+ * production ONLY behind an explicit `ALLOW_DEMO_SESSION=1` opt-in. When neither
+ * OIDC nor this opt-in is present in production, the app fails CLOSED (anonymous,
+ * every `can()` denies) rather than open.
+ */
+export function demoAllowed(env: Record<string, string | undefined> = process.env): boolean {
+  if (env.ALLOW_DEMO_SESSION === "1") return true;
+  return (env.NODE_ENV ?? "development") !== "production";
+}
+
+/** The effective auth posture, for middleware and diagnostics. */
+export function authMode(env: Record<string, string | undefined> = process.env): "oidc" | "demo" | "closed" {
+  if (oidcEnabled(env)) return "oidc";
+  return demoAllowed(env) ? "demo" : "closed";
+}
+
 export function oidcConfig(env: Record<string, string | undefined> = process.env): OidcConfig {
   return {
     issuer: (env.OIDC_ISSUER ?? "").replace(/\/$/, ""),

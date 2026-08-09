@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac";
 import { getSession } from "@/lib/auth/current";
+import { throttle, AI_BUDGET } from "@/lib/api/throttle";
 import { resolveProvider } from "@/lib/model-settings";
 import { recordUsage } from "@/lib/usage-meter";
 import { loadIntakeGuideline, intakeSystemPrompt, SAVE_DEMAND_TOOL, INTAKE_PLAYBOOK, INTAKE_SKILLS } from "@/lib/agent/intake-guideline";
@@ -38,6 +39,8 @@ export async function POST(req: Request) {
   if (!can(session, "draft")) {
     return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
   }
+  const throttled = await throttle("intake-turn", AI_BUDGET);
+  if (throttled) return throttled;
 
   let body: TurnBody;
   try {

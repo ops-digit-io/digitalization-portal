@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { signSession, verifySession, signFlow, verifyFlow } from "./cookie.js";
-import { oidcEnabled, groupsClaim, oidcScope } from "./config.js";
+import { oidcEnabled, groupsClaim, oidcScope, demoAllowed, authMode } from "./config.js";
 import type { Session } from "../rbac.js";
 
 const SECRET = "test-secret-0123456789-abcdefghij";
@@ -52,5 +52,30 @@ describe("oidc config", () => {
     expect(groupsClaim({})).toBe("groups");
     expect(oidcScope({})).toContain("openid");
     expect(groupsClaim({ OIDC_GROUPS_CLAIM: "roles" })).toBe("roles");
+  });
+});
+
+describe("fail-closed auth posture (no anonymous admin on misconfiguration)", () => {
+  const OIDC = { OIDC_ISSUER: "https://idp", OIDC_CLIENT_ID: "c", OIDC_CLIENT_SECRET: "s", AUTH_SECRET: "k" };
+
+  it("permits the demo session in non-production for zero-config dev", () => {
+    expect(demoAllowed({ NODE_ENV: "development" })).toBe(true);
+    expect(demoAllowed({ NODE_ENV: "test" })).toBe(true);
+    expect(demoAllowed({})).toBe(true); // undefined NODE_ENV = not production
+  });
+
+  it("REFUSES the demo session in production unless explicitly opted in", () => {
+    expect(demoAllowed({ NODE_ENV: "production" })).toBe(false);
+    expect(demoAllowed({ NODE_ENV: "production", ALLOW_DEMO_SESSION: "1" })).toBe(true);
+    expect(demoAllowed({ NODE_ENV: "production", ALLOW_DEMO_SESSION: "0" })).toBe(false);
+  });
+
+  it("resolves the three auth postures", () => {
+    expect(authMode(OIDC)).toBe("oidc");
+    expect(authMode({ NODE_ENV: "development" })).toBe("demo");
+    expect(authMode({ NODE_ENV: "production", ALLOW_DEMO_SESSION: "1" })).toBe("demo");
+    // The dangerous case the fail-open bug allowed: prod, OIDC misconfigured, no opt-in.
+    expect(authMode({ NODE_ENV: "production" })).toBe("closed");
+    expect(authMode({ NODE_ENV: "production", OIDC_ISSUER: "https://idp" })).toBe("closed");
   });
 });
