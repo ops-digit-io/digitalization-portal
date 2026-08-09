@@ -37,7 +37,18 @@
  */
 
 /** The artifact kinds the mesh can point at. */
-export type ReferenceKind = "demand" | "process" | "persona" | "champion" | "skill" | "playbook" | "requirement" | "repo";
+export type ReferenceKind =
+  | "demand"
+  | "process"
+  | "persona"
+  | "champion"
+  | "skill"
+  | "playbook"
+  | "requirement"
+  | "repo"
+  | "department"
+  | "lane"
+  | "tool";
 
 /**
  * How two artifacts relate.
@@ -164,6 +175,31 @@ export const REFERENCE_KINDS: readonly ReferenceKindDef[] = [
       const uc = /^(uc-\d{4}-\d{3,})/i.exec(id)?.[1];
       return uc ? `/uc/${uc.toUpperCase()}/poc` : "/build";
     },
+  },
+  {
+    // A department in the organization-context layer (Department OS). Derived — nobody
+    // authors `department:` in `## Related`; the id is the department slug.
+    kind: "department",
+    prefix: "department",
+    label: "Department",
+    href: (id) => `/org/${encodeURIComponent(id)}`,
+  },
+  {
+    // A lane pack within a department. Its id is `<dept-slug>/<lane-slug>`, which maps
+    // straight onto the lane route. Derived.
+    kind: "lane",
+    prefix: "lane",
+    label: "Lane",
+    href: (id) => `/org/${id}`,
+  },
+  {
+    // An app tool (a launchpad tile) — nodes so the graph shows the whole app and how
+    // each tool relates to the artifacts it produces. Derived; the id is the tile id,
+    // and the node links back to the launchpad.
+    kind: "tool",
+    prefix: "tool",
+    label: "Tool",
+    href: () => `/`,
   },
 ];
 

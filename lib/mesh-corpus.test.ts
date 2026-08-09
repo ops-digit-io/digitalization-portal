@@ -18,8 +18,9 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { loadCorpus, loadCorpusCached, clearCorpusCache, repoDocForDemand, playbookSkillEdges, stagePlaybooks, demandPlaybookEdges } from "./mesh-corpus";
+import { loadCorpus, loadCorpusCached, clearCorpusCache, repoDocForDemand, playbookSkillEdges, stagePlaybooks, demandPlaybookEdges, toolPipelineEdges, ownershipEdges } from "./mesh-corpus";
 import { buildGraph, duplicateClusters, orphans, type MeshDocument } from "./mesh-graph";
+import { ALL_TILES } from "./launchpad";
 
 describe("the markdown corpus reads as a graph", () => {
   it("loads without throwing, whatever is on disk", async () => {
@@ -62,9 +63,18 @@ describe("the markdown corpus reads as a graph", () => {
     const { counts } = await loadCorpus();
     // The keys must exist even at zero, so the graph view can list every kind and a
     // dropped store is a 0, not a silently missing category.
-    for (const kind of ["demand", "requirement", "process", "persona", "champion", "skill", "playbook", "repo"]) {
+    for (const kind of ["demand", "requirement", "process", "persona", "champion", "skill", "playbook", "repo", "department", "lane", "tool"]) {
       expect(counts, `counts is missing the "${kind}" kind`).toHaveProperty(kind);
     }
+  });
+
+  it("puts every app tool into the graph, and the org layer with it", async () => {
+    const { counts } = await loadCorpus();
+    // Tools are a fixed set (the launchpad tiles), always present.
+    expect(counts.tool).toBeGreaterThan(20);
+    // The bundled Department OS example ships at least one department and one lane.
+    expect(counts.department).toBeGreaterThanOrEqual(1);
+    expect(counts.lane).toBeGreaterThanOrEqual(1);
   });
 });
 
@@ -162,5 +172,39 @@ describe("bridge library ↔ funnel — demand → stage's playbook → its skil
     const g = buildGraph(docs);
     expect(g.sound).toBe(true);
     expect(orphans(g)).toEqual([]); // nothing isolated — one connected chain
+  });
+});
+
+describe("tools in the graph — the app as a connected overview", () => {
+  it("gives every launchpad tile a place in the pipeline (no island tool)", () => {
+    const byTool = toolPipelineEdges();
+    const touched = new Set<string>();
+    for (const [from, edges] of byTool) {
+      touched.add(from);
+      for (const e of edges) touched.add(e.to.id);
+    }
+    const missing = ALL_TILES.map((t) => t.id).filter((id) => !touched.has(id));
+    expect(missing, `tools with no pipeline edge: ${missing.join(", ")}`).toEqual([]);
+  });
+
+  it("derives one ownership edge per managed artifact, from the tool", () => {
+    const edges = ownershipEdges("catalog", "skill", ["demand-classification", "persona-analysis"], "manages this skill");
+    expect(edges.map((e) => e.to.id)).toEqual(["demand-classification", "persona-analysis"]);
+    expect(edges[0]!.from).toEqual({ kind: "tool", id: "catalog" });
+    expect(edges[0]!.to.kind).toBe("skill");
+    expect(edges[0]!.source).toBe("derived");
+    expect(ownershipEdges("catalog", "skill", [], "x")).toEqual([]);
+  });
+
+  it("connects a tool to the skills it manages in a sound graph — neither is an orphan", () => {
+    const docs: MeshDocument[] = [
+      { kind: "skill", id: "demand-classification", title: "Classify" },
+      { kind: "tool", id: "catalog", title: "Skills & Playbooks", derived: ownershipEdges("catalog", "skill", ["demand-classification"], "manages this skill") },
+    ];
+    const g = buildGraph(docs);
+    expect(g.sound).toBe(true);
+    const loose = orphans(g).map((n) => n.id);
+    expect(loose).not.toContain("demand-classification");
+    expect(loose).not.toContain("catalog");
   });
 });

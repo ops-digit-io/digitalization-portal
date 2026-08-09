@@ -63,6 +63,9 @@ const KIND_SYMBOL: Record<ReferenceKind, SymbolType> = {
   skill: symbolWye,
   playbook: symbolCross,
   repo: symbolSquare2,
+  department: symbolDiamond,
+  lane: symbolTriangle,
+  tool: symbolStar,
 };
 
 type SimNode = GraphData["nodes"][number] & SimulationNodeDatum;
