@@ -3,6 +3,7 @@ import { can } from "@/lib/rbac";
 import { getSession } from "@/lib/auth/current";
 import { readDemand, saveDemand } from "@/lib/demands-store";
 import { advanceDemand } from "@/lib/demand-advance";
+import { ensureDerivedArtifacts } from "@/lib/funnel/derive";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,6 +42,10 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   const saved = await saveDemand(id, result.markdown, {
     message: `Pass ${result.gate} (${result.from}→${result.to}) for ${id}`,
   });
+
+  // Backstop: a demand that reached the funnel by any path still gets its
+  // deterministic artifacts. Idempotent and best-effort — never fails the advance.
+  await ensureDerivedArtifacts(id).catch(() => {});
 
   return NextResponse.json({
     ok: true,

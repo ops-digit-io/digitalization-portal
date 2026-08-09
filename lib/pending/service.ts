@@ -49,6 +49,8 @@ export async function enqueueDemand(
 
 export interface FlushResult {
   committed: number;
+  /** Ids committed to git this run — what the caller derives artifacts for. */
+  committedIds: string[];
   /** Failed this run but will be retried after backoff. */
   retried: number;
   /** Newly dead-lettered this run (hit max attempts). */
@@ -85,12 +87,14 @@ export async function flushPending(opts?: {
   let committed = 0;
   let retried = 0;
   let deadLettered = 0;
+  const committedIds: string[] = [];
 
   await mapPool(due, opts?.concurrency ?? FLUSH_CONCURRENCY, async (d) => {
     try {
       await commit(d);
       await store.remove(d.id);
       committed++;
+      committedIds.push(d.id);
     } catch (err) {
       if (err instanceof FileExistsError) {
         await store.remove(d.id); // already the system of record — idempotent
@@ -113,6 +117,7 @@ export async function flushPending(opts?: {
   const after = await store.list();
   return {
     committed,
+    committedIds,
     retried,
     deadLettered,
     remaining: after.filter((d) => d.status !== "failed").length,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { flushPending, pendingStats } from "@/lib/pending/service";
 import { reconcileFunnel } from "@/lib/projection/reconcile";
+import { deriveForIds } from "@/lib/funnel/derive";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,9 +19,20 @@ async function run(req: Request): Promise<NextResponse> {
   }
   try {
     const flushed = await flushPending();
+    // Each just-committed demand gets its deterministic artifacts (requirements,
+    // analysis, first business-case draft) — idempotent, so this never re-derives
+    // or overwrites. Best-effort: a derive failure must not fail the flush.
+    const derived = await deriveForIds(flushed.committedIds).catch(() => []);
     const projection = await reconcileFunnel();
     const stats = await pendingStats();
-    return NextResponse.json({ ok: true, ...flushed, stats, projected: projection.projected, projectionRows: projection.rows });
+    return NextResponse.json({
+      ok: true,
+      ...flushed,
+      derived: derived.reduce((n, d) => n + d.generated.length, 0),
+      stats,
+      projected: projection.projected,
+      projectionRows: projection.rows,
+    });
   } catch (err) {
     return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : "flush failed" }, { status: 500 });
   }
