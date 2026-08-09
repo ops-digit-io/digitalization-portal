@@ -20,6 +20,7 @@ import { seedForDemand, requirementsContext } from "@/lib/poc/seed-from-demand";
 import type { ArtifactKind } from "@/lib/poc/spec";
 import { pocStack, defaultStackFor, type PocStack } from "@/lib/poc/templates";
 import { listCustomTemplates, customToStack } from "@/lib/poc/custom-templates";
+import { templateRepoName } from "@/lib/repos";
 import { getSession } from "@/lib/auth/current";
 
 export const runtime = "nodejs";
@@ -33,7 +34,7 @@ const contextFor = requirementsContext;
 function templateFor(stack: PocStack): { owner: string; repo: string } | undefined {
   const org = process.env.GITHUB_ORG;
   const on = process.env.POC_USE_TEMPLATE_REPOS === "1" || process.env.POC_USE_TEMPLATE_REPOS === "true";
-  return on && org && stack.templateRepo ? { owner: org, repo: stack.templateRepo } : undefined;
+  return on && org && stack.templateRepo ? { owner: org, repo: templateRepoName(stack.templateRepo) } : undefined;
 }
 
 /**

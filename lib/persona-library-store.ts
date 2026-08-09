@@ -19,6 +19,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { getGitHost, hasGitHubCredentials, type RepoRef } from "./git/index.js";
+import { repoName as resolveRepo, repoRef } from "./repos.js";
 import {
   completePersona, nextPersonaId, parsePersona, renderPersona, type Persona,
 } from "./persona-library.js";
@@ -29,12 +30,10 @@ function live(): boolean {
   return hasGitHubCredentials();
 }
 function repoName(env = process.env): string {
-  return env.PERSONA_REPO ?? env.PROCESS_REPO ?? "du-processes";
+  return resolveRepo("personas", env);
 }
 function repo(): RepoRef {
-  const org = process.env.GITHUB_ORG ?? "org";
-  const name = repoName();
-  return { owner: org, name, url: `https://github.com/${org}/${name}`, local: false };
+  return repoRef("personas");
 }
 function localBase(): string {
   return process.env.PERSONA_DATA_DIR ?? process.env.PROCESS_DATA_DIR ?? path.join(os.tmpdir(), "du-processes");

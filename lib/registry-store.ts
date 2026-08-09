@@ -18,6 +18,7 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { loadPlaybook, loadSkill } from "./agent/skills.js";
 import { getGitHost, hasGitHubCredentials, type RepoRef } from "./git/index.js";
+import { repoName as resolveRepo, repoRef } from "./repos.js";
 import { registryRepo as registryContentRepo } from "./content-repo.js";
 import { LocalHost } from "./git/local-host.js";
 import { slugify } from "./poc/scaffold.js";
@@ -81,9 +82,7 @@ function registryMirrorDir(): string {
 
 /** The registry repo ref (GitHub). */
 function registryRepo(): RepoRef {
-  const org = process.env.GITHUB_ORG ?? "org";
-  const name = registryRepoName();
-  return { owner: org, name, url: `https://github.com/${org}/${name}`, local: false };
+  return repoRef("registry");
 }
 
 /** Recursively list files under a repo directory (paths relative to `dir`). */
@@ -270,7 +269,7 @@ export interface SaveResult {
 }
 
 function registryRepoName(env = process.env): string {
-  return env.REGISTRY_REPO ?? "du-agent-registry";
+  return resolveRepo("registry", env);
 }
 
 /** Path in the git registry repo (github) for an entry-relative file. */

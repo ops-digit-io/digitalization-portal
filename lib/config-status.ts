@@ -10,6 +10,7 @@
  */
 
 import { describeProvider, PROVIDERS, providerAvailable, modelFor, type ProviderStatus } from "./agent/provider.js";
+import { repoName } from "./repos.js";
 
 export type Level = "required" | "recommended" | "optional";
 
@@ -51,9 +52,9 @@ export function describeConfig(env: Record<string, string | undefined> = process
   const model = describeProvider(env);
   const gitLive = has(env.GITHUB_APP_ID) && has(env.GITHUB_APP_PRIVATE_KEY) && has(env.GITHUB_ORG);
   const org = env.GITHUB_ORG?.trim();
-  const demandsRepo = env.DEMANDS_REPO?.trim() || "du-demands";
-  const registryRepo = env.REGISTRY_REPO?.trim() || "du-agent-registry";
-  const specificationsRepo = env.SPECIFICATIONS_REPO?.trim() || "du-specifications";
+  const demandsRepo = repoName("demands", env);
+  const registryRepo = repoName("registry", env);
+  const specificationsRepo = repoName("specifications", env);
   const agentTools = (env.AGENT_TOOLS?.trim().toLowerCase() ?? "on") !== "off";
   const oidc = has(env.OIDC_ISSUER) && has(env.OIDC_CLIENT_ID) && has(env.AUTH_SECRET);
 

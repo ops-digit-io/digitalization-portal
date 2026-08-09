@@ -29,6 +29,7 @@ import { readdir, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { getGitHost, hasGitHubCredentials, type DirEntry, type RepoRef } from "./git/index.js";
+import { repoName } from "./repos.js";
 
 export interface ContentRepo {
   /** Short name used in messages and env-var docs. */
@@ -43,7 +44,7 @@ export interface ContentRepo {
 export function registryRepo(env = process.env): ContentRepo {
   return {
     key: "registry",
-    repoName: env.REGISTRY_REPO ?? "du-agent-registry",
+    repoName: repoName("registry", env),
     mirrorDir: env.REGISTRY_MIRROR_DIR ?? path.join(os.tmpdir(), "du-agent-registry"),
     probe: "playbooks",
   };
@@ -53,7 +54,7 @@ export function registryRepo(env = process.env): ContentRepo {
 export function templatesRepo(env = process.env): ContentRepo {
   return {
     key: "templates",
-    repoName: env.TEMPLATES_REPO ?? "du-templates",
+    repoName: repoName("templates", env),
     mirrorDir: env.TEMPLATES_MIRROR_DIR ?? path.join(os.tmpdir(), "du-templates"),
     probe: "sections",
   };
@@ -63,7 +64,7 @@ export function templatesRepo(env = process.env): ContentRepo {
 export function specificationsRepo(env = process.env): ContentRepo {
   return {
     key: "specifications",
-    repoName: env.SPECIFICATIONS_REPO ?? "du-specifications",
+    repoName: repoName("specifications", env),
     mirrorDir: env.SPECIFICATIONS_MIRROR_DIR ?? path.join(os.tmpdir(), "du-specifications"),
     // Specs live at the repo root as flat markdown; the root itself is the probe.
     probe: "",
@@ -78,7 +79,7 @@ export function specificationsRepo(env = process.env): ContentRepo {
 export function organizationRepo(env = process.env): ContentRepo {
   return {
     key: "organization",
-    repoName: env.ORGANIZATION_REPO ?? "du-organization-context",
+    repoName: repoName("organization", env),
     mirrorDir: env.ORGANIZATION_MIRROR_DIR ?? path.join(os.tmpdir(), "du-organization-context"),
     probe: "departments",
   };

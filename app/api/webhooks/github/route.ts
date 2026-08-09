@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyGithubSignature } from "@/lib/projection/webhook";
 import { reconcileFunnel } from "@/lib/projection/reconcile";
+import { repoName as configuredRepo } from "@/lib/repos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
   } catch {
     /* fall through — reconcile anyway on unparseable payloads is safe (idempotent) */
   }
-  const funnel = process.env.DEMANDS_REPO ?? "du-demands";
+  const funnel = configuredRepo("demands");
   if (repoName && repoName !== funnel) return NextResponse.json({ ok: true, ignored: repoName });
 
   try {
