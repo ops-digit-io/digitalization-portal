@@ -34,6 +34,7 @@ export type Capability =
   | "link_uc"
   | "accept_handover"
   | "reprioritize"
+  | "edit_registry"
   | "all";
 
 export const CAPABILITIES: readonly Capability[] = [
@@ -51,6 +52,7 @@ export const CAPABILITIES: readonly Capability[] = [
   "link_uc",
   "accept_handover",
   "reprioritize",
+  "edit_registry",
   "all",
 ];
 
@@ -108,7 +110,8 @@ export const ROLES: readonly RoleDef[] = [
   {
     id: "reviewer",
     group: "DU-Portal-Reviewers",
-    capabilities: ["view_all", "view_board", "comment", "draft"],
+    // Reviewers steward the agent-governance library (skills/playbooks/contracts).
+    capabilities: ["view_all", "view_board", "comment", "draft", "edit_registry"],
     scope: "unscoped",
     gates: [],
   },

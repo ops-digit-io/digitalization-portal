@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { SELF_CRITERIA, triage } from "@/lib/process/self-assessment";
 import type { Level } from "@/lib/process/criteria";
-import { deny } from "@/lib/process/guard";
+import { deny, denyWrite } from "@/lib/process/guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ export async function GET() {
 
 /** Triage a self-assessment: aufnehmen / enabler / zurückstellen / selbsthilfe. */
 export async function POST(req: Request) {
-  const d = await deny();
+  const d = await denyWrite();
   if (d) return d;
   const body = (await req.json().catch(() => ({}))) as { levels?: Record<string, number> };
   const levels: Record<string, Level | undefined> = {};

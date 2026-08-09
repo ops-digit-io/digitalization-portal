@@ -9,8 +9,11 @@ export const dynamic = "force-dynamic";
 /** Save registry files directly to main (GitHub) / the working tree (local). */
 export async function POST(req: Request) {
   const session = await getSession(); // real deployment resolves this from the OIDC session
-  if (!can(session, "draft")) {
-    return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
+  // Registry content is AUTHORITATIVE agent-governance loaded into prompts (not wrapped
+  // as untrusted data), so writing it needs more than the near-universal `draft` — a
+  // dedicated capability held by reviewers/admins, not every staff member.
+  if (!can(session, "edit_registry")) {
+    return NextResponse.json({ error: "missing capability: edit_registry" }, { status: 403 });
   }
 
   let body: { type?: EntryType; name?: string; bundle?: boolean; files?: RegistryFile[]; message?: string };

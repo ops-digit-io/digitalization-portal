@@ -2,15 +2,18 @@ import { NextResponse } from "next/server";
 import { advisoryByKey, build } from "@/lib/process/advisory";
 import * as store from "@/lib/process/store";
 import * as llm from "@/lib/process/llm";
-import { deny, now } from "@/lib/process/guard";
+import { denyWrite, now } from "@/lib/process/guard";
+import { throttle, AI_BUDGET } from "@/lib/api/throttle";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** Run one advisory pass. Its output is a PROPOSAL and is stored apart from the sections. */
 export async function POST(_req: Request, { params }: { params: { slug: string; key: string } }) {
-  const d = await deny();
+  const d = await denyWrite();
   if (d) return d;
+  const throttled = await throttle("proc-advisory", AI_BUDGET);
+  if (throttled) return throttled;
   const { slug, key } = params;
   if (!advisoryByKey[key]) return NextResponse.json({ error: "no such advisory pass" }, { status: 404 });
   if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });

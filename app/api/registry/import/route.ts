@@ -20,8 +20,10 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: Request) {
   const session = await getSession(); // real deployment resolves this from the OIDC session
-  if (!can(session, "draft")) {
-    return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
+  // Importing a third-party skill commits governance content that steers the agent —
+  // gate it like other registry writes (reviewers/admins), not the universal `draft`.
+  if (!can(session, "edit_registry")) {
+    return NextResponse.json({ error: "missing capability: edit_registry" }, { status: 403 });
   }
 
   let body: { action?: string; url?: string; name?: string };

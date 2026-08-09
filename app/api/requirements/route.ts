@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac";
 import { getSession } from "@/lib/auth/current";
+import { throttle, AI_BUDGET } from "@/lib/api/throttle";
 import { parseUseCase } from "@/lib/parse";
 import { parseDemandToAnswers } from "@/lib/demand";
 import { analyseIntake, buildRequirementsMarkdown, buildAnalysisMarkdown } from "@/lib/requirements";
@@ -23,6 +24,8 @@ export async function POST(req: Request) {
   if (!can(session, "draft")) {
     return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
   }
+  const throttled = await throttle("requirements", AI_BUDGET);
+  if (throttled) return throttled;
 
   let body: { id?: string; action?: "generate" | "preview" };
   try {

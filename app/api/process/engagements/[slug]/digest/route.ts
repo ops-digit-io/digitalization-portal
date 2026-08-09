@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import * as store from "@/lib/process/store";
 import { generate, parseDigest, NoDigestError } from "@/lib/process/digest";
 import * as llm from "@/lib/process/llm";
-import { deny, now } from "@/lib/process/guard";
+import { deny, denyWrite, now } from "@/lib/process/guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export async function GET(_req: Request, { params }: { params: { slug: string } 
 
 /** Regenerate the derived digest. 503 without a model key — it cannot be faked. */
 export async function POST(_req: Request, { params }: { params: { slug: string } }) {
-  const d = await deny();
+  const d = await denyWrite();
   if (d) return d;
   if (!(await store.exists(params.slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
   if (!(await llm.available())) return NextResponse.json({ error: "live generation disabled", code: "NO_KEY" }, { status: 503 });
@@ -40,7 +40,7 @@ export async function POST(_req: Request, { params }: { params: { slug: string }
  * called and derived by one a person ran elsewhere are not the same claim.
  */
 export async function PUT(req: Request, { params }: { params: { slug: string } }) {
-  const d = await deny();
+  const d = await denyWrite();
   if (d) return d;
   if (!(await store.exists(params.slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
 

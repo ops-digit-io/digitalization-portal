@@ -4,7 +4,7 @@ import { grade } from "@/lib/process/grader";
 import { schemaOf } from "@/lib/process/schemas";
 import * as store from "@/lib/process/store";
 import { sectionTemplate } from "@/lib/process/templates";
-import { deny, now } from "@/lib/process/guard";
+import { deny, denyWrite, now } from "@/lib/process/guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export async function GET(_req: Request, { params }: { params: { slug: string; k
 }
 
 export async function PUT(req: Request, { params }: { params: { slug: string; key: string } }) {
-  const d = await deny();
+  const d = await denyWrite();
   if (d) return d;
   const { slug, key } = params;
   if (!sectionByKey[key]) return NextResponse.json({ error: "no such section" }, { status: 404 });

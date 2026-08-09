@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { GATES } from "@/lib/process/sections";
 import * as store from "@/lib/process/store";
-import { deny, now } from "@/lib/process/guard";
+import { denyGate, now } from "@/lib/process/guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ const GATE_KEYS = new Set(GATES.map((s) => s.key));
 
 /** Record a Tor verdict. A failed gate needs a written reason (doc B §1.2). */
 export async function POST(req: Request, { params }: { params: { slug: string } }) {
-  const d = await deny();
+  const d = await denyGate();
   if (d) return d;
   const { slug } = params;
   if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });

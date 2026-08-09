@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { dimById, criteriaOf } from "@/lib/process/criteria";
 import * as store from "@/lib/process/store";
-import { deny, now } from "@/lib/process/guard";
+import { deny, denyWrite, now } from "@/lib/process/guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ export async function GET(_req: Request, { params }: { params: { slug: string; d
 
 /** Save the dimension's coaching-evidence note. */
 export async function PUT(req: Request, { params }: { params: { slug: string; dim: string } }) {
-  const d = await deny();
+  const d = await denyWrite();
   if (d) return d;
   const { slug, dim } = params;
   if (!dimById[dim]) return NextResponse.json({ error: "no such dimension" }, { status: 404 });

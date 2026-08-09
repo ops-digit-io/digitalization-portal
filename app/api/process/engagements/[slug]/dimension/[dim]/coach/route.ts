@@ -3,15 +3,18 @@ import { dimById } from "@/lib/process/criteria";
 import * as store from "@/lib/process/store";
 import * as coach from "@/lib/process/coach";
 import * as llm from "@/lib/process/llm";
-import { deny } from "@/lib/process/guard";
+import { denyWrite } from "@/lib/process/guard";
+import { throttle, AI_BUDGET } from "@/lib/api/throttle";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** Live coaching turn for a dimension. 503 when no key — the UI offers export. */
 export async function POST(req: Request, { params }: { params: { slug: string; dim: string } }) {
-  const d = await deny();
+  const d = await denyWrite();
   if (d) return d;
+  const throttled = await throttle("proc-coach", AI_BUDGET);
+  if (throttled) return throttled;
   const { slug, dim } = params;
   if (!dimById[dim]) return NextResponse.json({ error: "no such dimension" }, { status: 404 });
   if (!(await store.exists(slug))) return NextResponse.json({ error: "no such engagement" }, { status: 404 });
