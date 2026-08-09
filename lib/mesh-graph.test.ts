@@ -35,6 +35,19 @@ describe("buildGraph", () => {
     expect(g.edges[0]).toMatchObject({ relation: "related", note: "shares the taxonomy", source: "authored" });
   });
 
+  it("joins a demand to a Department OS lane it declares (org↔funnel edge, not dangling)", () => {
+    // A demand that names a lane in its `## Related` links straight to the lane node.
+    // No fabricated mapping — the edge exists only because the demand declared it.
+    const g = buildGraph([
+      demand("UC-2026-0001", "- lane:operations/connectivity-assessment — part-of, this lane owns the flow"),
+      { kind: "lane", id: "operations/connectivity-assessment", title: "Connectivity assessment" },
+    ]);
+    expect(g.sound).toBe(true); // the lane node exists → the edge is not dangling
+    const edge = g.edges.find((e) => e.to.kind === "lane");
+    expect(edge).toMatchObject({ from: { kind: "demand", id: "UC-2026-0001" }, to: { kind: "lane", id: "operations/connectivity-assessment" } });
+    expect(g.nodes.find((n) => n.id === "operations/connectivity-assessment")).toMatchObject({ in: 1 });
+  });
+
   it("counts degree in both directions", () => {
     const g = buildGraph([demand("UC-2026-0001", "- UC-2026-0002 — related"), demand("UC-2026-0002", "- UC-2026-0003 — related"), demand("UC-2026-0003")]);
     expect(g.nodes.find((n) => n.id === "UC-2026-0002")).toMatchObject({ in: 1, out: 1 });

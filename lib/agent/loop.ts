@@ -13,8 +13,9 @@
  * own input.
  */
 
-import type { Session } from "../rbac.js";
-import type { ToolRegistry } from "./tools.js";
+import { can, type Session } from "../rbac.js";
+import { toolActs, authorityAllowsActing, type ToolRegistry } from "./tools.js";
+import type { AuthorityLevel } from "../org/autonomy.js";
 import type { ModelMessage, ModelProvider, ToolResultBlock, ToolSpec } from "./provider.js";
 import { TraceRecorder, type Trace } from "./trace.js";
 import { recordUsage } from "../usage-meter.js";
@@ -46,6 +47,12 @@ export interface RunAgentParams {
   toolNames?: string[];
   /** Kill switch (FR-6.6). When false, no tools are offered. */
   enabled?: boolean;
+  /**
+   * Department OS lane autonomy scope. When set to a non-acting rung, the run is
+   * offered only READ tools — a pure narrowing on top of the session's RBAC
+   * (never a widening). Absent → portfolio behaviour (RBAC alone).
+   */
+  authority?: AuthorityLevel | null;
   maxIterations?: number;
   /** Injected so the loop stays deterministic/replayable. */
   now: string;
@@ -73,22 +80,26 @@ export async function runAgent(params: RunAgentParams): Promise<RunAgentResult> 
   const enabled = params.enabled ?? true;
   const maxIterations = params.maxIterations ?? 6;
 
-  const available = registry.resolveFor(session, { enabled });
+  const authority = params.authority ?? null;
+  const available = registry.resolveFor(session, { enabled, authority });
   const chosen = params.toolNames
     ? available.filter((t) => params.toolNames!.includes(t.name))
     : available;
 
-  // Record what was withheld and why — traces list withheld tools explicitly.
+  // Record what was withheld and why — traces list withheld tools explicitly, so a
+  // tool withheld because the lane's autonomy rung does not act reads differently
+  // from one withheld for a missing capability or the kill switch.
   const withheld: { name: string; reason: string }[] = [];
   const wanted = params.toolNames ?? registry.all().map((t) => t.name);
   for (const name of wanted) {
     if (chosen.some((t) => t.name === name)) continue;
     const tool = registry.get(name);
-    const reason = !enabled
-      ? "agent tools disabled (kill switch)"
-      : !tool
-        ? "no such tool"
-        : "session lacks the required capability";
+    let reason: string;
+    if (!enabled) reason = "agent tools disabled (kill switch)";
+    else if (!tool) reason = "no such tool";
+    else if (!can(session, tool.capability)) reason = "session lacks the required capability";
+    else if (toolActs(tool) && !authorityAllowsActing(authority)) reason = `lane autonomy "${authority}" withholds acting tools`;
+    else reason = "session lacks the required capability";
     withheld.push({ name, reason });
   }
 

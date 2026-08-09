@@ -20,7 +20,7 @@ import { getGitHost, hasGitHubCredentials, type RepoRef } from "../git/index.js"
 import { organizationRepo, readContent } from "../content-repo.js";
 import { CORE_KEYS, MODULE_KEYS, sectionSubdir, type AuthorityLevel } from "./model.js";
 import { LANE_KEYS, LANE_DIRS } from "./lane.js";
-import { scaffoldSection, scaffoldLane, scaffoldLaneFile, slugifyDept } from "./scaffold.js";
+import { scaffoldSection, scaffoldLane, scaffoldLaneFile, slugifyDept, composeBriefDraft, sectionUnder } from "./scaffold.js";
 import { setAuthorityInBrief } from "./autonomy.js";
 
 const DEPTS = "departments";
@@ -220,6 +220,45 @@ export async function setLaneAuthority(
 /** A blank lane-pack file, scaffolded — for the lane editor's "start" action. */
 export function laneStartingPoint(key: string, laneName: string): string {
   return scaffoldLaneFile(key, laneName);
+}
+
+/** True when the agent-brief already carries authored content (owner set, or a real scope). */
+function briefIsAuthored(md: string | undefined): boolean {
+  if (!md || !md.trim()) return false;
+  const owner = /(?:^|\n)owner:[ \t]*(\S.*)$/m.exec(md);
+  if (owner && owner[1] && owner[1].trim()) return true;
+  return sectionUnder(md, /(?:scope|umfang)/i) !== "";
+}
+
+/**
+ * Draft a lane's agent-brief from its pack (playbook + skills), so reaching autonomy no
+ * longer starts from a blank page. Refuses to overwrite a brief that already carries
+ * authored content — an editor edits that directly. Leaves the owner and the authority
+ * level for a human, so drafting never reaches an execute rung on its own.
+ */
+export async function draftLaneBrief(
+  deptSlugInput: string,
+  laneSlugInput: string,
+  generatedOn = "",
+): Promise<{ wrote: boolean; reason?: string; host?: "github" | "local"; path?: string }> {
+  const deptSlug = safeSlug(deptSlugInput);
+  const laneSlug = safeSlug(laneSlugInput);
+  if (!deptSlug) throw new OrgWriteError(`invalid department slug: ${deptSlugInput}`);
+  if (!laneSlug) throw new OrgWriteError(`invalid lane slug: ${laneSlugInput}`);
+
+  const base = `${DEPTS}/${deptSlug}/lanes/${laneSlug}`;
+  const [current, playbook, skills] = await Promise.all([
+    readContent(organizationRepo(), `${base}/agent-brief.md`).catch(() => undefined),
+    readContent(organizationRepo(), `${base}/playbook.md`).catch(() => undefined),
+    readContent(organizationRepo(), `${base}/skills.md`).catch(() => undefined),
+  ]);
+  if (briefIsAuthored(current)) {
+    return { wrote: false, reason: "The agent brief already has authored content — edit it directly to avoid overwriting it." };
+  }
+  const laneName = laneSlug.split("-").map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w)).join(" ");
+  const draft = composeBriefDraft(laneName, { playbook, skills }, generatedOn);
+  const res = await saveLaneFile(deptSlug, laneSlug, "agent-brief", draft, `Draft agent brief for ${deptSlug}/${laneSlug} from the lane pack`);
+  return { wrote: true, host: res.host, path: res.path };
 }
 
 export { safeSlug };

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildGraph, type MeshDocument } from "./mesh-graph.js";
-import { meshGaps, blastRadius } from "./mesh-insights.js";
+import { meshGaps, blastRadius, meshDigest } from "./mesh-insights.js";
 
 // UC-1 has a champion and a persona; UC-2 has neither; UC-3 has only a champion.
 const corpus: MeshDocument[] = [
@@ -45,5 +45,28 @@ describe("blastRadius", () => {
 
   it("a leaf that nothing depends on has an empty blast radius", () => {
     expect(blastRadius(g, "demand:UC-2026-0012")).toEqual([]);
+  });
+});
+
+describe("meshDigest", () => {
+  it("summarises the portfolio shape — counts, orphans, and unlinked demands", () => {
+    const d = meshDigest(graph);
+    expect(d).toContain("PORTFOLIO MESH");
+    expect(d).toMatch(/Nodes: \d+/);
+    // UC-2 has no champion/persona → surfaced as a gap.
+    expect(d).toContain("UC-2026-0002");
+    expect(d).toContain("derivative of the record, never a source of truth");
+  });
+
+  it("returns an empty string for an empty corpus (analyst degrades to no-mesh)", () => {
+    expect(meshDigest(buildGraph([]))).toBe("");
+  });
+
+  it("reports duplicate clusters when present", () => {
+    const dupes = buildGraph([
+      { kind: "demand", id: "UC-2026-0001", title: "A", markdown: "## Related\n\n- UC-2026-0002 — duplicate of\n" },
+      { kind: "demand", id: "UC-2026-0002", title: "B" },
+    ]);
+    expect(meshDigest(dupes)).toContain("Duplicate clusters:");
   });
 });

@@ -37,7 +37,7 @@ export function LaneAutonomy({
   const readiness = { agentBriefPresent, agentBriefScore };
   const raiseGate = up ? canRaiseTo(up, readiness) : { ok: false as const };
 
-  async function setLevel(level: AuthorityLevel) {
+  async function post(payload: Record<string, unknown>) {
     if (busy) return;
     setBusy(true);
     setError(null);
@@ -45,7 +45,7 @@ export function LaneAutonomy({
       const res = await fetch("/api/org", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "set-authority", slug, lane, level }),
+        body: JSON.stringify(payload),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
@@ -56,6 +56,9 @@ export function LaneAutonomy({
       setBusy(false);
     }
   }
+
+  const setLevel = (level: AuthorityLevel) => post({ action: "set-authority", slug, lane, level });
+  const draftBrief = () => post({ action: "draft-brief", slug, lane });
 
   const currentPolicy = currentLevel ? authorityPolicy(currentLevel) : null;
   const upLabel = up ? authorityPolicy(up).label : "";
@@ -134,6 +137,14 @@ export function LaneAutonomy({
               className="rounded-md border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40"
             >
               ▼ Lower{down ? ` to ${downLabel}` : ""}
+            </button>
+            <button
+              onClick={draftBrief}
+              disabled={busy}
+              title="Fill the agent brief's scope, guardrails and escalation from this lane's playbook and skills. Leaves the owner and level for you."
+              className="rounded-md border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40"
+            >
+              ✎ Draft brief from lane pack
             </button>
           </div>
           {up && !raiseGate.ok && (

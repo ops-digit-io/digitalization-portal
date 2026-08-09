@@ -20,6 +20,7 @@
  */
 
 import { can, type Capability, type Session } from "../rbac.js";
+import { authorityPolicy, type AuthorityLevel } from "../org/autonomy.js";
 
 /**
  * Capabilities a tool may NEVER require. These are human decisions (gate
@@ -46,10 +47,32 @@ export interface AgentTool<Input = unknown, Output = unknown> {
   description: string;
   /** The capability the invoking session must hold. Must not be forbidden. */
   capability: Capability;
+  /**
+   * Whether the tool only READS the portfolio or ACTS on it (scaffolds a repo,
+   * writes a draft). Defaults to "read". A lane whose autonomy rung does not act
+   * (read-only/draft/recommend) is offered only the read tools — see `resolveFor`.
+   * This never widens authority; it only withholds.
+   */
+  effect?: "read" | "write";
   /** JSON Schema for the tool input, sent to the model as the tool definition. */
   inputSchema?: Record<string, unknown>;
   /** Pure-ish execution. Runs server-side only; never merges, never passes a gate. */
   run(input: Input, ctx: AgentToolContext): Promise<Output> | Output;
+}
+
+/** Does this tool ACT (write/scaffold) rather than only read? */
+export function toolActs(tool: AgentTool): boolean {
+  return (tool.effect ?? "read") === "write";
+}
+
+/**
+ * Whether a lane at `authority` may be offered ACTING tools. A non-acting rung
+ * (read-only/draft/recommend) withholds them; an acting rung (execute-*) allows
+ * them. No lane context (`null`) leaves the decision to RBAC alone — today's
+ * portfolio-analyst behaviour.
+ */
+export function authorityAllowsActing(authority: AuthorityLevel | null | undefined): boolean {
+  return authority == null ? true : authorityPolicy(authority).acts;
 }
 
 export class ToolRegistrationError extends Error {}
@@ -98,10 +121,18 @@ export class ToolRegistry {
    * The tools offered to a session: those whose capability the session holds,
    * and only while the kill switch is on. When `enabled` is false the array is
    * empty — every tool disabled by one flag.
+   *
+   * `authority`, when given, scopes the run to a Department OS lane: a rung that
+   * does not act withholds the ACTING tools (`effect: "write"`). This is a pure
+   * NARROWING on top of the RBAC filter — it can only remove tools the session
+   * would otherwise be offered, never add one (constraint #3: the agent's
+   * authority is the session's).
    */
-  resolveFor(session: Session, options: { enabled: boolean }): AgentTool[] {
+  resolveFor(session: Session, options: { enabled: boolean; authority?: AuthorityLevel | null }): AgentTool[] {
     if (!options.enabled) return [];
-    return this.all().filter((t) => can(session, t.capability));
+    const base = this.all().filter((t) => can(session, t.capability));
+    if (authorityAllowsActing(options.authority)) return base;
+    return base.filter((t) => !toolActs(t));
   }
 }
 

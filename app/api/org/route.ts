@@ -9,6 +9,7 @@ import {
   saveLaneFile,
   saveLaneDoc,
   setLaneAuthority,
+  draftLaneBrief,
   laneStartingPoint,
   OrgWriteError,
 } from "@/lib/org/authoring";
@@ -84,6 +85,13 @@ export async function POST(req: Request) {
       }
       const where = await saveLaneDoc(body.slug, body.lane, body.dir, body.name, body.markdown ?? "");
       return NextResponse.json({ ok: true, host: where.host, slug: where.slug });
+    }
+    if (body.action === "draft-brief") {
+      if (!body.slug || !body.lane) return NextResponse.json({ error: "slug and lane are required" }, { status: 400 });
+      const on = new Date().toISOString().slice(0, 10);
+      const res = await draftLaneBrief(body.slug, body.lane, on);
+      if (!res.wrote) return NextResponse.json({ error: res.reason }, { status: 409 });
+      return NextResponse.json({ ok: true, host: res.host });
     }
     if (body.action === "set-authority") {
       if (!body.slug || !body.lane || !isAuthorityLevel(body.level)) {

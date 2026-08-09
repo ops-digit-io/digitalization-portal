@@ -44,6 +44,8 @@ export function makeStartPocTool(rows: readonly RegistryRow[]): AgentTool<StartP
     description:
       "Scaffold a use-case repository and draft a PoC spec for a use case, ready for human approval. Does not build the artifact (that needs approval).",
     capability: "create_uc",
+    effect: "write", // scaffolds a repo — withheld from a non-acting lane rung
+
     inputSchema: {
       type: "object",
       properties: {
