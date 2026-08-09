@@ -50,6 +50,14 @@ const TARGETS = [
     expect: ["01-portal-spec.md"],
     localSource: process.env.SPECIFICATIONS_LOCAL_SOURCE,
   },
+  {
+    key: "organization",
+    repo: process.env.ORGANIZATION_REPO ?? "du-organization-context",
+    dir: process.env.ORGANIZATION_MIRROR_DIR ?? path.join(os.tmpdir(), "du-organization-context"),
+    // Department OS: each department is a folder under departments/.
+    expect: ["departments"],
+    localSource: process.env.ORGANIZATION_LOCAL_SOURCE,
+  },
 ];
 
 const run = (cmd, args, cwd) =>

@@ -49,6 +49,7 @@ const I = {
   bell: "M18 9a6 6 0 1 0-12 0c0 6-3 7-3 7h18s-3-1-3-7 M13.7 21a2 2 0 0 1-3.4 0",
   download: "M12 3v11 M8 11l4 4 4-4 M5 20h14",
   mesh: "M6 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z M18 5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z M12 15a2 2 0 1 0 0 4 2 2 0 0 0 0-4z M8 8h8 M7 10l4 5 M17 9l-4 6",
+  org: "M4 21V7l6-3 6 3v14 M4 21h18 M16 21V10l4 2v9 M8 9h.01 M12 9h.01 M8 13h.01 M12 13h.01 M8 17h.01 M12 17h.01",
 };
 
 // Tiles are pure entry points — no metrics rendered on them.
@@ -58,6 +59,7 @@ export const LAUNCHPAD: TileGroup[] = [
     // smallest shippable increment, and let the evidenced result become a demand.
     category: "Diagnose (pre-funnel)",
     tiles: [
+      { id: "org", title: "Department OS", subtitle: "The org behind the demands — mandate, decision rights, metrics", href: "/org", icon: I.org, tone: "violet" },
       { id: "process", title: "Process Funnel", subtitle: "Diagnose & score a process before intake", href: "/process", icon: I.route, tone: "violet" },
     ],
   },
