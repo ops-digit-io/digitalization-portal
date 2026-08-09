@@ -10,6 +10,8 @@ import { MarkdownPage } from "@/components/portal/markdown-page";
 import { ScoreBar, ScorePill } from "@/components/portal/org-score";
 import { SectionEditor } from "@/components/org/section-editor";
 import { NewLane } from "@/components/org/new-lane";
+import { AutonomyLegend } from "@/components/org/autonomy-legend";
+import { authorityPolicy, isAuthorityLevel, RUNG_TONE } from "@/lib/org/autonomy";
 import type { DepartmentSection } from "@/lib/org/store";
 
 export const dynamic = "force-dynamic";
@@ -93,27 +95,38 @@ export default async function DepartmentDetail({ params }: { params: { dept: str
             No lanes yet. A lane is one repeatable flow you can raise to autonomy on its own.
           </Card>
         ) : (
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {lanes.map((l) => (
-              <Link key={l.slug} href={`/org/${dept.slug}/${l.slug}`} className="group">
-                <Card className="h-full p-4 transition-colors group-hover:border-primary/50">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-sm font-semibold leading-tight">{l.name}</h3>
-                    <ScorePill score={l.score.score} />
-                  </div>
-                  <ScoreBar score={l.score.score} className="mt-2" />
-                  <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{l.score.corePresent}/{l.score.coreTotal} files</span>
-                    {l.authority ? (
-                      <Badge variant="secondary" className="font-mono">{l.authority}</Badge>
-                    ) : (
-                      <span className="text-amber-600">no authority set</span>
-                    )}
-                  </div>
-                </Card>
-              </Link>
-            ))}
-          </div>
+          <>
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {lanes.map((l) => {
+                const pol = l.authority && isAuthorityLevel(l.authority) ? authorityPolicy(l.authority) : null;
+                return (
+                  <Link key={l.slug} href={`/org/${dept.slug}/${l.slug}`} className="group">
+                    <Card className="h-full p-4 transition-colors group-hover:border-primary/50">
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="text-sm font-semibold leading-tight">{l.name}</h3>
+                        <ScorePill score={l.score.score} />
+                      </div>
+                      <ScoreBar score={l.score.score} className="mt-2" />
+                      <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                        <span>{l.score.corePresent}/{l.score.coreTotal} files</span>
+                        {pol ? (
+                          <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${RUNG_TONE[pol.tone].badge}`} title={pol.summary}>
+                            <span className={`inline-block size-1.5 rounded-full ${RUNG_TONE[pol.tone].dot}`} aria-hidden />
+                            {pol.label}
+                          </span>
+                        ) : (
+                          <span className="text-amber-600">no autonomy set</span>
+                        )}
+                      </div>
+                    </Card>
+                  </Link>
+                );
+              })}
+            </div>
+            <div className="mt-4">
+              <AutonomyLegend compact />
+            </div>
+          </>
         )}
       </section>
 
