@@ -11,6 +11,8 @@
 import type { Lane } from "../types.js";
 import { parseUseCase, parsePeople } from "../parse.js";
 import { slugify, type UseCaseSeed } from "./scaffold.js";
+import { readDemand, readArtifact } from "../demands-store.js";
+import { extractRequirementLines, type TemplateContext } from "./templates.js";
 
 /** The problem statement from the `## Problem` section, minus the "> Original …" quote. */
 function problemFrom(markdown: string): string {
@@ -58,4 +60,25 @@ export function seedFromDemandMarkdown(id: string, markdown: string): UseCaseSee
   };
   if (uc.state.domain) seed.domain = uc.state.domain;
   return seed;
+}
+
+// ── IO seam ──────────────────────────────────────────────────────────────────────
+// The two reads every PoC entry point needs, kept in ONE place so the wizard route
+// and the conversational `start-poc` tool seed identically from the real funnel case
+// (previously the tool fabricated a seed with a placeholder requester and no
+// requirements context). Both degrade gracefully: an id with no README yields
+// undefined (a 404 upstream), and an absent requirements artifact yields no context.
+
+/** Build a PoC seed from the REAL funnel case (du-demands live, or local workspace). */
+export async function seedForDemand(id: string, baseDir?: string): Promise<UseCaseSeed | undefined> {
+  const md = await readDemand(id, baseDir);
+  if (md === undefined) return undefined;
+  return seedFromDemandMarkdown(id, md);
+}
+
+/** Feature lines from the demand's requirements artifact, to drive a mockup. */
+export async function requirementsContext(id: string, baseDir?: string): Promise<TemplateContext> {
+  const md = await readArtifact(id, "requirements", baseDir).catch(() => undefined);
+  const requirements = extractRequirementLines(md);
+  return requirements.length ? { requirements } : {};
 }

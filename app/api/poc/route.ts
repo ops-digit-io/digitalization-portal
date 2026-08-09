@@ -15,35 +15,19 @@ import { can } from "@/lib/rbac";
 import { getGitHost } from "@/lib/git";
 import type { RepoRef } from "@/lib/git";
 import { planPoc, scaffoldRepo, buildArtifact } from "@/lib/poc/builder";
-import { repoName, type UseCaseSeed } from "@/lib/poc/scaffold";
-import { seedFromDemandMarkdown } from "@/lib/poc/seed-from-demand";
+import { repoName } from "@/lib/poc/scaffold";
+import { seedForDemand, requirementsContext } from "@/lib/poc/seed-from-demand";
 import type { ArtifactKind } from "@/lib/poc/spec";
-import {
-  pocStack,
-  defaultStackFor,
-  extractRequirementLines,
-  type PocStack,
-  type TemplateContext,
-} from "@/lib/poc/templates";
+import { pocStack, defaultStackFor, type PocStack } from "@/lib/poc/templates";
 import { listCustomTemplates, customToStack } from "@/lib/poc/custom-templates";
-import { readDemand, readArtifact } from "@/lib/demands-store";
 import { getSession } from "@/lib/auth/current";
 
 export const runtime = "nodejs";
 
-/** Build a PoC seed from the REAL funnel case (du-demands live, or local workspace). */
-async function seedFor(useCaseId: string): Promise<UseCaseSeed | undefined> {
-  const md = await readDemand(useCaseId);
-  if (md === undefined) return undefined;
-  return seedFromDemandMarkdown(useCaseId, md);
-}
-
-/** Feature lines from the demand's requirements artifact, to drive a mockup. */
-async function contextFor(useCaseId: string): Promise<TemplateContext> {
-  const md = await readArtifact(useCaseId, "requirements").catch(() => undefined);
-  const requirements = extractRequirementLines(md);
-  return requirements.length ? { requirements } : {};
-}
+// Seeding + requirements context are shared with the conversational start-poc tool
+// (`lib/poc/seed-from-demand.ts`), so both entry points act on the real funnel case.
+const seedFor = seedForDemand;
+const contextFor = requirementsContext;
 
 /** The GitHub template repo to generate from, only when the org opted in. */
 function templateFor(stack: PocStack): { owner: string; repo: string } | undefined {

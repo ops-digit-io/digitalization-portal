@@ -13,8 +13,23 @@ import type { RegistryRow } from "../../registry.js";
 import { getGitHost } from "../../git/index.js";
 import { planPoc, scaffoldRepo } from "../../poc/builder.js";
 import { slugify, type UseCaseSeed } from "../../poc/scaffold.js";
+import { seedForDemand, requirementsContext } from "../../poc/seed-from-demand.js";
 import { pocStack, defaultStackFor, POC_STACKS } from "../../poc/templates.js";
 import type { ArtifactKind } from "../../poc/spec.js";
+
+/** Fallback seed from a registry row — used only when the demand has no README yet. */
+function seedFromRow(row: RegistryRow): UseCaseSeed {
+  return {
+    id: row.id,
+    title: row.title,
+    slug: slugify(row.title) || row.id.toLowerCase(),
+    plant: row.plant ?? "ALL",
+    lane: row.lane ?? "transform",
+    createdOn: row.since ?? "",
+    requester: row.requester ?? "requester@example.com",
+    ...(row.domain ? { domain: row.domain } : {}),
+  };
+}
 
 export interface StartPocInput {
   useCaseId: string;
@@ -38,21 +53,17 @@ export function makeStartPocTool(rows: readonly RegistryRow[]): AgentTool<StartP
       required: ["useCaseId"],
     },
     async run(input) {
+      // Seed from the REAL funnel case (same path as the wizard route) so the PoC
+      // carries the true requester, plant, lane, and problem — not a placeholder.
+      // Fall back to the registry row only when the demand has no README yet.
       const row = rows.find((r) => r.id === input.useCaseId);
-      if (!row) return { error: `Unknown use case ${input.useCaseId}` };
-      const seed: UseCaseSeed = {
-        id: row.id,
-        title: row.title,
-        slug: slugify(row.title),
-        plant: row.plant ?? "ALL",
-        lane: row.lane ?? "transform",
-        createdOn: "2026-05-19",
-        requester: "requester@example.com",
-        ...(row.domain ? { domain: row.domain } : {}),
-      };
+      const seed = (await seedForDemand(input.useCaseId)) ?? (row ? seedFromRow(row) : undefined);
+      if (!seed) return { error: `Unknown use case ${input.useCaseId}` };
       const host = getGitHost();
       const stack = pocStack(input.stackId) ?? defaultStackFor(input.kind ?? "dashboard");
-      const plan = planPoc(seed, stack);
+      // Requirements feature lines drive the mockup, matching the wizard route.
+      const ctx = await requirementsContext(input.useCaseId);
+      const plan = planPoc(seed, stack, ctx);
       const result = await scaffoldRepo(host, seed, plan);
       return {
         repo: result.repo.name,
@@ -60,7 +71,7 @@ export function makeStartPocTool(rows: readonly RegistryRow[]): AgentTool<StartP
         stack: stack.id,
         committedPaths: result.committedPaths,
         specPath: result.specPath,
-        link: `/uc/${row.id}/poc`,
+        link: `/uc/${seed.id}/poc`,
         note: "Scaffold committed and spec drafted. Approve the spec in the wizard to build the artifact.",
       };
     },
