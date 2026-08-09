@@ -14,51 +14,90 @@
 
 import { AUTHORITY_LEVELS, type AuthorityLevel } from "./model.js";
 
+/** Visual tone per rung — muted at the bottom, warmer as the agent gets more freedom. */
+export type RungTone = "muted" | "info" | "recommend" | "warn" | "act";
+
 export interface AuthorityPolicy {
   level: AuthorityLevel;
   /** Position on the ladder, 0 (read-only) … 4 (execute-autonomously). */
   rank: number;
+  /** Friendly name for people — e.g. "Execute with approval". */
   label: string;
-  /** One line: what an agent may do at this rung. */
+  /** One plain sentence: what the agent does at this rung. */
+  summary: string;
+  /** Where the human stays in control — the "You: …" line. */
+  human: string;
+  /** One line: what an agent may do at this rung (fuller than `summary`). */
   permits: string;
-  /** The rung produces an ACTION (not just words) — the point where readiness matters. */
+  /** The rung produces an ACTION in the real world (not just words) — where readiness matters. */
   acts: boolean;
   /** The action takes effect only after a human approves it. */
   requiresApproval: boolean;
+  /** Consistent colour for the widget and the legend. */
+  tone: RungTone;
 }
 
 const POLICY: Record<AuthorityLevel, Omit<AuthorityPolicy, "level" | "rank">> = {
   "read-only": {
     label: "Read-only",
+    summary: "Looks and reports. It never writes anything.",
+    human: "You do all the work; the agent just informs you.",
     permits: "Observe and report only — no drafts, no actions.",
     acts: false,
     requiresApproval: false,
+    tone: "muted",
   },
   draft: {
     label: "Draft",
+    summary: "Writes a draft for you. Nothing is saved or sent.",
+    human: "You decide what to do with the draft — keep it or bin it.",
     permits: "Produce drafts for a human to take or discard. Nothing is persisted as final.",
     acts: false,
     requiresApproval: false,
+    tone: "info",
   },
   recommend: {
     label: "Recommend",
+    summary: "Proposes a specific next step and argues for it.",
+    human: "You accept or reject each recommendation.",
     permits: "Propose a specific recommendation for a human to accept or reject.",
     acts: false,
     requiresApproval: false,
+    tone: "recommend",
   },
   "execute-with-approval": {
     label: "Execute with approval",
+    summary: "Prepares the real action, but it waits for your yes.",
+    human: "You approve before anything takes effect.",
     permits: "Prepare the action; it takes effect only after a human approves it.",
     acts: true,
     requiresApproval: true,
+    tone: "warn",
   },
   "execute-autonomously": {
     label: "Execute autonomously",
+    summary: "Carries out the action on its own, inside its guardrails.",
+    human: "You're notified, not asked — the guardrails are your control.",
     permits: "Carry out the action within its guardrails, without step-by-step approval.",
     acts: true,
     requiresApproval: false,
+    tone: "act",
   },
 };
+
+/** Tailwind classes per tone — a dot colour and a soft badge, for the widget + legend. */
+export const RUNG_TONE: Record<RungTone, { dot: string; badge: string }> = {
+  muted: { dot: "bg-slate-400", badge: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" },
+  info: { dot: "bg-sky-500", badge: "bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300" },
+  recommend: { dot: "bg-violet-500", badge: "bg-violet-100 text-violet-800 dark:bg-violet-950/50 dark:text-violet-300" },
+  warn: { dot: "bg-amber-500", badge: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300" },
+  act: { dot: "bg-rose-500", badge: "bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300" },
+};
+
+/** The tone for a level string, defaulting to muted for an unknown/absent level. */
+export function toneFor(level: string | null | undefined): RungTone {
+  return level && isAuthorityLevel(level) ? POLICY[level].tone : "muted";
+}
 
 export function authorityRank(level: AuthorityLevel): number {
   return AUTHORITY_LEVELS.indexOf(level);

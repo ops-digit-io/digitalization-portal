@@ -16,6 +16,8 @@ import {
   setAuthorityInBrief,
   isAuthorityLevel,
   EXECUTE_READINESS,
+  toneFor,
+  RUNG_TONE,
 } from "./autonomy";
 import { authorityLevelOf } from "./scaffold";
 
@@ -33,6 +35,22 @@ describe("policy per rung", () => {
     expect(authorityPolicy("execute-with-approval").acts).toBe(true);
     expect(authorityPolicy("execute-with-approval").requiresApproval).toBe(true);
     expect(authorityPolicy("execute-autonomously").requiresApproval).toBe(false);
+  });
+
+  it("carries the plain-language fields every rung needs to be understood", () => {
+    for (const p of authorityLadder()) {
+      expect(p.label, `${p.level} label`).toBeTruthy();
+      expect(p.summary, `${p.level} summary`).toBeTruthy();
+      expect(p.human, `${p.level} human`).toBeTruthy();
+      expect(p.tone, `${p.level} tone`).toBeTruthy();
+    }
+  });
+
+  it("maps a level to a tone, defaulting to muted when none is set", () => {
+    expect(toneFor("recommend")).toBe(authorityPolicy("recommend").tone);
+    expect(toneFor(null)).toBe("muted");
+    expect(toneFor("nonsense")).toBe("muted");
+    expect(RUNG_TONE[toneFor("execute-autonomously")].dot).toBeTruthy();
   });
 
   it("steps up and down, stopping at the ends", () => {

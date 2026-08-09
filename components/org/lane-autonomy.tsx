@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { authorityLadder, nextLevel, prevLevel, canRaiseTo, type AuthorityLevel } from "@/lib/org/autonomy";
+import { authorityLadder, authorityPolicy, nextLevel, prevLevel, canRaiseTo, RUNG_TONE, type AuthorityLevel } from "@/lib/org/autonomy";
 
 /**
  * The autonomy ladder for a lane — the five rungs, the current one highlighted, and (for
@@ -57,31 +57,60 @@ export function LaneAutonomy({
     }
   }
 
+  const currentPolicy = currentLevel ? authorityPolicy(currentLevel) : null;
+  const upLabel = up ? authorityPolicy(up).label : "";
+  const downLabel = down ? authorityPolicy(down).label : "";
+
   return (
     <div className="rounded-lg border p-4">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">Autonomy</h3>
-        <span className="text-xs text-muted-foreground">agent brief {agentBriefScore}%</span>
+        <span className="text-xs text-muted-foreground">agent brief {agentBriefScore}% complete</span>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        How far this lane&apos;s AI agent may act on its own — and where you stay in control.
+      </p>
+
+      {/* Plain "you are here" callout. */}
+      <div className="mt-3 rounded-md border bg-secondary/20 p-2.5">
+        {currentPolicy ? (
+          <div className="flex items-start gap-2">
+            <span className={`mt-1 inline-block size-2.5 shrink-0 rounded-full ${RUNG_TONE[currentPolicy.tone].dot}`} aria-hidden />
+            <div>
+              <div className="text-sm font-semibold">Current: {currentPolicy.label}</div>
+              <p className="text-xs text-muted-foreground">{currentPolicy.summary}</p>
+              <p className="text-xs text-foreground/70"><span className="font-medium">You:</span> {currentPolicy.human}</p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-amber-600">No autonomy level set yet — this lane&apos;s agent does nothing until you set one.</p>
+        )}
       </div>
 
+      {/* The whole ladder, so the current rung is seen in context. */}
       <ol className="mt-3 space-y-1.5">
         {ladder.map((p) => {
           const isCurrent = p.rank === currentRank;
           return (
             <li
               key={p.level}
-              className={`flex items-start gap-2 rounded-md border p-2 ${isCurrent ? "border-primary bg-primary/5" : "border-transparent"}`}
+              className={`flex items-start gap-2.5 rounded-md border p-2 ${isCurrent ? "border-primary bg-primary/5" : "border-transparent"}`}
             >
-              <span className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-full text-[10px] font-semibold ${isCurrent ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>
-                {p.rank}
-              </span>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className={`font-mono text-xs ${isCurrent ? "font-semibold text-foreground" : "text-muted-foreground"}`}>{p.level}</span>
-                  {p.acts && <span className="rounded bg-amber-100 px-1 text-[10px] text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">acts</span>}
-                  {isCurrent && <span className="text-[10px] text-primary">current</span>}
+              <span className={`mt-1 inline-block size-2.5 shrink-0 rounded-full ${RUNG_TONE[p.tone].dot}`} aria-hidden />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span className={`text-xs font-semibold ${isCurrent ? "text-foreground" : "text-foreground/80"}`}>
+                    {p.rank}. {p.label}
+                  </span>
+                  {p.acts && (
+                    <span className={`rounded px-1 text-[10px] ${RUNG_TONE[p.tone].badge}`}>
+                      {p.requiresApproval ? "acts, with your approval" : "acts on its own"}
+                    </span>
+                  )}
+                  {isCurrent && <span className="text-[10px] font-medium text-primary">← current</span>}
                 </div>
-                <p className="text-xs text-muted-foreground">{p.permits}</p>
+                <p className="text-xs text-muted-foreground">{p.summary}</p>
+                <p className="text-xs text-foreground/60"><span className="font-medium">You:</span> {p.human}</p>
               </div>
             </li>
           );
@@ -89,27 +118,34 @@ export function LaneAutonomy({
       </ol>
 
       {canEdit && (
-        <div className="mt-3">
-          <div className="flex items-center gap-2">
+        <div className="mt-3 border-t pt-3">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => up && setLevel(up)}
               disabled={busy || !up || !raiseGate.ok}
-              title={up ? (raiseGate.ok ? `Raise to ${up}` : raiseGate.reason) : "Already at the top rung"}
+              title={up ? (raiseGate.ok ? `Raise to ${upLabel}` : raiseGate.reason) : "Already at the top rung"}
               className="rounded-md border bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-40"
             >
-              ▲ Raise{up ? ` to ${up}` : ""}
+              ▲ Raise{up ? ` to ${upLabel}` : ""}
             </button>
             <button
               onClick={() => down && setLevel(down)}
               disabled={busy || !down}
               className="rounded-md border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40"
             >
-              ▼ Lower{down ? ` to ${down}` : ""}
+              ▼ Lower{down ? ` to ${downLabel}` : ""}
             </button>
           </div>
-          {up && !raiseGate.ok && <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">{raiseGate.reason}</p>}
+          {up && !raiseGate.ok && (
+            <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+              <span className="font-medium">To reach {upLabel}:</span> {raiseGate.reason}
+            </p>
+          )}
           {error && <p className="mt-2 text-xs text-rose-600">{error}</p>}
-          <p className="mt-2 text-[11px] text-muted-foreground">Raising autonomy edits the agent brief. Move one rung at a time; execute-rungs need a complete brief.</p>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Raising autonomy edits this lane&apos;s agent brief. Move one rung at a time; the acting rungs need a
+            complete brief first.
+          </p>
         </div>
       )}
     </div>

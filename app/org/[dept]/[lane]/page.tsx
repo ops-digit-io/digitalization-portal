@@ -11,6 +11,7 @@ import { ScoreBar, ScorePill } from "@/components/portal/org-score";
 import { SectionEditor } from "@/components/org/section-editor";
 import { LaneDocs } from "@/components/org/lane-docs";
 import { LaneAutonomy } from "@/components/org/lane-autonomy";
+import { authorityPolicy, isAuthorityLevel, RUNG_TONE } from "@/lib/org/autonomy";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ export default async function LaneDetail({ params }: { params: { dept: string; l
   ]);
   if (!dept || !lane) notFound();
   const canEdit = can(session, "draft");
+  const lanePolicy = lane.authority && isAuthorityLevel(lane.authority) ? authorityPolicy(lane.authority) : null;
 
   return (
     <main className="mx-auto max-w-[980px] px-6 py-6">
@@ -50,11 +52,14 @@ export default async function LaneDetail({ params }: { params: { dept: string; l
         <div className="text-right">
           <div className="text-xs text-muted-foreground">Pack completeness</div>
           <div className="text-2xl font-semibold"><ScorePill score={lane.score.score} /></div>
-          <div className="mt-1">
-            {lane.authority ? (
-              <Badge variant="secondary" className="font-mono">{lane.authority}</Badge>
+          <div className="mt-1 flex justify-end">
+            {lanePolicy ? (
+              <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs ${RUNG_TONE[lanePolicy.tone].badge}`} title={lanePolicy.summary}>
+                <span className={`inline-block size-1.5 rounded-full ${RUNG_TONE[lanePolicy.tone].dot}`} aria-hidden />
+                {lanePolicy.label}
+              </span>
             ) : (
-              <span className="text-xs text-amber-600">no authority level set</span>
+              <span className="text-xs text-amber-600">no autonomy set</span>
             )}
           </div>
         </div>
