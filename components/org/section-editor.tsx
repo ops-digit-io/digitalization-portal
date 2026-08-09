@@ -16,12 +16,15 @@ export function SectionEditor({
   deptName,
   initialSource,
   present,
+  lane,
 }: {
   slug: string;
   sectionKey: string;
   deptName: string;
   initialSource: string;
   present: boolean;
+  /** When set, this editor edits a lane-pack file of that lane, not a department section. */
+  lane?: string;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -40,7 +43,7 @@ export function SectionEditor({
         const res = await fetch("/api/org", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ action: "score", key: sectionKey, markdown: text }),
+          body: JSON.stringify({ action: lane ? "score-lane" : "score", key: sectionKey, markdown: text }),
         });
         const data = (await res.json().catch(() => ({}))) as { score?: SectionScore };
         if (data.score) setScore(data.score);
@@ -51,7 +54,7 @@ export function SectionEditor({
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [text, editing, sectionKey]);
+  }, [text, editing, sectionKey, lane]);
 
   async function begin() {
     setEditing(true);
@@ -60,7 +63,8 @@ export function SectionEditor({
     if (!present || initialSource.trim() === "") {
       // Load the coached scaffold for an empty section.
       try {
-        const res = await fetch(`/api/org?key=${encodeURIComponent(sectionKey)}&name=${encodeURIComponent(deptName)}`);
+        const laneParam = lane ? "&lane=1" : "";
+        const res = await fetch(`/api/org?key=${encodeURIComponent(sectionKey)}&name=${encodeURIComponent(deptName)}${laneParam}`);
         const data = (await res.json().catch(() => ({}))) as { markdown?: string };
         if (data.markdown) seed = data.markdown;
       } catch {
@@ -78,7 +82,11 @@ export function SectionEditor({
       const res = await fetch("/api/org", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "save", slug, key: sectionKey, markdown: text }),
+        body: JSON.stringify(
+          lane
+            ? { action: "save-lane", slug, lane, key: sectionKey, markdown: text }
+            : { action: "save", slug, key: sectionKey, markdown: text },
+        ),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);

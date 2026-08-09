@@ -363,6 +363,143 @@ export function bundledFramework(): string {
   return FRAMEWORK;
 }
 
+// ---------------------------------------------------------------- seeded lane
+
+const laneAgentBrief = `---
+owner: Region Lead — Europe
+review-cadence: quarterly
+last-verified: 2026-08-05
+---
+
+# Connectivity Assessment — Agent brief
+
+## Scope
+Assess one facility's connectivity and legacy landscape after an L1 value analysis:
+inventory assets, interfaces and known barriers into \`landscape.md\`. NOT the solution
+design (that is L4/L5) and NOT tool procurement.
+
+## Authority level
+\`recommend\` — the agent compiles the inventory and proposes the barrier list; a human
+Region Lead accepts it before it becomes the basis for a roadmap decision.
+
+## Rights per data object
+Read: asset register, connectivity register, MES interfaces. Write: \`landscape.md\` for
+this facility only. No write access to systems of record.
+
+## Guardrails
+Never contact a plant system directly; read exports only. Never mark a barrier resolved
+— only a human closes a barrier.
+
+## Escalation
+Any barrier classified as a network/OT-security risk is escalated to Cybersecurity the
+same day, before it is written up.
+`;
+
+const lanePlaybook = `---
+owner: Region Lead — Europe
+review-cadence: quarterly
+last-verified: 2026-08-05
+---
+
+# Connectivity Assessment — Playbook
+
+| Step | Human / Agent / both | Action | Output |
+|---|---|---|---|
+| 1 | agent | Pull asset & connectivity registers for the facility | raw inventory |
+| 2 | both | Map interfaces and legacy systems | interface map |
+| 3 | agent | Draft the barrier list with owner and class | draft barriers |
+| 4 | human | Review and accept the barrier list | accepted \`landscape.md\` |
+
+## Exceptions / error paths
+Register export missing or stale → fall back to the last facility survey and flag the
+gap; do not infer connectivity from age of equipment.
+
+## Wait states
+While waiting on a facility contact, the agent prepares the interface map from exports
+so the human review starts from a draft, not a blank page.
+
+## Handovers
+The accepted \`landscape.md\` is handed to L3 (barrier & enabler analysis) — acceptance
+criterion: every barrier has an owner and a class.
+
+## Control points & rework rule
+A barrier without an owner is sent back to step 3; the assessment is not "done" until
+\`landscape.md\` lists no ownerless barrier.
+`;
+
+const laneSkills = `---
+owner: Region Lead — Europe
+review-cadence: quarterly
+last-verified: 2026-08-05
+---
+
+# Connectivity Assessment — Skills, tools & interfaces
+
+## Skills
+Reading OT/IT interface documentation; classifying connectivity barriers (tech / IT /
+resources / decision).
+
+## Tools
+The asset-register export tool; the connectivity dashboard (read-only); the
+\`landscape.md\` template.
+
+## Interfaces / systems
+Asset register (read), connectivity register (read), MES interface catalogue (read).
+`;
+
+const laneTasks = `---
+owner: Region Lead — Europe
+review-cadence: quarterly
+last-verified: 2026-08-05
+---
+
+# Connectivity Assessment — Recurring tasks
+
+| Task | Trigger | Template | Owner |
+|---|---|---|---|
+| Open a facility assessment | L1 value analysis accepted | assessment checklist | Region Lead |
+| Compile barrier list | interface map complete | barrier-list table | agent |
+| Escalate OT-security barrier | a network-risk barrier found | Cybersecurity escalation note | agent |
+`;
+
+const laneMetrics = `---
+owner: Region Lead — Europe
+review-cadence: monthly
+last-verified: 2026-08-05
+---
+
+# Connectivity Assessment — Lane metrics
+
+| Metric | Formula | Source (system + field) | Target |
+|---|---|---|---|
+| Assessment lead time | accepted date − opened date | lane tracker | < 10 working days |
+| Ownerless barriers at handover | count of barriers with no owner | \`landscape.md\` | 0 |
+| Re-assessment rate | second assessment of same facility / total | \`landscape.md\` | 0 |
+`;
+
+const CONNECTIVITY_ASSESSMENT: Record<string, string> = {
+  playbook: lanePlaybook,
+  skills: laneSkills,
+  tasks: laneTasks,
+  metrics: laneMetrics,
+  "agent-brief": laneAgentBrief,
+};
+
+/** Bundled lanes, keyed by department slug → lane slug → { file key → markdown }. */
+const SEED_LANES: Record<string, Record<string, Record<string, string>>> = {
+  "operations-digitalization": { "connectivity-assessment": CONNECTIVITY_ASSESSMENT },
+};
+
+/** The lane slugs the seed provides for a department. */
+export function bundledLaneSlugs(deptSlug: string): string[] {
+  return Object.keys(SEED_LANES[deptSlug] ?? {});
+}
+
+/** The bundled lane-pack files for a department's lane, or undefined if not seeded. */
+export function bundledLane(deptSlug: string, laneSlug: string): Record<string, string> | undefined {
+  return SEED_LANES[deptSlug]?.[laneSlug];
+}
+
 const FRAMEWORK = `# Department OS — the framework
 
 A department is not a brand: a brand is a *state* ("this is who we are"), a department

@@ -28,8 +28,19 @@ departments/<slug>/00-core/handover-contracts.md
 departments/<slug>/00-core/standards.md
 departments/<slug>/00-core/portfolio.md
 departments/<slug>/10-modules/<module>.md   optional (systems-of-record, landscape, …)
+departments/<slug>/lanes/<lane>/playbook.md      lane pack — the run, with error paths
+departments/<slug>/lanes/<lane>/skills.md        skills, tools, interfaces
+departments/<slug>/lanes/<lane>/tasks.md         recurring tasks + templates
+departments/<slug>/lanes/<lane>/metrics.md       lane-only metrics
+departments/<slug>/lanes/<lane>/agent-brief.md   scope, authority_level, guardrails
 framework.md                                the framework itself (read-only in the app)
 ```
+
+The three rings match the framework: the twelve-file **core** (`00-core/`), the
+department-wide **modules** (`10-modules/`), and per-lane **lane packs** (`lanes/<lane>/`)
+— where autonomy actually lives. A lane's `agent-brief.md` names its `authority_level`
+(one of `read-only → draft → recommend → execute-with-approval → execute-autonomously`),
+surfaced as the lane's badge in the app. Raise autonomy one lane at a time.
 
 The `00-core/` and `10-modules/` split follows the framework's own repository layout
 (`01-framework.md`). The critical sections that carry the validity contract

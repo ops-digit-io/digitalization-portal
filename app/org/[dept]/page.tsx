@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { readDepartment } from "@/lib/org/store";
+import { listLanes } from "@/lib/org/lane-store";
 import { getSession } from "@/lib/auth/current";
 import { can } from "@/lib/rbac";
 import { Card } from "@/components/ui/card";
@@ -8,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { MarkdownPage } from "@/components/portal/markdown-page";
 import { ScoreBar, ScorePill } from "@/components/portal/org-score";
 import { SectionEditor } from "@/components/org/section-editor";
+import { NewLane } from "@/components/org/new-lane";
 import type { DepartmentSection } from "@/lib/org/store";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +21,7 @@ export const dynamic = "force-dynamic";
  * the org behind a demand — and the page a department improves against.
  */
 export default async function DepartmentDetail({ params }: { params: { dept: string } }) {
-  const [dept, session] = await Promise.all([readDepartment(params.dept), getSession()]);
+  const [dept, session, lanes] = await Promise.all([readDepartment(params.dept), getSession(), listLanes(params.dept)]);
   if (!dept) notFound();
   const canEdit = can(session, "draft");
 
@@ -74,6 +76,46 @@ export default async function DepartmentDetail({ params }: { params: { dept: str
           <Section key={s.key} section={s} stale={staleKeys.has(s.key)} slug={dept.slug} deptName={dept.name} canEdit={canEdit} />
         ))}
       </div>
+
+      {/* Lanes — the third ring: per-lane packs where autonomy actually lives. */}
+      <section className="mt-8">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold">Lanes</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Per-lane packs — playbook, skills, tasks, metrics and the agent brief that sets each lane&apos;s autonomy.
+            </p>
+          </div>
+          {canEdit && <NewLane deptSlug={dept.slug} />}
+        </div>
+        {lanes.length === 0 ? (
+          <Card className="mt-3 p-6 text-center text-xs text-muted-foreground">
+            No lanes yet. A lane is one repeatable flow you can raise to autonomy on its own.
+          </Card>
+        ) : (
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {lanes.map((l) => (
+              <Link key={l.slug} href={`/org/${dept.slug}/${l.slug}`} className="group">
+                <Card className="h-full p-4 transition-colors group-hover:border-primary/50">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-sm font-semibold leading-tight">{l.name}</h3>
+                    <ScorePill score={l.score.score} />
+                  </div>
+                  <ScoreBar score={l.score.score} className="mt-2" />
+                  <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{l.score.corePresent}/{l.score.coreTotal} files</span>
+                    {l.authority ? (
+                      <Badge variant="secondary" className="font-mono">{l.authority}</Badge>
+                    ) : (
+                      <span className="text-amber-600">no authority set</span>
+                    )}
+                  </div>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
 
       {dept.modules.length > 0 && (
         <section className="mt-8">
