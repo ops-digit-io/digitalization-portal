@@ -54,7 +54,7 @@ function UserMenu({ user }: { user?: UserStatus }) {
         {user.demo ? "DU" : initials(user.name || user.email)}
       </span>
       {user.authenticated && (
-        <a href="/api/auth/logout" className="rounded-md border px-2 py-1 text-[11px] hover:border-foreground/40" title="Sign out">Sign out</a>
+        <a href="/api/auth/logout" className="hidden rounded-md border px-2 py-1 text-[11px] hover:border-foreground/40 sm:inline" title="Sign out">Sign out</a>
       )}
     </div>
   );
@@ -143,11 +143,11 @@ export function AppHeader() {
         {/* Tool search */}
         <button
           onClick={() => setPaletteOpen(true)}
-          className="ml-2 flex h-9 flex-1 items-center gap-2 rounded-md border px-3 text-sm text-muted-foreground hover:text-foreground sm:max-w-xs"
+          className="ml-2 flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md border px-3 text-sm text-muted-foreground hover:text-foreground sm:max-w-xs"
           aria-label={t("search.open", "Search tools")}
         >
           <span aria-hidden>⌕</span>
-          <span className="flex-1 text-left">{t("search.placeholder", "Search tools…")}</span>
+          <span className="flex-1 truncate text-left">{t("search.placeholder", "Search tools…")}</span>
           <kbd className="hidden rounded border px-1.5 text-[10px] sm:inline">⌘K</kbd>
         </button>
 

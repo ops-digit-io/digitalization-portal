@@ -2,6 +2,7 @@
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { mdComponents } from "./md-components";
 
 /**
  * Renders an artifact section with an edit affordance. Editing now happens in the
@@ -37,7 +38,7 @@ export function MarkdownDoc({
         )}
       </summary>
       <div className="prose-portal mt-2 pl-5 text-sm text-foreground/90">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{body}</ReactMarkdown>
       </div>
     </details>
   );

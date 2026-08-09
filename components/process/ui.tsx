@@ -65,6 +65,13 @@ export function Md({ children }: { children: string }) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
+          // A wide GFM table has no width cap without the typography plugin — wrap it
+          // so it scrolls inside itself instead of scrolling the whole page on mobile.
+          table: (props) => (
+            <div className="my-3 overflow-x-auto">
+              <table {...props} />
+            </div>
+          ),
           // A fenced block arrives as <pre><code>. For a diagram the <pre> has to
           // go: a block-level figure cannot legally live inside it, and the code
           // styling would frame the drawing.
@@ -73,7 +80,7 @@ export function Md({ children }: { children: string }) {
             if (isValidElement<{ className?: string }>(only) && /\blanguage-mermaid\b/.test(only.props.className ?? "")) {
               return <>{children}</>;
             }
-            return <pre {...props}>{children}</pre>;
+            return <pre className="overflow-x-auto" {...props}>{children}</pre>;
           },
           // A ```mermaid fence is a diagram, not code — the phase templates ship
           // flowcharts and they only read as diagrams.

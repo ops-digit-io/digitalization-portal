@@ -94,7 +94,9 @@ export async function createDepartment(name: string): Promise<{ slug: string }> 
   if (!slug) throw new OrgWriteError(`could not derive a slug from “${name}”`);
 
   // Name lives in the charter frontmatter so the reader picks it up as the display name.
-  const charter = scaffoldSection("charter", trimmed).replace("owner:", `name: ${trimmed}\nowner:`);
+  // A function replacer avoids String.replace interpreting `$&`/`$1`/`$$` in a name
+  // like "A$&B" — a literal `$` in the department name must survive verbatim.
+  const charter = scaffoldSection("charter", trimmed).replace("owner:", () => `name: ${trimmed}\nowner:`);
   await saveSection(slug, "charter", charter, `Create department ${slug}`);
   return { slug };
 }

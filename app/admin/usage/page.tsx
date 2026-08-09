@@ -132,7 +132,7 @@ export default async function UsagePage({ searchParams }: { searchParams: { days
         {u.byTool.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">No interaction recorded in this window.</p>
         ) : (
-          <table className="mt-3 w-full text-sm">
+          <div className="mt-3 overflow-x-auto"><table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="pb-2 font-medium">Tool</th>
@@ -154,7 +154,7 @@ export default async function UsagePage({ searchParams }: { searchParams: { days
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </Card>
 
@@ -168,7 +168,7 @@ export default async function UsagePage({ searchParams }: { searchParams: { days
         {u.byFeature.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">No activity recorded in this window.</p>
         ) : (
-          <table className="mt-3 w-full text-sm">
+          <div className="mt-3 overflow-x-auto"><table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="pb-2 font-medium">Feature</th>
@@ -192,7 +192,7 @@ export default async function UsagePage({ searchParams }: { searchParams: { days
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </Card>
 
@@ -203,7 +203,7 @@ export default async function UsagePage({ searchParams }: { searchParams: { days
         {u.byModel.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">No activity recorded in this window.</p>
         ) : (
-          <table className="mt-3 w-full text-sm">
+          <div className="mt-3 overflow-x-auto"><table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="pb-2 font-medium">Model</th>
@@ -225,7 +225,7 @@ export default async function UsagePage({ searchParams }: { searchParams: { days
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </Card>
 
