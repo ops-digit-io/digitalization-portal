@@ -36,10 +36,18 @@ export interface LaneSummary {
   authority: string | null;
 }
 
+/** A free-form document under a lane's `procedures/` or `examples/`. */
+export interface LaneDoc {
+  dir: string;
+  name: string;
+  source: string;
+  body: string;
+}
+
 export interface Lane extends LaneSummary {
   files: LaneFile[];
-  /** Optional directories present in the pack (procedures, examples). */
-  dirs: string[];
+  /** Documents under procedures/ and examples/, read and editable. */
+  docs: LaneDoc[];
 }
 
 function safeSlug(slug: string): string | null {
@@ -104,13 +112,21 @@ export async function readLane(deptSlug: string, laneSlugInput: string): Promise
     return { key: def.key, title: def.title, source, body: parseFrontmatter(source).body, score: byKey.get(def.key)! };
   });
 
-  const dirs: string[] = [];
-  await Promise.all(
-    LANE_DIRS.map(async (d) => {
-      const ents = await listContent(organizationRepo(), `${DEPTS}/${dept}/lanes/${laneSlug}/${d}`).catch(() => []);
-      if (ents.length > 0) dirs.push(d);
-    }),
-  );
+  const docs: LaneDoc[] = (
+    await Promise.all(
+      LANE_DIRS.map(async (d): Promise<LaneDoc[]> => {
+        const ents = await listContent(organizationRepo(), `${DEPTS}/${dept}/lanes/${laneSlug}/${d}`).catch(() => []);
+        const mdFiles = ents.filter((e) => e.type === "file" && e.name.toLowerCase().endsWith(".md"));
+        return Promise.all(
+          mdFiles.map(async (f): Promise<LaneDoc> => {
+            const source = (await readContent(organizationRepo(), `${DEPTS}/${dept}/lanes/${laneSlug}/${d}/${f.name}`).catch(() => "")) ?? "";
+            return { dir: d, name: f.name.replace(/\.md$/i, ""), source, body: parseFrontmatter(source).body };
+          }),
+        );
+      }),
+    )
+  ).flat();
+  docs.sort((a, b) => a.dir.localeCompare(b.dir) || a.name.localeCompare(b.name));
 
   return {
     slug: laneSlug,
@@ -118,6 +134,6 @@ export async function readLane(deptSlug: string, laneSlugInput: string): Promise
     score,
     authority: authorityLevelOf(files["agent-brief"]),
     files: laneFileList,
-    dirs: dirs.sort(),
+    docs,
   };
 }

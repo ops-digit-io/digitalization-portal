@@ -10,7 +10,7 @@
 import { describe, it, expect } from "vitest";
 import { scaffoldSection, scaffoldDepartment, slugifyDept } from "./scaffold";
 import { scoreSection } from "./scoring";
-import { CORE_SECTIONS, sectionDef } from "./model";
+import { CORE_SECTIONS, MODULE_SECTIONS, sectionDef } from "./model";
 
 describe("slugifyDept", () => {
   it("makes a safe slug from a free-text name", () => {
@@ -49,5 +49,18 @@ describe("scaffolds match the grammar they help fill", () => {
   it("carries validity frontmatter only on the critical sections", () => {
     expect(scaffoldSection("strategy")).toContain("valid-until:");
     expect(scaffoldSection("intake")).not.toContain("valid-until:");
+  });
+
+  for (const def of MODULE_SECTIONS) {
+    it(`module ${def.key}: scaffold satisfies its structural criteria`, () => {
+      const s = scoreSection(def, scaffoldSection(def.key, "Demo Dept"));
+      const structural = s.required.filter((r) => !r.met && !/owner|table|rows/i.test(r.label)).map((r) => r.label);
+      expect(structural, `${def.key} module scaffold missing: ${structural.join(", ")}`).toEqual([]);
+    });
+  }
+
+  it("gives systems-of-record (the critical module) validity frontmatter", () => {
+    expect(scaffoldSection("systems-of-record")).toContain("valid-until:");
+    expect(scaffoldSection("guardrails")).not.toContain("valid-until:");
   });
 });

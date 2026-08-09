@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { MarkdownPage } from "@/components/portal/markdown-page";
 import { ScoreBar, ScorePill } from "@/components/portal/org-score";
 import { SectionEditor } from "@/components/org/section-editor";
+import { LaneDocs } from "@/components/org/lane-docs";
 
 export const dynamic = "force-dynamic";
 
@@ -59,17 +60,13 @@ export default async function LaneDetail({ params }: { params: { dept: string; l
       </div>
       <ScoreBar score={lane.score.score} className="mt-3" />
 
-      {lane.dirs.length > 0 && (
-        <p className="mt-2 text-xs text-muted-foreground">
-          Also present: {lane.dirs.map((d) => <span key={d} className="font-mono">{d}/ </span>)}
-        </p>
-      )}
-
       <div className="mt-6 space-y-5">
         {lane.files.map((f) => (
           <LaneFileCard key={f.key} file={f} slug={dept.slug} laneSlug={lane.slug} laneName={lane.name} canEdit={canEdit} />
         ))}
       </div>
+
+      <LaneDocs slug={dept.slug} lane={lane.slug} docs={lane.docs} canEdit={canEdit} />
     </main>
   );
 }

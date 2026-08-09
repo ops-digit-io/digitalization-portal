@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { CORE_SECTIONS, MODULE_SECTIONS, CORE_KEYS, MODULE_KEYS, AUTHORITY_LEVELS, sectionSubdir } from "./model";
+import { CORE_SECTIONS, MODULE_SECTIONS, CORE_KEYS, MODULE_KEYS, AUTHORITY_LEVELS, sectionSubdir, anyDef, moduleDef, sectionDef } from "./model";
 
 describe("core section set — the twelve files (9 v3 + 3 v4)", () => {
   it("is exactly the framework's core, in order", () => {
@@ -61,6 +61,24 @@ describe("the critical (validity-bearing) sections match the framework exactly",
 describe("the five authority levels", () => {
   it("are the framework's five rungs, in order", () => {
     expect(AUTHORITY_LEVELS).toEqual(["read-only", "draft", "recommend", "execute-with-approval", "execute-autonomously"]);
+  });
+});
+
+describe("modules are first-class scored sections", () => {
+  it("every module carries a real grammar (owner + criteria) and a coaching prompt", () => {
+    for (const m of MODULE_SECTIONS) {
+      expect(m.required.length, `${m.key} has no criteria`).toBeGreaterThan(1);
+      expect(m.coaching, `${m.key} has no coaching`).toBeTruthy();
+      expect(m.trigger, `${m.key} has no trigger`).toBeTruthy();
+    }
+  });
+
+  it("anyDef resolves both core and module keys; sectionDef stays core-only", () => {
+    expect(anyDef("charter")?.key).toBe("charter");
+    expect(anyDef("systems-of-record")?.key).toBe("systems-of-record");
+    expect(moduleDef("guardrails")?.key).toBe("guardrails");
+    expect(sectionDef("systems-of-record")).toBeUndefined(); // module, not core
+    expect(anyDef("nope")).toBeUndefined();
   });
 });
 

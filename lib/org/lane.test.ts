@@ -15,7 +15,7 @@ import path from "node:path";
 import { LANE_FILES, LANE_KEYS, LANE_DIRS } from "./lane";
 import { scoreSection } from "./scoring";
 import { scaffoldLaneFile, scaffoldLane, authorityLevelOf } from "./scaffold";
-import { createLane, saveLaneFile, OrgWriteError } from "./authoring";
+import { createLane, saveLaneFile, saveLaneDoc, OrgWriteError } from "./authoring";
 import { createDepartment } from "./authoring";
 import { readLane, listLanes } from "./lane-store";
 
@@ -95,6 +95,20 @@ describe("lane authoring — local round trip and guards", () => {
 
   it("rejects an unknown lane file key", async () => {
     await expect(saveLaneFile("lane-test-dept", "connectivity-assessment", "nope", "x")).rejects.toBeInstanceOf(OrgWriteError);
+  });
+
+  it("writes a procedures/ doc and reads it back", async () => {
+    const { slug: dept } = await createDepartment("Lane Doc Dept");
+    const { slug: lane } = await createLane(dept, "Rollout");
+    await saveLaneDoc(dept, lane, "procedures", "Site Onboarding", "# Site Onboarding\nsteps");
+    const read = await readLane(dept, lane);
+    const doc = read!.docs.find((d) => d.dir === "procedures" && d.name === "site-onboarding");
+    expect(doc).toBeDefined();
+    expect(doc!.body).toContain("steps");
+  });
+
+  it("rejects an unknown lane directory", async () => {
+    await expect(saveLaneDoc("lane-doc-dept", "rollout", "secrets", "x", "y")).rejects.toBeInstanceOf(OrgWriteError);
   });
 });
 

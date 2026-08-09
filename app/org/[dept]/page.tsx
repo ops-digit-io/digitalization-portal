@@ -117,23 +117,28 @@ export default async function DepartmentDetail({ params }: { params: { dept: str
         )}
       </section>
 
-      {dept.modules.length > 0 && (
-        <section className="mt-8">
-          <h2 className="text-sm font-semibold">Modules</h2>
-          <p className="mt-1 text-xs text-muted-foreground">Department-wide packs switched on when their trigger fires.</p>
-          <div className="mt-3 space-y-5">
-            {dept.modules.map((m) => (
-              <Card key={m.key} id={m.key} className="p-5">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold">{m.title}</h3>
-                  {m.critical && <Badge variant="outline" className="border-rose-300 text-rose-600">critical</Badge>}
-                </div>
-                <div className="mt-3"><MarkdownPage body={m.body} /></div>
-              </Card>
+      <section className="mt-8">
+        <h2 className="text-sm font-semibold">Modules</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Department-wide packs, switched on when their trigger fires — additive and optional. Start one when its
+          trigger applies; each is scored and coached like a core section.
+        </p>
+        <div className="mt-3 space-y-5">
+          {[...dept.modules]
+            .sort((a, b) => Number(b.present) - Number(a.present) || a.title.localeCompare(b.title))
+            .map((m) => (
+              <Section
+                key={m.key}
+                section={m}
+                stale={m.present && (m.score.freshness.stale || m.score.validity?.expired === true)}
+                slug={dept.slug}
+                deptName={dept.name}
+                canEdit={canEdit}
+                hint={m.trigger}
+              />
             ))}
-          </div>
-        </section>
-      )}
+        </div>
+      </section>
     </main>
   );
 }
@@ -144,12 +149,15 @@ function Section({
   slug,
   deptName,
   canEdit,
+  hint,
 }: {
   section: DepartmentSection;
   stale: boolean;
   slug: string;
   deptName: string;
   canEdit: boolean;
+  /** Optional sub-line (e.g. a module's trigger). */
+  hint?: string;
 }) {
   const { score } = section;
   const fresh = score.freshness;
@@ -163,6 +171,7 @@ function Section({
             {section.score.present && stale && <Badge variant="destructive">stale</Badge>}
           </div>
           <span className="font-mono text-xs text-muted-foreground">{section.key}.md</span>
+          {hint && <p className="mt-0.5 max-w-xl text-xs text-muted-foreground">{hint}</p>}
         </div>
         <div className="flex items-center gap-2">
           <ScorePill score={score.score} />
