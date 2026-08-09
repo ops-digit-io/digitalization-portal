@@ -40,29 +40,35 @@ function tables(body: string): Table[] {
   for (let i = 0; i < lines.length; i++) {
     const head = lines[i]!;
     const sep = lines[i + 1] ?? "";
-    // A header row followed by a `---|---` divider row is a table.
-    if (head.includes("|") && /^\s*\|?[\s:|-]*-[\s:|-]*\|?\s*$/.test(sep) && sep.includes("-")) {
-      const header = cells(head);
-      let rows = 0;
-      let j = i + 2;
-      for (; j < lines.length; j++) {
-        const row = lines[j]!;
-        if (!row.includes("|") || row.trim() === "") break;
-        if (cells(row).some((c) => c !== "")) rows++;
-      }
-      out.push({ header: header.map((c) => c.toLowerCase()), rows });
-      i = j - 1;
+    // A header row followed by a real `---|---` divider row is a table. The divider must
+    // have the SAME cell count as the header and every cell must be a dash-run (optionally
+    // colon-aligned) — otherwise a prose line with a stray pipe above a `---` setext rule
+    // or thematic break would be mistaken for a table header.
+    if (!head.includes("|") || !sep.includes("-")) continue;
+    const header = cells(head);
+    const sepCells = cells(sep);
+    const isDivider = sepCells.length === header.length && sepCells.every((c) => /^:?-{1,}:?$/.test(c));
+    if (!isDivider) continue;
+    let rows = 0;
+    let j = i + 2;
+    for (; j < lines.length; j++) {
+      const row = lines[j]!;
+      if (!row.includes("|") || row.trim() === "") break;
+      if (cells(row).some((c) => c !== "")) rows++;
     }
+    out.push({ header: header.map((c) => c.toLowerCase()), rows });
+    i = j - 1;
   }
   return out;
 }
 
+/** Split a table row into trimmed cells, honouring escaped pipes (`\|`) inside a cell. */
 function cells(row: string): string[] {
   return row
     .replace(/^\s*\|/, "")
     .replace(/\|\s*$/, "")
-    .split("|")
-    .map((c) => c.trim());
+    .split(/(?<!\\)\|/)
+    .map((c) => c.trim().replace(/\\\|/g, "|"));
 }
 
 /** Heading lines (`#`..`######`), text only. */
@@ -137,7 +143,11 @@ const CADENCE_DAYS: Record<string, number> = {
 function cadenceToDays(cadence?: string): number | undefined {
   if (!cadence) return undefined;
   const key = cadence.toLowerCase().trim();
-  for (const [name, days] of Object.entries(CADENCE_DAYS)) if (key.includes(name)) return days;
+  // Compare on alphanumerics only (so "bi-weekly" == "biweekly") and match the LONGEST
+  // cadence name first — otherwise "weekly" ⊂ "biweekly" would resolve biweekly to 7 days.
+  const norm = key.replace(/[^a-z0-9]/g, "");
+  const byLongest = Object.entries(CADENCE_DAYS).sort((a, b) => b[0].length - a[0].length);
+  for (const [name, days] of byLongest) if (norm.includes(name.replace(/[^a-z0-9]/g, ""))) return days;
   const m = /(\d+)\s*(day|week|month|year)/.exec(key);
   if (m) {
     const n = Number(m[1]);
