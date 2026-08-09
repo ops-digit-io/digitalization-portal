@@ -2,9 +2,12 @@ import Link from "next/link";
 import { listDepartments, readFramework } from "@/lib/org/store";
 import { organizationRepo } from "@/lib/content-repo";
 import { CORE_SECTIONS } from "@/lib/org/model";
+import { getSession } from "@/lib/auth/current";
+import { can } from "@/lib/rbac";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScoreBar, ScorePill } from "@/components/portal/org-score";
+import { NewDepartment } from "@/components/org/new-department";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +23,8 @@ export const dynamic = "force-dynamic";
  */
 export default async function OrgOverview() {
   const repo = organizationRepo().repoName;
-  const [departments, framework] = await Promise.all([listDepartments(), readFramework()]);
+  const [departments, framework, session] = await Promise.all([listDepartments(), readFramework(), getSession()]);
+  const canEdit = can(session, "draft");
 
   const avg = departments.length
     ? Math.round(departments.reduce((s, d) => s + d.score.score, 0) / departments.length)
@@ -59,6 +63,7 @@ export default async function OrgOverview() {
               <div className="text-lg font-semibold text-rose-600">{staleCount}</div>
             </div>
           )}
+          {canEdit && <NewDepartment />}
         </div>
       </div>
 

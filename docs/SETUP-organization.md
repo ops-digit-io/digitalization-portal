@@ -61,12 +61,22 @@ The bundled example is the reference. Copy any section out of it (or read it on
    the portal to read it (add **Contents: write** only if you later edit departments
    through the portal).
 
-## 2. Populate it from the bundled example
+## 2. Populate it — in the app or from the bundled example
 
-The worked example ships in this repo as `lib/org/seed.ts`. To start the real repo
-from it, create `departments/operations-digitalization/<section>.md` for each core
-section using the seed's content, plus `framework.md`. From there, add a folder per
-real department and fill its twelve core files — coaching-supported, in roughly a day.
+**In the app (easiest).** On `/org`, contributors (anyone with the `draft`
+capability) can **+ New department** — it scaffolds a coached charter and opens the
+department. Each section has an **Edit** / **Start this section** button with a
+live-scoring editor: the completeness score and the missing-criteria backlog update
+as you type, and **Save** commits the file. When the GitHub App is configured, saves
+commit to `du-organization-context` on `main` (the repo is **created on first save**
+if it does not exist yet, so this works without any manual provisioning); without the
+App, saves go to the local mirror for development.
+
+**From the bundled example.** The worked example also ships as `lib/org/seed.ts`. To
+start the repo from it by hand, create `departments/operations-digitalization/<section>.md`
+for each core section using the seed's content, plus `framework.md`. From there, add a
+folder per real department and fill its twelve core files — coaching-supported, in
+roughly a day.
 
 The order is meant literally (see `framework.md`): one pilot department first, fill
 the core, generate the handbook and check it holds, then equip a single lane with its

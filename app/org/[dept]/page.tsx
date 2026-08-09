@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { readDepartment } from "@/lib/org/store";
+import { getSession } from "@/lib/auth/current";
+import { can } from "@/lib/rbac";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MarkdownPage } from "@/components/portal/markdown-page";
 import { ScoreBar, ScorePill } from "@/components/portal/org-score";
+import { SectionEditor } from "@/components/org/section-editor";
 import type { DepartmentSection } from "@/lib/org/store";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +19,9 @@ export const dynamic = "force-dynamic";
  * the org behind a demand — and the page a department improves against.
  */
 export default async function DepartmentDetail({ params }: { params: { dept: string } }) {
-  const dept = await readDepartment(params.dept);
+  const [dept, session] = await Promise.all([readDepartment(params.dept), getSession()]);
   if (!dept) notFound();
+  const canEdit = can(session, "draft");
 
   const { score } = dept;
   const staleKeys = new Set(score.criticalStale);
@@ -67,7 +71,7 @@ export default async function DepartmentDetail({ params }: { params: { dept: str
 
       <div className="mt-6 space-y-5">
         {dept.sections.map((s) => (
-          <Section key={s.key} section={s} stale={staleKeys.has(s.key)} />
+          <Section key={s.key} section={s} stale={staleKeys.has(s.key)} slug={dept.slug} deptName={dept.name} canEdit={canEdit} />
         ))}
       </div>
 
@@ -89,7 +93,19 @@ export default async function DepartmentDetail({ params }: { params: { dept: str
   );
 }
 
-function Section({ section, stale }: { section: DepartmentSection; stale: boolean }) {
+function Section({
+  section,
+  stale,
+  slug,
+  deptName,
+  canEdit,
+}: {
+  section: DepartmentSection;
+  stale: boolean;
+  slug: string;
+  deptName: string;
+  canEdit: boolean;
+}) {
   const { score } = section;
   const fresh = score.freshness;
   return (
@@ -107,6 +123,9 @@ function Section({ section, stale }: { section: DepartmentSection; stale: boolea
           <ScorePill score={score.score} />
           {score.excellenceResults.length > 0 && (
             <span className="text-xs text-muted-foreground">· excellence {score.excellence}%</span>
+          )}
+          {canEdit && (
+            <SectionEditor slug={slug} sectionKey={section.key} deptName={deptName} initialSource={section.source} present={section.score.present} />
           )}
         </div>
       </div>

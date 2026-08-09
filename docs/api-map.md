@@ -135,6 +135,7 @@ graph LR
 | `/api/mesh/graph` | GET | `app/api/mesh/graph/route.ts` |
 | `/api/mesh` | GET | `app/api/mesh/route.ts` |
 | `/api/model-settings` | GET, POST | `app/api/model-settings/route.ts` |
+| `/api/org` | GET, POST | `app/api/org/route.ts` |
 | `/api/personas/library/[id]` | GET, PUT, DELETE | `app/api/personas/library/[id]/route.ts` |
 | `/api/personas/library` | GET, POST | `app/api/personas/library/route.ts` |
 | `/api/poc` | POST | `app/api/poc/route.ts` |
