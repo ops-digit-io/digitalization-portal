@@ -10,6 +10,7 @@ import { MarkdownPage } from "@/components/portal/markdown-page";
 import { ScoreBar, ScorePill } from "@/components/portal/org-score";
 import { SectionEditor } from "@/components/org/section-editor";
 import { LaneDocs } from "@/components/org/lane-docs";
+import { LaneAutonomy } from "@/components/org/lane-autonomy";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,18 @@ export default async function LaneDetail({ params }: { params: { dept: string; l
         </div>
       </div>
       <ScoreBar score={lane.score.score} className="mt-3" />
+
+      {/* The autonomy ladder — where this lane sits, and the governed step up/down. */}
+      <div className="mt-6">
+        <LaneAutonomy
+          slug={dept.slug}
+          lane={lane.slug}
+          current={lane.authority}
+          agentBriefPresent={lane.files.find((f) => f.key === "agent-brief")?.score.present ?? false}
+          agentBriefScore={lane.files.find((f) => f.key === "agent-brief")?.score.score ?? 0}
+          canEdit={canEdit}
+        />
+      </div>
 
       <div className="mt-6 space-y-5">
         {lane.files.map((f) => (

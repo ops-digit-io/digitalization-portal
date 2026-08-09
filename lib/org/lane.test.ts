@@ -15,7 +15,7 @@ import path from "node:path";
 import { LANE_FILES, LANE_KEYS, LANE_DIRS } from "./lane";
 import { scoreSection } from "./scoring";
 import { scaffoldLaneFile, scaffoldLane, authorityLevelOf } from "./scaffold";
-import { createLane, saveLaneFile, saveLaneDoc, OrgWriteError } from "./authoring";
+import { createLane, saveLaneFile, saveLaneDoc, setLaneAuthority, OrgWriteError } from "./authoring";
 import { createDepartment } from "./authoring";
 import { readLane, listLanes } from "./lane-store";
 
@@ -109,6 +109,14 @@ describe("lane authoring — local round trip and guards", () => {
 
   it("rejects an unknown lane directory", async () => {
     await expect(saveLaneDoc("lane-doc-dept", "rollout", "secrets", "x", "y")).rejects.toBeInstanceOf(OrgWriteError);
+  });
+
+  it("setLaneAuthority rewrites the agent brief and the reader reports the new level", async () => {
+    const { slug: dept } = await createDepartment("Autonomy Dept");
+    const { slug: lane } = await createLane(dept, "Fast Lane");
+    await setLaneAuthority(dept, lane, "recommend");
+    const read = await readLane(dept, lane);
+    expect(read!.authority).toBe("recommend");
   });
 });
 
