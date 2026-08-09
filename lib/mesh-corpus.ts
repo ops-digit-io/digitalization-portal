@@ -20,10 +20,13 @@ import { listPersonas } from "./persona-library-store.js";
 import { listRegistry } from "./registry-store.js";
 import { repoNameFor } from "./poc/scaffold.js";
 import * as processStore from "./process/store.js";
+import { listDepartments } from "./org/store.js";
+import { listLanes } from "./org/lane-store.js";
+import { ALL_TILES } from "./launchpad.js";
 import { mapPool } from "./pool.js";
 import { STAGES, type Stage } from "./types.js";
 import type { MeshDocument } from "./mesh-graph.js";
-import type { MeshEdge } from "./mesh.js";
+import type { MeshEdge, MeshRef } from "./mesh.js";
 
 /** How many documents to read at once. The corpus read is a batch job, not a page. */
 const READ_CONCURRENCY = 8;
@@ -100,6 +103,73 @@ export function demandPlaybookEdges(demandId: string, stage: Stage | undefined, 
   }));
 }
 
+/**
+ * The app's tools as a pipeline — how one tool feeds the next. A curated adjacency over
+ * the launchpad tiles so the graph shows the whole app as a connected map, not a
+ * scatter of unrelated tools. Every tile id appears at least once, so no tool is an
+ * island. Pure, so the backbone is unit-tested.
+ */
+const TOOL_PIPELINE: readonly [string, string][] = [
+  ["org", "process"],
+  ["process", "intake"],
+  ["intake", "demands"],
+  ["demands", "board"],
+  ["board", "triage"],
+  ["triage", "backlog"],
+  ["backlog", "requirements"],
+  ["requirements", "analysis"],
+  ["analysis", "value"],
+  ["value", "simulate"],
+  ["simulate", "review"],
+  ["requirements", "personas"],
+  ["personas", "persona-library"],
+  ["requirements", "analyst"],
+  ["board", "attention"],
+  ["board", "funnel"],
+  ["backlog", "roadmap"],
+  ["board", "champions"],
+  ["backlog", "poc"],
+  ["poc", "handovers"],
+  ["poc", "poc-templates"],
+  ["catalog", "skill-library"],
+  ["org", "catalog"],
+  ["catalog", "docs"],
+  ["docs", "mesh"],
+  ["board", "mesh"],
+  ["digest", "board"],
+  ["usage", "settings"],
+  ["categories", "settings"],
+  ["settings", "docs"],
+  ["traces", "analyst"],
+];
+
+/** Tool→tool "feeds" edges, grouped by the source tool. Pure. */
+export function toolPipelineEdges(): Map<string, MeshEdge[]> {
+  const byTool = new Map<string, MeshEdge[]>();
+  for (const [from, to] of TOOL_PIPELINE) {
+    const edge: MeshEdge = {
+      from: { kind: "tool", id: from },
+      to: { kind: "tool", id: to },
+      note: "feeds",
+      source: "derived",
+    };
+    const list = byTool.get(from) ?? [];
+    list.push(edge);
+    byTool.set(from, list);
+  }
+  return byTool;
+}
+
+/** Ownership edges from a tool to the artifacts it manages (one per id). Pure. */
+export function ownershipEdges(tool: string, kind: MeshRef["kind"], ids: readonly string[], note: string): MeshEdge[] {
+  return ids.map((id) => ({
+    from: { kind: "tool" as const, id: tool },
+    to: { kind, id },
+    note,
+    source: "derived" as const,
+  }));
+}
+
 export function repoDocForDemand(d: { id: string; title: string; stage?: Stage }): MeshDocument | null {
   if (!hasScaffoldedRepo(d.stage)) return null;
   const id = repoNameFor(d.id, d.title);
@@ -130,12 +200,13 @@ export async function loadCorpus(opts: CorpusOptions = {}): Promise<{
   docs: MeshDocument[];
   counts: Record<string, number>;
 }> {
-  const [demands, engagements, personas, champions, registry] = await Promise.all([
+  const [demands, engagements, personas, champions, registry, departments] = await Promise.all([
     listDemands().catch(() => []),
     processStore.list().catch(() => []),
     listPersonas().catch(() => []),
     listChampions().catch(() => []),
     listRegistry().catch(() => ({ skills: [], playbooks: [], contracts: [] })),
+    listDepartments().catch(() => []),
   ]);
 
   const wanted = opts.limit ? demands.slice(0, opts.limit) : demands;
@@ -217,6 +288,44 @@ export async function loadCorpus(opts: CorpusOptions = {}): Promise<{
     .map((d) => repoDocForDemand(d))
     .filter((d): d is MeshDocument => d !== null);
 
+  // Department OS — the organization-context layer. Each department is a node; its lanes
+  // are nodes, joined by a department→lane edge. This puts the org behind the demands
+  // into the same graph as the work it governs.
+  const laneDocs: MeshDocument[] = [];
+  const departmentDocs: MeshDocument[] = await Promise.all(
+    departments.map(async (dept): Promise<MeshDocument> => {
+      const lanes = await listLanes(dept.slug).catch(() => []);
+      const edges: MeshEdge[] = lanes.map((l) => ({
+        from: { kind: "department" as const, id: dept.slug },
+        to: { kind: "lane" as const, id: `${dept.slug}/${l.slug}` },
+        note: "lane of this department",
+        source: "derived" as const,
+      }));
+      for (const l of lanes) laneDocs.push({ kind: "lane", id: `${dept.slug}/${l.slug}`, title: l.name });
+      return { kind: "department", id: dept.slug, title: dept.name, ...(edges.length ? { derived: edges } : {}) };
+    }),
+  );
+
+  // The app's tools as nodes. Each tool carries the pipeline edges to the tools it feeds
+  // and the ownership edges to the artifacts it manages — so skills/playbooks (managed by
+  // the catalog), departments, repos, personas and champions are never orphans, and the
+  // whole app reads as one connected overview.
+  const pipeline = toolPipelineEdges();
+  const ownership: Record<string, MeshEdge[]> = {
+    catalog: [
+      ...ownershipEdges("catalog", "skill", skillDocs.map((s) => s.id), "manages this skill"),
+      ...ownershipEdges("catalog", "playbook", playbookDocs.map((p) => p.id), "manages this playbook"),
+    ],
+    org: ownershipEdges("org", "department", departmentDocs.map((d) => d.id), "maps this department"),
+    poc: ownershipEdges("poc", "repo", repoDocs.map((r) => r.id), "scaffolds this repo"),
+    "persona-library": ownershipEdges("persona-library", "persona", personaDocs.map((p) => p.id), "defines this persona"),
+    champions: ownershipEdges("champions", "champion", championDocs.map((c) => c.id), "tracks this champion"),
+  };
+  const toolDocs: MeshDocument[] = ALL_TILES.map((t) => {
+    const derived = [...(pipeline.get(t.id) ?? []), ...(ownership[t.id] ?? [])];
+    return { kind: "tool", id: t.id, title: t.title, ...(derived.length ? { derived } : {}) };
+  });
+
   const docs = [
     ...demandDocs,
     ...requirementDocs,
@@ -226,6 +335,9 @@ export async function loadCorpus(opts: CorpusOptions = {}): Promise<{
     ...skillDocs,
     ...playbookDocs,
     ...repoDocs,
+    ...departmentDocs,
+    ...laneDocs,
+    ...toolDocs,
   ];
   return {
     docs,
@@ -238,6 +350,9 @@ export async function loadCorpus(opts: CorpusOptions = {}): Promise<{
       skill: skillDocs.length,
       playbook: playbookDocs.length,
       repo: repoDocs.length,
+      department: departmentDocs.length,
+      lane: laneDocs.length,
+      tool: toolDocs.length,
     },
   };
 }

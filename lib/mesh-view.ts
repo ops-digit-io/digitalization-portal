@@ -58,6 +58,9 @@ export const KIND_STYLE: Record<ReferenceKind, { open: string; close: string; co
   skill: { open: "([", close: "])", color: "#db2777", label: "Skill" },
   playbook: { open: ">", close: "]", color: "#4b5563", label: "Playbook" },
   repo: { open: "[(", close: ")]", color: "#65a30d", label: "Scaffolded repo" },
+  department: { open: "[/", close: "/]", color: "#0d9488", label: "Department" },
+  lane: { open: "[\\", close: "\\]", color: "#f59e0b", label: "Lane" },
+  tool: { open: "{", close: "}", color: "#475569", label: "Tool" },
 };
 
 /**
