@@ -110,9 +110,10 @@ graph LR
 | `/intake` | `/api/intake`<br/>`/api/intake/enhance`<br/>`/api/intake/similar` |
 | `/login` | `/api/auth/login` |
 | `/mesh` | _server-rendered_ |
-| `/org/[dept]` | _server-rendered_ |
+| `/org/[dept]/[lane]` | `/api/org` |
+| `/org/[dept]` | `/api/org` |
 | `/org/framework` | _server-rendered_ |
-| `/org` | _server-rendered_ |
+| `/org` | `/api/org` |
 | `/` | _server-rendered_ |
 | `/personas/[requestor]` | _server-rendered_ |
 | `/personas/library` | `/api/personas/library` |

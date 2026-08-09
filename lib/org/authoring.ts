@@ -19,10 +19,12 @@ import path from "node:path";
 import { getGitHost, hasGitHubCredentials, type RepoRef } from "../git/index.js";
 import { organizationRepo } from "../content-repo.js";
 import { CORE_KEYS, MODULE_KEYS, sectionSubdir } from "./model.js";
-import { scaffoldSection, slugifyDept } from "./scaffold.js";
+import { LANE_KEYS } from "./lane.js";
+import { scaffoldSection, scaffoldLane, scaffoldLaneFile, slugifyDept } from "./scaffold.js";
 
 const DEPTS = "departments";
 const KNOWN_KEYS = new Set<string>([...CORE_KEYS, ...MODULE_KEYS]);
+const LANE_KEY_SET = new Set<string>(LANE_KEYS);
 
 function live(): boolean {
   return hasGitHubCredentials();
@@ -97,9 +99,64 @@ export async function createDepartment(name: string): Promise<{ slug: string }> 
   return { slug };
 }
 
+/**
+ * Save one lane-pack file (`departments/<slug>/lanes/<lane>/<key>.md`). Same live/local
+ * split and same guards as `saveSection`; the key must be a known lane-pack file.
+ */
+export async function saveLaneFile(
+  deptSlugInput: string,
+  laneSlugInput: string,
+  key: string,
+  markdown: string,
+  message?: string,
+): Promise<{ host: "github" | "local"; path: string }> {
+  const deptSlug = safeSlug(deptSlugInput);
+  const laneSlug = safeSlug(laneSlugInput);
+  if (!deptSlug) throw new OrgWriteError(`invalid department slug: ${deptSlugInput}`);
+  if (!laneSlug) throw new OrgWriteError(`invalid lane slug: ${laneSlugInput}`);
+  if (!LANE_KEY_SET.has(key)) throw new OrgWriteError(`unknown lane file: ${key}`);
+
+  const rel = `${DEPTS}/${deptSlug}/lanes/${laneSlug}/${key}.md`;
+  const msg = message?.trim() || `Update ${deptSlug}/lanes/${laneSlug}/${key}`;
+
+  if (live()) {
+    await ensureRepo();
+    await getGitHost().putFile(repoRef(), { path: rel, content: markdown }, msg, "main");
+    return { host: "github", path: rel };
+  }
+  const abs = path.join(organizationRepo().mirrorDir, rel);
+  await mkdir(path.dirname(abs), { recursive: true });
+  await writeFile(abs, markdown);
+  return { host: "local", path: abs };
+}
+
+/**
+ * Create a lane in a department: write its two anchor files (playbook + agent-brief),
+ * scaffolded, so the lane appears immediately and opens onto the coached skeleton.
+ */
+export async function createLane(deptSlugInput: string, laneName: string): Promise<{ slug: string }> {
+  const deptSlug = safeSlug(deptSlugInput);
+  if (!deptSlug) throw new OrgWriteError(`invalid department slug: ${deptSlugInput}`);
+  const trimmed = laneName.trim();
+  if (!trimmed) throw new OrgWriteError("a lane needs a name");
+  const laneSlug = slugifyDept(trimmed);
+  if (!laneSlug) throw new OrgWriteError(`could not derive a slug from “${laneName}”`);
+
+  const files = scaffoldLane(trimmed);
+  for (const [key, md] of Object.entries(files)) {
+    await saveLaneFile(deptSlug, laneSlug, key, md, `Create lane ${deptSlug}/${laneSlug}`);
+  }
+  return { slug: laneSlug };
+}
+
 /** A blank section, scaffolded — for the editor's "start this section" action. */
 export function startingPoint(key: string, deptName: string): string {
   return scaffoldSection(key, deptName);
+}
+
+/** A blank lane-pack file, scaffolded — for the lane editor's "start" action. */
+export function laneStartingPoint(key: string, laneName: string): string {
+  return scaffoldLaneFile(key, laneName);
 }
 
 export { safeSlug };
