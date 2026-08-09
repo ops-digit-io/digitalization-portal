@@ -17,10 +17,11 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getGitHost, hasGitHubCredentials, type RepoRef } from "../git/index.js";
-import { organizationRepo } from "../content-repo.js";
-import { CORE_KEYS, MODULE_KEYS, sectionSubdir } from "./model.js";
+import { organizationRepo, readContent } from "../content-repo.js";
+import { CORE_KEYS, MODULE_KEYS, sectionSubdir, type AuthorityLevel } from "./model.js";
 import { LANE_KEYS, LANE_DIRS } from "./lane.js";
 import { scaffoldSection, scaffoldLane, scaffoldLaneFile, slugifyDept } from "./scaffold.js";
+import { setAuthorityInBrief } from "./autonomy.js";
 
 const DEPTS = "departments";
 const KNOWN_KEYS = new Set<string>([...CORE_KEYS, ...MODULE_KEYS]);
@@ -191,6 +192,29 @@ export async function saveLaneDoc(
 /** A blank section, scaffolded — for the editor's "start this section" action. */
 export function startingPoint(key: string, deptName: string): string {
   return scaffoldSection(key, deptName);
+}
+
+/**
+ * Set a lane's authority level by rewriting its agent-brief's "Authority level" section
+ * (the single place `authorityLevelOf` reads back). Scaffolds the brief if it is absent,
+ * so raising autonomy always leaves a brief behind. The readiness GUARDRAIL
+ * (`canRaiseTo`) is enforced by the caller, which has the lane's score.
+ */
+export async function setLaneAuthority(
+  deptSlugInput: string,
+  laneSlugInput: string,
+  level: AuthorityLevel,
+): Promise<{ host: "github" | "local"; path: string }> {
+  const deptSlug = safeSlug(deptSlugInput);
+  const laneSlug = safeSlug(laneSlugInput);
+  if (!deptSlug) throw new OrgWriteError(`invalid department slug: ${deptSlugInput}`);
+  if (!laneSlug) throw new OrgWriteError(`invalid lane slug: ${laneSlugInput}`);
+
+  const rel = `${DEPTS}/${deptSlug}/lanes/${laneSlug}/agent-brief.md`;
+  const current = await readContent(organizationRepo(), rel).catch(() => undefined);
+  const base = current && current.trim() ? current : scaffoldLaneFile("agent-brief", laneSlug);
+  const next = setAuthorityInBrief(base, level);
+  return saveLaneFile(deptSlug, laneSlug, "agent-brief", next, `Set ${deptSlug}/${laneSlug} autonomy to ${level}`);
 }
 
 /** A blank lane-pack file, scaffolded — for the lane editor's "start" action. */

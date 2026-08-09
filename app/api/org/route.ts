@@ -8,12 +8,15 @@ import {
   createLane,
   saveLaneFile,
   saveLaneDoc,
+  setLaneAuthority,
   laneStartingPoint,
   OrgWriteError,
 } from "@/lib/org/authoring";
 import { scoreSection } from "@/lib/org/scoring";
 import { anyDef } from "@/lib/org/model";
 import { laneFileDef } from "@/lib/org/lane";
+import { readLane } from "@/lib/org/lane-store";
+import { canRaiseTo, isAuthorityLevel } from "@/lib/org/autonomy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,6 +37,7 @@ export async function POST(req: Request) {
     lane?: string;
     dir?: string;
     key?: string;
+    level?: string;
     markdown?: string;
   };
 
@@ -80,6 +84,22 @@ export async function POST(req: Request) {
       }
       const where = await saveLaneDoc(body.slug, body.lane, body.dir, body.name, body.markdown ?? "");
       return NextResponse.json({ ok: true, host: where.host, slug: where.slug });
+    }
+    if (body.action === "set-authority") {
+      if (!body.slug || !body.lane || !isAuthorityLevel(body.level)) {
+        return NextResponse.json({ error: "slug, lane and a valid level are required" }, { status: 400 });
+      }
+      // The ladder's guardrail: a lane cannot be raised to a rung that ACTS until its
+      // agent-brief is written down. Enforced here, where the lane's score is known.
+      const lane = await readLane(body.slug, body.lane);
+      const brief = lane?.files.find((f) => f.key === "agent-brief");
+      const gate = canRaiseTo(body.level, {
+        agentBriefPresent: brief?.score.present ?? false,
+        agentBriefScore: brief?.score.score ?? 0,
+      });
+      if (!gate.ok) return NextResponse.json({ error: gate.reason }, { status: 409 });
+      const where = await setLaneAuthority(body.slug, body.lane, body.level);
+      return NextResponse.json({ ok: true, host: where.host, level: body.level });
     }
     return NextResponse.json({ error: `unknown action: ${body.action}` }, { status: 400 });
   } catch (e) {
