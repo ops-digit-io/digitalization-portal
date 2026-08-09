@@ -13,6 +13,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { getGitHost, hasGitHubCredentials, type RepoRef } from "./git/index.js";
+import { repoRef } from "./repos.js";
 import { completeChampion, nextChampionId, type Champion } from "./champions.js";
 
 const FILE = "champions/register.json";
@@ -21,9 +22,7 @@ function live(): boolean {
   return hasGitHubCredentials();
 }
 function repo(): RepoRef {
-  const org = process.env.GITHUB_ORG ?? "org";
-  const name = process.env.CHAMPION_REPO ?? process.env.PROCESS_REPO ?? "du-processes";
-  return { owner: org, name, url: `https://github.com/${org}/${name}`, local: false };
+  return repoRef("champions");
 }
 function localBase(): string {
   return process.env.CHAMPION_DATA_DIR ?? process.env.PROCESS_DATA_DIR ?? path.join(os.tmpdir(), "du-processes");

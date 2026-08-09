@@ -29,6 +29,7 @@ import { canOpenGate } from "./gates.js";
 import { exitGate } from "./stages.js";
 import { getGitHost, hasGitHubCredentials, FileExistsError, type RepoRef } from "./git/index.js";
 import { LocalHost } from "./git/local-host.js";
+import { repoName, repoRef } from "./repos.js";
 import type { RegistryRow } from "./registry.js";
 import { type Gate, type Lane, type Stage, type Status, GATES } from "./types.js";
 
@@ -78,7 +79,7 @@ async function isDir(p: string): Promise<boolean> {
 }
 
 function demandsRepoName(env = process.env): string {
-  return env.DEMANDS_REPO ?? "du-demands";
+  return repoName("demands", env);
 }
 
 /** True when the funnel is read/written live over GitHub rather than the local tree. */
@@ -88,9 +89,7 @@ function live(): boolean {
 
 /** The funnel repo ref (GitHub). */
 function funnelRepo(): RepoRef {
-  const org = process.env.GITHUB_ORG ?? "org";
-  const name = demandsRepoName();
-  return { owner: org, name, url: `https://github.com/${org}/${name}`, local: false };
+  return repoRef("demands");
 }
 
 /** All case ids present in the funnel (folders with a README.md). */

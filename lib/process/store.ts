@@ -22,6 +22,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { getGitHost, hasGitHubCredentials, FileExistsError, type RepoRef } from "../git/index";
+import { repoName as resolveRepo, repoRef as resolveRepoRef } from "../repos.js";
 import type { Rating } from "./health-model";
 
 const DIR = "processes";
@@ -84,12 +85,10 @@ function live(): boolean {
   return hasGitHubCredentials();
 }
 function repoName(env = process.env): string {
-  return env.PROCESS_REPO ?? "du-processes";
+  return resolveRepo("processes", env);
 }
 function processRepo(): RepoRef {
-  const org = process.env.GITHUB_ORG ?? "org";
-  const name = repoName();
-  return { owner: org, name, url: `https://github.com/${org}/${name}`, local: false };
+  return resolveRepoRef("processes");
 }
 function localBase(): string {
   return process.env.PROCESS_DATA_DIR ?? path.join(os.tmpdir(), "du-processes");

@@ -13,6 +13,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { getGitHost, hasGitHubCredentials, type RepoRef } from "../git/index.js";
+import { repoRef } from "../repos.js";
 import { generateDashboardMockup } from "./mockup.js";
 import type { PocStack } from "./templates.js";
 import type { ArtifactKind } from "./spec.js";
@@ -36,9 +37,7 @@ function live(): boolean {
   return hasGitHubCredentials();
 }
 function repo(): RepoRef {
-  const org = process.env.GITHUB_ORG ?? "org";
-  const name = process.env.TEMPLATES_CONFIG_REPO ?? process.env.PROCESS_REPO ?? "du-processes";
-  return { owner: org, name, url: `https://github.com/${org}/${name}`, local: false };
+  return repoRef("templatesConfig");
 }
 function localBase(): string {
   return process.env.TEMPLATES_CONFIG_DIR ?? process.env.PROCESS_DATA_DIR ?? path.join(os.tmpdir(), "du-processes");

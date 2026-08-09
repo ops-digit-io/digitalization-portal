@@ -12,6 +12,7 @@ import { hasGitHubCredentials } from "@/lib/git/host";
 import { getGitHost } from "@/lib/git";
 import { getCurrentUser } from "@/lib/auth/current";
 import { contentReachable, registryRepo, templatesRepo, specificationsRepo, organizationRepo } from "@/lib/content-repo";
+import { repoRef } from "@/lib/repos";
 
 /**
  * Does the git system-of-record actually answer? Presence of credentials says
@@ -21,10 +22,8 @@ import { contentReachable, registryRepo, templatesRepo, specificationsRepo, orga
  */
 async function probeGit(): Promise<{ live: boolean; ok: boolean; error?: string }> {
   if (!hasGitHubCredentials()) return { live: false, ok: false };
-  const org = process.env.GITHUB_ORG ?? "org";
-  const name = process.env.PROCESS_REPO ?? "du-processes";
   try {
-    await getGitHost().listDir({ owner: org, name, url: `https://github.com/${org}/${name}`, local: false }, "processes");
+    await getGitHost().listDir(repoRef("processes"), "processes");
     return { live: true, ok: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

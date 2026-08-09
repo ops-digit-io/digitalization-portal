@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { parseUseCase, parsePeople } from "@/lib/parse";
+import { repoName } from "@/lib/repos";
 import { canOpenGate } from "@/lib/gates";
 import { exitGate, nextStage } from "@/lib/stages";
 import { hasGitHubCredentials } from "@/lib/git";
@@ -112,7 +113,7 @@ export default async function UseCasePage({ params }: { params: { id: string } }
   const toStage = stage ? nextStage(stage) : undefined;
 
   const org = process.env.GITHUB_ORG ?? "org";
-  const demandsRepo = process.env.DEMANDS_REPO ?? "du-demands";
+  const demandsRepo = repoName("demands");
   // Prefer in-portal editing; the GitHub link stays as a fallback for read-only cases.
   const githubEditHref = live
     ? `https://github.com/${org}/${demandsRepo}/edit/main/demands/${params.id}/README.md`

@@ -13,6 +13,7 @@ import {
 import { enqueueDemand, pendingSaveResult } from "@/lib/pending/service";
 import { addReference, targetFor, RELATIONS, type Reference, type Relation } from "@/lib/references";
 import { rateLimit } from "@/lib/ratelimit";
+import { repoName } from "@/lib/repos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -121,7 +122,7 @@ export async function POST(req: Request) {
           ),
         { dedupKey },
       );
-      const repo = process.env.DEMANDS_REPO ?? "du-demands";
+      const repo = repoName("demands");
       const result = pendingSaveResult(id, kind, repo, `demands/${id}/README.md`);
       return NextResponse.json({ id, result, classification, markdown });
     } catch (err) {
