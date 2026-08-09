@@ -8,8 +8,10 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { scaffoldSection, scaffoldDepartment, slugifyDept } from "./scaffold";
+import { scaffoldSection, scaffoldDepartment, slugifyDept, composeBriefDraft, sectionUnder, scaffoldLaneFile, authorityLevelOf } from "./scaffold";
 import { scoreSection } from "./scoring";
+import { laneFileDef, AUTHORITY_LEVELS } from "./lane";
+import { setAuthorityInBrief } from "./autonomy";
 import { CORE_SECTIONS, MODULE_SECTIONS, sectionDef } from "./model";
 
 describe("slugifyDept", () => {
@@ -62,5 +64,96 @@ describe("scaffolds match the grammar they help fill", () => {
   it("gives systems-of-record (the critical module) validity frontmatter", () => {
     expect(scaffoldSection("systems-of-record")).toContain("valid-until:");
     expect(scaffoldSection("guardrails")).not.toContain("valid-until:");
+  });
+});
+
+describe("sectionUnder", () => {
+  const md = `# X — Playbook
+
+## Handovers
+Work leaves to the shift lead on acceptance of the report.
+
+## Wait states
+_Where the lane waits, and what the agent does meanwhile._
+`;
+  it("returns the body under a matching heading", () => {
+    expect(sectionUnder(md, /handover/i)).toContain("shift lead");
+  });
+  it("returns empty for a placeholder-only section", () => {
+    expect(sectionUnder(md, /wait state/i)).toBe("");
+  });
+  it("returns empty when the heading is absent", () => {
+    expect(sectionUnder(md, /escalation/i)).toBe("");
+  });
+});
+
+describe("composeBriefDraft", () => {
+  const playbook = `# Scrap · Playbook
+
+| Step | Human/Agent | Action | Output |
+|---|---|---|---|
+| 1 | agent | pull the scrap log | table |
+
+## Exceptions / error paths
+If the log is missing, the operator files a manual count.
+
+## Handovers
+Hands the reconciled figure to the shift lead.
+
+## Control points & rework rule
+Never post a correction without a second reviewer.
+`;
+  const skills = `# Scrap · Skills
+
+## Interfaces / systems
+Reads MES scrap table; writes nothing.
+`;
+
+  it("fills scope/guardrails/escalation/rights from the pack, quoting real content", () => {
+    const brief = composeBriefDraft("Scrap", { playbook, skills }, "2026-07-01");
+    expect(brief).toContain("## Scope");
+    expect(brief).toContain("second reviewer"); // from control points → guardrails
+    expect(brief).toContain("shift lead"); // from handovers → escalation
+    expect(brief).toContain("MES scrap table"); // from interfaces → rights
+    expect(brief).toContain("2026-07-01");
+  });
+
+  it("leaves the owner blank and the authority level unchosen — never grants autonomy", () => {
+    const brief = composeBriefDraft("Scrap", { playbook, skills }, "2026-07-01");
+    // Frontmatter owner is empty; the five-rung hint is still present (no single level chosen).
+    expect(brief).toMatch(/owner:\s*\n/);
+    expect(brief).toContain("read-only · draft · recommend");
+  });
+
+  it("scores its structural criteria against the agent-brief grammar", () => {
+    const def = laneFileDef("agent-brief")!;
+    const brief = composeBriefDraft("Scrap", { playbook, skills }, "2026-07-01");
+    const s = scoreSection(def, brief);
+    const missingStructural = s.required.filter((r) => !r.met && !/owner/i.test(r.label)).map((r) => r.label);
+    expect(missingStructural, `missing: ${missingStructural.join(", ")}`).toEqual([]);
+  });
+
+  it("falls back to placeholders when the pack is empty", () => {
+    const brief = composeBriefDraft("Bare", {}, "2026-07-01");
+    expect(brief).toContain("## Guardrails");
+    expect(brief).toContain("never cross"); // the scaffold placeholder text
+  });
+});
+
+describe("authorityLevelOf", () => {
+  it("resolves every level a set brief names — including read-only despite 'no drafts'", () => {
+    const base = scaffoldLaneFile("agent-brief", "Test Lane");
+    for (const level of AUTHORITY_LEVELS) {
+      const brief = setAuthorityInBrief(base, level);
+      expect(authorityLevelOf(brief), `${level} should resolve`).toBe(level);
+    }
+  });
+
+  it("returns null for the unset scaffold (all five levels listed as a hint)", () => {
+    expect(authorityLevelOf(scaffoldLaneFile("agent-brief", "Test Lane"))).toBeNull();
+  });
+
+  it("does not read a level word embedded in a longer word (drafts, recommended)", () => {
+    expect(authorityLevelOf("# B\n## Authority level\nRuns at `read-only`. No drafts. Recommended by nobody.")).toBe("read-only");
   });
 });

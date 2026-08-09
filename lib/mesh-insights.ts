@@ -7,7 +7,7 @@
  * Pure over a built `MeshGraph`, so both are unit-tested without a corpus.
  */
 
-import type { MeshGraph, MeshNode } from "./mesh-graph.js";
+import { orphans, duplicateClusters, type MeshGraph, type MeshNode } from "./mesh-graph.js";
 import type { MeshRef } from "./mesh.js";
 import type { ReferenceKind, Relation } from "./references.js";
 
@@ -43,6 +43,47 @@ export function meshGaps(graph: MeshGraph, expect: ReferenceKind[] = ["champion"
     if (missing.length) gaps.push({ node: n, missing });
   }
   return gaps.sort((a, b) => b.missing.length - a.missing.length || a.node.id.localeCompare(b.node.id));
+}
+
+/**
+ * A compact, BOUNDED summary of the portfolio graph — small enough to sit in the
+ * analyst's system prompt beside the org digest, so the analyst reasons over the
+ * portfolio's SHAPE (its duplicates, its orphans, the demands nobody owns) and not
+ * just the row list. Pure over a built graph; returns "" for an empty corpus so the
+ * analyst degrades to "no mesh" rather than carrying an empty header. It is a
+ * derivative of the corpus, never a source of truth — the header says so.
+ */
+export function meshDigest(graph: MeshGraph, opts: { sample?: number } = {}): string {
+  if (graph.nodes.length === 0) return "";
+  const sample = opts.sample ?? 5;
+
+  const byKind = new Map<ReferenceKind, number>();
+  for (const n of graph.nodes) byKind.set(n.kind, (byKind.get(n.kind) ?? 0) + 1);
+  const kinds = [...byKind.entries()].sort((a, b) => b[1] - a[1]).map(([k, c]) => `${c} ${k}`).join(", ");
+
+  const dupes = duplicateClusters(graph);
+  const orph = orphans(graph);
+  const gaps = meshGaps(graph);
+
+  const lines: string[] = [
+    "=== PORTFOLIO MESH (derived context graph) ===",
+    "A read-only map derived from the corpus — the portfolio's shape and where it is thin. Use it to spot connections, duplicates and unlinked work; it is a derivative of the record, never a source of truth.",
+    "",
+    `Nodes: ${graph.nodes.length} (${kinds}). Edges: ${graph.edges.length}.`,
+  ];
+  if (dupes.length) {
+    const eg = dupes.slice(0, sample).map((c) => c.map((r) => r.id).join("≈")).join("; ");
+    lines.push(`Duplicate clusters: ${dupes.length} — ${eg}.`);
+  }
+  if (orph.length) {
+    const eg = orph.slice(0, sample).map((n) => `${n.kind}:${n.id}`).join(", ");
+    lines.push(`Orphans (no links either way): ${orph.length} — e.g. ${eg}.`);
+  }
+  if (gaps.length) {
+    const eg = gaps.slice(0, sample).map((g) => g.node.id).join(", ");
+    lines.push(`Demands missing a champion/persona link: ${gaps.length} — e.g. ${eg}.`);
+  }
+  return lines.join("\n").trim();
 }
 
 /** Relations by which one artifact's fate reaches another. */

@@ -11,6 +11,9 @@ import { ScoreBar, ScorePill } from "@/components/portal/org-score";
 import { SectionEditor } from "@/components/org/section-editor";
 import { LaneDocs } from "@/components/org/lane-docs";
 import { LaneAutonomy } from "@/components/org/lane-autonomy";
+import { LaneAgentAsk } from "@/components/org/lane-agent-ask";
+import { RelatedPanel } from "@/components/portal/related-panel";
+import { loadNeighbourhood } from "@/lib/mesh-store";
 import { authorityPolicy, isAuthorityLevel, RUNG_TONE } from "@/lib/org/autonomy";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +32,8 @@ export default async function LaneDetail({ params }: { params: { dept: string; l
   if (!dept || !lane) notFound();
   const canEdit = can(session, "draft");
   const lanePolicy = lane.authority && isAuthorityLevel(lane.authority) ? authorityPolicy(lane.authority) : null;
+  // The org↔funnel join: demands (and the department) linked to this lane via the mesh.
+  const mesh = await loadNeighbourhood({ kind: "lane", id: `${dept.slug}/${lane.slug}` }).catch(() => null);
 
   return (
     <main className="mx-auto max-w-[980px] px-6 py-6">
@@ -78,6 +83,11 @@ export default async function LaneDetail({ params }: { params: { dept: string; l
         />
       </div>
 
+      {/* Ask the agent, scoped to this lane's autonomy rung — the ladder made operational. */}
+      <div className="mt-4">
+        <LaneAgentAsk dept={dept.slug} lane={lane.slug} authority={lane.authority} />
+      </div>
+
       <div className="mt-6 space-y-5">
         {lane.files.map((f) => (
           <LaneFileCard key={f.key} file={f} slug={dept.slug} laneSlug={lane.slug} laneName={lane.name} canEdit={canEdit} />
@@ -85,6 +95,18 @@ export default async function LaneDetail({ params }: { params: { dept: string; l
       </div>
 
       <LaneDocs slug={dept.slug} lane={lane.slug} docs={lane.docs} canEdit={canEdit} />
+
+      {mesh && (mesh.inbound.length > 0 || mesh.outbound.length > 0) && (
+        <section className="mt-8">
+          <h2 className="text-sm font-semibold">Related</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Demands and context linked to this lane — the join between the work funnel and the org that governs it.
+          </p>
+          <div className="mt-3">
+            <RelatedPanel mesh={mesh} truncated={mesh.truncated} />
+          </div>
+        </section>
+      )}
     </main>
   );
 }

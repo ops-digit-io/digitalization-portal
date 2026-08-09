@@ -70,6 +70,40 @@ describe("session-scoped tool resolution + kill switch (constraint #3, FR-6.6)",
   });
 });
 
+describe("autonomy narrows acting tools (constraint #3 — withhold only, never widen)", () => {
+  const reg = new ToolRegistry()
+    .register({ name: "reader", description: "reads", capability: "view_board", run: noopRun })
+    .register({ name: "writer", description: "acts", capability: "draft", effect: "write", run: noopRun });
+  const admin: Session = { user: "a@example.com", roles: ["admin"], scopes: [] }; // holds every capability
+  const forum: Session = { user: "f@example.com", roles: ["portfolio_forum"], scopes: [] }; // view_board, NOT draft
+
+  it("a non-acting rung withholds write tools but keeps read tools", () => {
+    for (const rung of ["read-only", "draft", "recommend"] as const) {
+      const names = reg.resolveFor(admin, { enabled: true, authority: rung }).map((t) => t.name);
+      expect(names, rung).toContain("reader");
+      expect(names, rung).not.toContain("writer");
+    }
+  });
+
+  it("an acting rung offers the write tool", () => {
+    for (const rung of ["execute-with-approval", "execute-autonomously"] as const) {
+      const names = reg.resolveFor(admin, { enabled: true, authority: rung }).map((t) => t.name);
+      expect(names, rung).toContain("writer");
+    }
+  });
+
+  it("no lane scope leaves RBAC alone (today's portfolio behaviour)", () => {
+    const names = reg.resolveFor(admin, { enabled: true }).map((t) => t.name);
+    expect(names).toEqual(expect.arrayContaining(["reader", "writer"]));
+  });
+
+  it("never widens beyond the session's capabilities, even at an acting rung", () => {
+    const names = reg.resolveFor(forum, { enabled: true, authority: "execute-autonomously" }).map((t) => t.name);
+    expect(names).toContain("reader");
+    expect(names).not.toContain("writer"); // acting rung, but the session lacks `draft`
+  });
+});
+
 describe("agentToolsEnabled", () => {
   it("defaults on, and reads off/false/0 as disabled", () => {
     expect(agentToolsEnabled({})).toBe(true);

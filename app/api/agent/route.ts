@@ -19,6 +19,11 @@ import { agentToolsEnabled } from "@/lib/agent/tools";
 import { factsBlock } from "@/lib/agent/prompt";
 import { loadAnalystGuideline, analystSystemPrompt, ANALYST_GOVERNED_BY } from "@/lib/agent/analyst-guideline";
 import { orgContextDigest } from "@/lib/org/digest";
+import { loadCorpusCached } from "@/lib/mesh-corpus";
+import { buildGraph } from "@/lib/mesh-graph";
+import { meshDigest } from "@/lib/mesh-insights";
+import { readLane } from "@/lib/org/lane-store";
+import { isAuthorityLevel, type AuthorityLevel } from "@/lib/org/autonomy";
 import { wrapExternal } from "@/lib/agent/wrap";
 import { parseBusinessCase, toSimulationInput } from "@/lib/businesscase";
 import { listDemandRowsWithValue, readArtifact } from "@/lib/demands-store";
@@ -32,6 +37,9 @@ type Body = {
   task?: "chat" | "simulate" | "analysis" | "poc";
   useCaseId?: string;
   horizon?: "quarter" | "year";
+  /** Optional Department OS lane scope: narrows acting tools to the lane's autonomy rung. */
+  dept?: string;
+  lane?: string;
 };
 
 export async function POST(req: Request) {
@@ -98,8 +106,26 @@ export async function POST(req: Request) {
   // skill), loaded dynamically — never a hardcoded prompt. The organization context
   // (Department OS) is appended so the analyst reasons about the org behind the demand,
   // not in a vacuum; it degrades to nothing when no department is written down.
-  const [guideline, orgContext] = await Promise.all([loadAnalystGuideline(), orgContextDigest()]);
-  const system = orgContext ? `${analystSystemPrompt(guideline)}\n\n${orgContext}` : analystSystemPrompt(guideline);
+  // The analyst reasons over the org (Department OS) AND the portfolio's shape (the
+  // derived mesh: duplicates, orphans, unlinked demands). Both are bounded and both
+  // degrade to "" when unreadable, so the prompt never fails on their account.
+  const [guideline, orgContext, meshContext] = await Promise.all([
+    loadAnalystGuideline(),
+    orgContextDigest(),
+    loadCorpusCached()
+      .then((c) => meshDigest(buildGraph(c.docs)))
+      .catch(() => ""),
+  ]);
+  const system = [analystSystemPrompt(guideline), orgContext, meshContext].filter(Boolean).join("\n\n");
+
+  // Optional lane scope: a Department OS lane's autonomy rung narrows which ACTING
+  // tools the agent may use (a read-only lane offers none). This never widens beyond
+  // the session's RBAC — it only withholds. Absent → portfolio behaviour.
+  let authority: AuthorityLevel | null = null;
+  if (body.dept && body.lane) {
+    const laneObj = await readLane(body.dept, body.lane).catch(() => null);
+    authority = laneObj && isAuthorityLevel(laneObj.authority) ? laneObj.authority : null;
+  }
 
   try {
     const result = await runAgent({
@@ -112,12 +138,14 @@ export async function POST(req: Request) {
       traceId: `trace-${task}-${body.useCaseId ?? "chat"}`,
       feature: `agent.${task}`,
       enabled: agentToolsEnabled(),
+      authority,
       ...(toolNames ? { toolNames } : {}),
     });
 
     return NextResponse.json({
       text: result.text,
       ...(link ? { link } : {}),
+      ...(authority ? { scope: { dept: body.dept, lane: body.lane, authority } } : {}),
       governedBy: ANALYST_GOVERNED_BY,
       provider: { name: provider.name, live: provider.live },
       trace: {

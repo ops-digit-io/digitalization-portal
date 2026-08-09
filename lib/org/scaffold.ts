@@ -304,14 +304,103 @@ export function scaffoldLane(laneName: string): Record<string, string> {
 }
 
 /**
+ * Body text under the FIRST heading matching `re`, up to the next heading. Returns "" when
+ * the section is missing or holds only the scaffold's placeholders (a lone `_italic_` line
+ * or empty `|  |  |` table rows) — so a caller can tell "authored" from "still blank".
+ */
+export function sectionUnder(md: string, re: RegExp): string {
+  const lines = md.replace(/\r\n/g, "\n").split("\n");
+  const start = lines.findIndex((l) => /^#{1,6}\s/.test(l) && re.test(l));
+  if (start === -1) return "";
+  const body: string[] = [];
+  for (let j = start + 1; j < lines.length; j++) {
+    if (/^#{1,6}\s/.test(lines[j]!)) break;
+    body.push(lines[j]!);
+  }
+  const meaningful = body.filter((l) => {
+    const t = l.trim();
+    if (!t) return false;
+    if (/^_.*_$/.test(t)) return false; // scaffold placeholder
+    if (/^\|[\s|]*\|$/.test(t)) return false; // empty table row
+    if (/^\|?[\s|:-]+\|?$/.test(t)) return false; // table separator
+    return true;
+  });
+  return meaningful.length ? body.join("\n").trim() : "";
+}
+
+const BRIEF_DRAFT_NOTE = (on: string) =>
+  `> Draft assembled from this lane's pack${on ? ` on ${on}` : ""}. Review every line, name the responsible owner (frontmatter), and choose the authority level before raising autonomy — nothing here grants autonomy on its own.`;
+
+/** Cap a quoted pack section so the brief stays a brief. */
+function clamp(text: string, max = 600): string {
+  return text.length <= max ? text : `${text.slice(0, max).trimEnd()}\n…`;
+}
+
+/**
+ * Compose an agent-brief DRAFT from a lane's pack. It fills the brief's Scope, Guardrails,
+ * Escalation and Rights sections from what the lane already documents (the playbook's
+ * control points and handovers, the skills file's interfaces) — quoting the pack rather
+ * than inventing commitments. Two things are deliberately NOT filled: the frontmatter
+ * `owner` (the responsible human, the accountability point the readiness gate requires) and
+ * the authority level (still the five-rung hint — the human chooses, `set-authority` writes
+ * it). So a drafted brief is a real starting point that still cannot reach an execute rung
+ * without a person. Pure; `generatedOn` is passed in to keep it deterministic.
+ */
+export function composeBriefDraft(
+  laneName: string,
+  pack: { playbook?: string; skills?: string },
+  generatedOn = "",
+): string {
+  const controlPoints = sectionUnder(pack.playbook ?? "", /(?:kontrollpunkt|control point|checkpoint|rework|nacharbeit)/i);
+  const handovers = sectionUnder(pack.playbook ?? "", /(?:übergabe|handover|hand-off)/i);
+  const exceptions = sectionUnder(pack.playbook ?? "", /(?:ausnahme|exception|fehler|error|edge)/i);
+  const interfaces = sectionUnder(pack.skills ?? "", /(?:interface|schnittstelle|system)/i);
+
+  const guardrailsBody = controlPoints
+    ? `From the playbook's control points — the lines this lane must not cross unsupervised:\n\n${clamp(controlPoints)}`
+    : "_The lines it must never cross, even within its authority level._";
+  const escalationBody = handovers || exceptions
+    ? `Escalate when a handover cannot complete or an exception is hit:\n\n${clamp(handovers || exceptions)}`
+    : "_The one action it must always escalate, and to whom._";
+  const rightsBody = interfaces
+    ? `Scoped to the interfaces this lane uses (from the skills file):\n\n${clamp(interfaces)}`
+    : "_What the agent may read and write, per system-of-record object._";
+
+  return `${LANE_FM}
+
+# ${laneName} — Agent brief
+
+${BRIEF_DRAFT_NOTE(generatedOn)}
+
+## Scope
+This lane's agent supports the **${laneName}** flow — the run documented in this lane's playbook. Out of scope: any step not written into that playbook.
+
+## Authority level
+_One of: read-only · draft · recommend · execute-with-approval · execute-autonomously._
+
+## Rights per data object
+${rightsBody}
+
+## Guardrails
+${guardrailsBody}
+
+## Escalation
+${escalationBody}
+`;
+}
+
+/**
  * The authority level named in an agent-brief, if unambiguous — for the lane's autonomy
  * badge. Returns null when none appears, or when several do (the scaffold lists all five
  * as a hint, and a brief that names two levels in prose hasn't actually chosen one).
  */
 export function authorityLevelOf(agentBrief: string | undefined): string | null {
   if (!agentBrief) return null;
+  // Word boundaries matter: the read-only description says "no drafts", and without
+  // \b that "draft" was read as a second level — so a read-only lane resolved to null
+  // ("no autonomy set") instead of read-only. \bdraft\b does not match "drafts".
   const found = new Set(
-    (agentBrief.toLowerCase().match(/read-only|execute-with-approval|execute-autonomously|recommend|draft/g) ?? []),
+    (agentBrief.toLowerCase().match(/\b(?:read-only|execute-with-approval|execute-autonomously|recommend|draft)\b/g) ?? []),
   );
   return found.size === 1 ? [...found][0]! : null;
 }
