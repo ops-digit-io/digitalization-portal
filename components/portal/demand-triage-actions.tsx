@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { LANES, type Lane } from "@/lib/types";
-import { LANE_LABEL } from "@/components/portal/badges";
+import { LANE_LABEL } from "@/lib/labels";
 
 /**
  * Triage controls on the demand's own page — move/assign the lane, and park with a

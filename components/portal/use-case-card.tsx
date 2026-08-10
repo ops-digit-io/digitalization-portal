@@ -4,10 +4,12 @@ import { Badge } from "@/components/ui/badge";
 import { HeatDot, LevelBadge, LaneBadge } from "@/components/portal/badges";
 import { CardQuickActions, type QuickActionCaps } from "@/components/portal/card-quick-actions";
 import { cn } from "@/lib/utils";
+import { getT } from "@/lib/i18n-server";
 import type { Lane } from "@/lib/types";
 import type { BoardCard } from "@/lib/board";
 
 export function UseCaseCard({ card, manage }: { card: BoardCard; manage?: QuickActionCaps }) {
+  const { t } = getT();
   const killed = card.status === "killed";
   const parked = card.status === "parked";
   const showMenu = manage && (manage.advance || manage.park || manage.kill || manage.reactivate);
@@ -30,13 +32,13 @@ export function UseCaseCard({ card, manage }: { card: BoardCard; manage?: QuickA
               <Badge
                 variant="outline"
                 className="border-ok/50 px-1.5 py-0 text-[10px] font-normal text-ok"
-                title={`Meets the criteria to open ${card.targetGate}`}
+                title={`${t("ucard.readyTipPre", "Meets the criteria to open")} ${card.targetGate}`}
               >
-                {card.targetGate} ready
+                {card.targetGate} {t("ucard.ready", "ready")}
               </Badge>
             )}
-            {killed && <Badge variant="outline" className="border-destructive/50 px-1.5 py-0 text-[10px] font-normal text-destructive">killed</Badge>}
-            {parked && <Badge variant="outline" className="border-warn/50 px-1.5 py-0 text-[10px] font-normal text-warn">parked</Badge>}
+            {killed && <Badge variant="outline" className="border-destructive/50 px-1.5 py-0 text-[10px] font-normal text-destructive">{t("enum.status.killed", "killed")}</Badge>}
+            {parked && <Badge variant="outline" className="border-warn/50 px-1.5 py-0 text-[10px] font-normal text-warn">{t("enum.status.parked", "parked")}</Badge>}
             {showMenu && <CardQuickActions id={card.id} status={card.status} caps={manage!} />}
           </div>
         </div>
@@ -56,7 +58,7 @@ export function UseCaseCard({ card, manage }: { card: BoardCard; manage?: QuickA
           {card.daysInStage !== undefined && (
             <span
               className={cn("inline-flex items-center gap-0.5 text-xs tabular-nums", card.stalled ? "font-medium text-warn" : "text-muted-foreground")}
-              title={card.stalled ? "Stalled — over 30 days in stage" : "Days in stage"}
+              title={card.stalled ? t("ucard.stalledTip", "Stalled — over 30 days in stage") : t("ucard.daysTip", "Days in stage")}
             >
               {card.stalled && <span aria-hidden>⏱</span>}
               {card.daysInStage}d
