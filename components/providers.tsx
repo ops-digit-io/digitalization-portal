@@ -43,12 +43,14 @@ export const useI18n = () => useContext(LocaleContext);
 
 /* ---------------- Provider ---------------- */
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({ children, initialLocale }: { children: React.ReactNode; initialLocale?: Locale }) {
   const router = useRouter();
   const [theme, setTheme] = useState<Theme>("light");
-  const [locale, setLocaleState] = useState<Locale>(DEFAULT_LOCALE);
+  // The layout reads the locale cookie server-side and passes it here, so the very first
+  // client render already matches the server HTML (no hydration mismatch, no flash).
+  const [locale, setLocaleState] = useState<Locale>(initialLocale ?? DEFAULT_LOCALE);
 
-  // Hydrate from storage / system on mount.
+  // Hydrate theme (and, defensively, the locale) from storage / system on mount.
   useEffect(() => {
     const storedTheme = (localStorage.getItem("du-theme") as Theme | null) ?? undefined;
     const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
@@ -56,13 +58,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
     setTheme(initialTheme);
     applyTheme(initialTheme);
 
-    // Prefer the cookie (server components read it), then localStorage.
-    const stored = readLocaleCookie() ?? (localStorage.getItem("du-locale") as Locale | null);
-    if (stored) {
-      setLocaleState(stored);
-      document.documentElement.lang = stored;
+    // The server already applied the cookie locale; fall back to a stored one only when
+    // the layout couldn't (e.g. cookie absent but a localStorage preference exists).
+    if (!initialLocale) {
+      const stored = readLocaleCookie() ?? (localStorage.getItem("du-locale") as Locale | null);
+      if (stored) {
+        setLocaleState(stored);
+        document.documentElement.lang = stored;
+      }
     }
-  }, []);
+  }, [initialLocale]);
 
   const toggle = () => {
     setTheme((prev) => {

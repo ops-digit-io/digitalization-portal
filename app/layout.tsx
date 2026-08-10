@@ -3,6 +3,7 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 import { AppHeader } from "@/components/portal/app-header";
 import { Telemetry } from "@/components/portal/telemetry";
+import { getLocale } from "@/lib/i18n-server";
 
 export const metadata: Metadata = {
   title: "Digitalization Portal",
@@ -13,13 +14,17 @@ export const metadata: Metadata = {
 const themeScript = `(function(){try{var t=localStorage.getItem('du-theme');if(!t){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}if(t==='dark')document.documentElement.classList.add('dark');}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // Read the locale server-side from the cookie so BOTH server and client components
+  // render in the right language on first paint (client components get it as the
+  // provider's initial state — no flash, no post-hydration switch).
+  const locale = getLocale();
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="min-h-screen">
-        <Providers>
+        <Providers initialLocale={locale}>
           <AppHeader />
           {children}
           <Telemetry />
