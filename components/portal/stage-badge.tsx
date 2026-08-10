@@ -1,7 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { getT } from "@/lib/i18n-server";
 import type { Stage } from "@/lib/types";
 
+/** English fallback stage labels (the translated set lives under `board.stage.*`). */
 const STAGE_LABEL: Record<Stage, string> = {
   S1: "Demand",
   S2: "Shaping",
@@ -14,6 +16,7 @@ const STAGE_LABEL: Record<Stage, string> = {
 };
 
 export function StageBadge({ stage, className }: { stage: Stage; className?: string }) {
+  const { t } = getT();
   return (
     <Badge variant="outline" className={cn("gap-1.5 font-medium", className)}>
       <span
@@ -21,7 +24,7 @@ export function StageBadge({ stage, className }: { stage: Stage; className?: str
         style={{ background: `hsl(var(--stage-${stage.toLowerCase()}))` }}
         aria-hidden
       />
-      {stage} {STAGE_LABEL[stage]}
+      {stage} {t(`board.stage.${stage}`, STAGE_LABEL[stage])}
     </Badge>
   );
 }

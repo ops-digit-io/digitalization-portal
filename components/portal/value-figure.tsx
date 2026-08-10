@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { getT } from "@/lib/i18n-server";
 import type { Confidence } from "@/lib/types";
 
 /**
@@ -15,8 +16,9 @@ export function ValueFigure({
   confidence: Confidence;
   currency?: string;
 }) {
+  const { t } = getT();
   if (amount === null) {
-    return <span className="text-muted-foreground">Needs input</span>;
+    return <span className="text-muted-foreground">{t("value.needsInput", "Needs input")}</span>;
   }
 
   const formatted = new Intl.NumberFormat("de-DE", {
@@ -33,7 +35,7 @@ export function ValueFigure({
         {formatted}
       </span>
       <Badge variant="secondary" className="text-xs font-normal">
-        {confidence}
+        {t(`enum.confidence.${confidence}`, confidence)}
       </Badge>
     </span>
   );
