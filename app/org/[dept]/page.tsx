@@ -4,6 +4,7 @@ import { readDepartment } from "@/lib/org/store";
 import { listLanes } from "@/lib/org/lane-store";
 import { getSession } from "@/lib/auth/current";
 import { can } from "@/lib/rbac";
+import { getT } from "@/lib/i18n-server";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MarkdownPage } from "@/components/portal/markdown-page";
@@ -23,6 +24,7 @@ export const dynamic = "force-dynamic";
  * the org behind a demand — and the page a department improves against.
  */
 export default async function DepartmentDetail({ params }: { params: { dept: string } }) {
+  const { t } = getT();
   const [dept, session, lanes] = await Promise.all([readDepartment(params.dept), getSession(), listLanes(params.dept)]);
   if (!dept) notFound();
   const canEdit = can(session, "draft");
@@ -33,9 +35,9 @@ export default async function DepartmentDetail({ params }: { params: { dept: str
   return (
     <main className="mx-auto max-w-[980px] px-6 py-6">
       <nav className="mb-2 text-sm text-muted-foreground">
-        <Link href="/" className="hover:text-foreground">Home</Link>
+        <Link href="/" className="hover:text-foreground">{t("nav.home")}</Link>
         <span className="mx-1.5" aria-hidden>›</span>
-        <Link href="/org" className="hover:text-foreground">Department OS</Link>
+        <Link href="/org" className="hover:text-foreground">{t("org.title")}</Link>
         <span className="mx-1.5" aria-hidden>›</span>
         <span className="text-foreground">{dept.name}</span>
       </nav>
@@ -46,9 +48,9 @@ export default async function DepartmentDetail({ params }: { params: { dept: str
           {dept.purpose && <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{dept.purpose}</p>}
         </div>
         <div className="text-right">
-          <div className="text-xs text-muted-foreground">Context completeness</div>
+          <div className="text-xs text-muted-foreground">{t("org.contextCompleteness")}</div>
           <div className="text-2xl font-semibold"><ScorePill score={score.score} /></div>
-          <div className="text-xs text-muted-foreground">{score.corePresent}/{score.coreTotal} core sections</div>
+          <div className="text-xs text-muted-foreground">{score.corePresent}/{score.coreTotal} {t("org.coreSections")}</div>
         </div>
       </div>
       <ScoreBar score={score.score} className="mt-3" />
@@ -56,10 +58,9 @@ export default async function DepartmentDetail({ params }: { params: { dept: str
       {score.criticalStale.length > 0 && (
         <Card className="mt-4 border-rose-300 bg-rose-50/50 p-3 text-sm dark:bg-rose-950/20">
           <span className="font-medium text-rose-700 dark:text-rose-400">
-            {score.criticalStale.length} critical section{score.criticalStale.length > 1 ? "s" : ""} stale or expired:
+            {score.criticalStale.length} {t("org.criticalSectionsStale")}
           </span>{" "}
-          <span className="text-rose-700/90 dark:text-rose-400/90">{score.criticalStale.join(", ")}</span>. An agent must
-          re-verify these before acting on them.
+          <span className="text-rose-700/90 dark:text-rose-400/90">{score.criticalStale.join(", ")}</span>. {t("org.reVerify")}
         </Card>
       )}
 
@@ -83,16 +84,16 @@ export default async function DepartmentDetail({ params }: { params: { dept: str
       <section className="mt-8">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold">Lanes</h2>
+            <h2 className="text-sm font-semibold">{t("org.lanes")}</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Per-lane packs — playbook, skills, tasks, metrics and the agent brief that sets each lane&apos;s autonomy.
+              {t("org.lanesIntro")}
             </p>
           </div>
           {canEdit && <NewLane deptSlug={dept.slug} />}
         </div>
         {lanes.length === 0 ? (
           <Card className="mt-3 p-6 text-center text-xs text-muted-foreground">
-            No lanes yet. A lane is one repeatable flow you can raise to autonomy on its own.
+            {t("org.lanesEmpty")}
           </Card>
         ) : (
           <>
@@ -108,14 +109,14 @@ export default async function DepartmentDetail({ params }: { params: { dept: str
                       </div>
                       <ScoreBar score={l.score.score} className="mt-2" />
                       <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                        <span>{l.score.corePresent}/{l.score.coreTotal} files</span>
+                        <span>{l.score.corePresent}/{l.score.coreTotal} {t("org.files")}</span>
                         {pol ? (
                           <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${RUNG_TONE[pol.tone].badge}`} title={pol.summary}>
                             <span className={`inline-block size-1.5 rounded-full ${RUNG_TONE[pol.tone].dot}`} aria-hidden />
-                            {pol.label}
+                            {t(`autonomy.${pol.level}.label`, pol.label)}
                           </span>
                         ) : (
-                          <span className="text-amber-600">no autonomy set</span>
+                          <span className="text-amber-600">{t("org.noAutonomy")}</span>
                         )}
                       </div>
                     </Card>
@@ -131,10 +132,9 @@ export default async function DepartmentDetail({ params }: { params: { dept: str
       </section>
 
       <section className="mt-8">
-        <h2 className="text-sm font-semibold">Modules</h2>
+        <h2 className="text-sm font-semibold">{t("org.modules")}</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Department-wide packs, switched on when their trigger fires — additive and optional. Start one when its
-          trigger applies; each is scored and coached like a core section.
+          {t("org.modulesIntro")}
         </p>
         <div className="mt-3 space-y-5">
           {[...dept.modules]
@@ -172,6 +172,7 @@ function Section({
   /** Optional sub-line (e.g. a module's trigger). */
   hint?: string;
 }) {
+  const { t } = getT();
   const { score } = section;
   const fresh = score.freshness;
   return (
@@ -180,8 +181,8 @@ function Section({
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-base font-semibold">{score.title}</h2>
-            {score.critical && <Badge variant="outline" className="border-rose-300 text-rose-600">critical</Badge>}
-            {section.score.present && stale && <Badge variant="destructive">stale</Badge>}
+            {score.critical && <Badge variant="outline" className="border-rose-300 text-rose-600">{t("org.critical")}</Badge>}
+            {section.score.present && stale && <Badge variant="destructive">{t("org.stale")}</Badge>}
           </div>
           <span className="font-mono text-xs text-muted-foreground">{section.key}.md</span>
           {hint && <p className="mt-0.5 max-w-xl text-xs text-muted-foreground">{hint}</p>}
@@ -189,7 +190,7 @@ function Section({
         <div className="flex items-center gap-2">
           <ScorePill score={score.score} />
           {score.excellenceResults.length > 0 && (
-            <span className="text-xs text-muted-foreground">· excellence {score.excellence}%</span>
+            <span className="text-xs text-muted-foreground">· {t("org.excellence")} {score.excellence}%</span>
           )}
           {canEdit && (
             <SectionEditor slug={slug} sectionKey={section.key} deptName={deptName} initialSource={section.source} present={section.score.present} />
@@ -201,18 +202,18 @@ function Section({
       {/* Freshness / validity line. */}
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <span>{fresh.detail}</span>
-        {score.validity && <span className={score.validity.expired ? "text-rose-600" : ""}>validity: {score.validity.detail}</span>}
+        {score.validity && <span className={score.validity.expired ? "text-rose-600" : ""}>{t("org.validity")} {score.validity.detail}</span>}
       </div>
 
       {!section.score.present ? (
         <p className="mt-3 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-          Not written yet. {score.coaching}
+          {t("org.notWritten")} {score.coaching}
         </p>
       ) : (
         <>
           {score.missing.length > 0 && (
             <div className="mt-3 rounded-md border border-amber-300 bg-amber-50/50 p-3 text-sm dark:bg-amber-950/20">
-              <div className="font-medium text-amber-800 dark:text-amber-300">To reach full completeness, add:</div>
+              <div className="font-medium text-amber-800 dark:text-amber-300">{t("org.toReachFull")}</div>
               <ul className="mt-1 list-disc pl-5 text-amber-800/90 dark:text-amber-300/90">
                 {score.missing.map((m) => <li key={m}>{m}</li>)}
               </ul>

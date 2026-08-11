@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { SectionScore } from "@/lib/org/scoring";
+import { useI18n } from "@/components/providers";
 import { ScoreBar, ScorePill } from "@/components/portal/org-score";
 
 /**
@@ -27,6 +28,7 @@ export function SectionEditor({
   lane?: string;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(initialSource);
   const [score, setScore] = useState<SectionScore | null>(null);
@@ -102,7 +104,7 @@ export function SectionEditor({
   if (!editing) {
     return (
       <button onClick={begin} className="rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground">
-        {present ? "Edit" : "Start this section"}
+        {present ? t("org.edit") : t("org.startSection")}
       </button>
     );
   }
@@ -110,10 +112,10 @@ export function SectionEditor({
   return (
     <div className="mt-3 rounded-md border bg-secondary/20 p-3">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <span className="text-xs text-muted-foreground">Editing <span className="font-mono">{sectionKey}.md</span></span>
+        <span className="text-xs text-muted-foreground">{t("org.editing")} <span className="font-mono">{sectionKey}.md</span></span>
         {score && (
           <span className="flex items-center gap-2 text-xs">
-            <span className="text-muted-foreground">live score</span>
+            <span className="text-muted-foreground">{t("org.liveScore")}</span>
             <ScorePill score={score.score} />
           </span>
         )}
@@ -127,7 +129,7 @@ export function SectionEditor({
       />
       {score && score.missing.length > 0 && (
         <div className="mt-2 rounded-md border border-amber-300 bg-amber-50/50 p-2.5 text-xs dark:bg-amber-950/20">
-          <span className="font-medium text-amber-800 dark:text-amber-300">Still missing:</span>{" "}
+          <span className="font-medium text-amber-800 dark:text-amber-300">{t("org.stillMissing")}</span>{" "}
           <span className="text-amber-800/90 dark:text-amber-300/90">{score.missing.join(" · ")}</span>
         </div>
       )}
@@ -138,7 +140,7 @@ export function SectionEditor({
           disabled={busy}
           className="rounded-md border bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
         >
-          {busy ? "Saving…" : "Save"}
+          {busy ? t("org.saving") : t("org.save")}
         </button>
         <button
           onClick={() => {
@@ -147,7 +149,7 @@ export function SectionEditor({
           }}
           className="rounded-md border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
         >
-          Cancel
+          {t("org.cancel")}
         </button>
       </div>
     </div>

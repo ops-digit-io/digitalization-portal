@@ -4,6 +4,7 @@ import { readDepartment } from "@/lib/org/store";
 import { readLane, type LaneFile } from "@/lib/org/lane-store";
 import { getSession } from "@/lib/auth/current";
 import { can } from "@/lib/rbac";
+import { getT } from "@/lib/i18n-server";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MarkdownPage } from "@/components/portal/markdown-page";
@@ -24,6 +25,7 @@ export const dynamic = "force-dynamic";
  * and every file editable with the same live-coaching editor as the department sections.
  */
 export default async function LaneDetail({ params }: { params: { dept: string; lane: string } }) {
+  const { t } = getT();
   const [dept, lane, session] = await Promise.all([
     readDepartment(params.dept),
     readLane(params.dept, params.lane),
@@ -38,9 +40,9 @@ export default async function LaneDetail({ params }: { params: { dept: string; l
   return (
     <main className="mx-auto max-w-[980px] px-6 py-6">
       <nav className="mb-2 text-sm text-muted-foreground">
-        <Link href="/" className="hover:text-foreground">Home</Link>
+        <Link href="/" className="hover:text-foreground">{t("nav.home")}</Link>
         <span className="mx-1.5" aria-hidden>›</span>
-        <Link href="/org" className="hover:text-foreground">Department OS</Link>
+        <Link href="/org" className="hover:text-foreground">{t("org.title")}</Link>
         <span className="mx-1.5" aria-hidden>›</span>
         <Link href={`/org/${dept.slug}`} className="hover:text-foreground">{dept.name}</Link>
         <span className="mx-1.5" aria-hidden>›</span>
@@ -51,20 +53,20 @@ export default async function LaneDetail({ params }: { params: { dept: string; l
         <div>
           <h1 className="text-xl font-semibold">{lane.name}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            A lane of <Link href={`/org/${dept.slug}`} className="underline hover:text-foreground">{dept.name}</Link> — its own playbook, skills, tasks, metrics and autonomy contract.
+            {t("org.laneIntroPre")} <Link href={`/org/${dept.slug}`} className="underline hover:text-foreground">{dept.name}</Link> {t("org.laneIntroPost")}
           </p>
         </div>
         <div className="text-right">
-          <div className="text-xs text-muted-foreground">Pack completeness</div>
+          <div className="text-xs text-muted-foreground">{t("org.packCompleteness")}</div>
           <div className="text-2xl font-semibold"><ScorePill score={lane.score.score} /></div>
           <div className="mt-1 flex justify-end">
             {lanePolicy ? (
               <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs ${RUNG_TONE[lanePolicy.tone].badge}`} title={lanePolicy.summary}>
                 <span className={`inline-block size-1.5 rounded-full ${RUNG_TONE[lanePolicy.tone].dot}`} aria-hidden />
-                {lanePolicy.label}
+                {t(`autonomy.${lanePolicy.level}.label`, lanePolicy.label)}
               </span>
             ) : (
-              <span className="text-xs text-amber-600">no autonomy set</span>
+              <span className="text-xs text-amber-600">{t("org.noAutonomy")}</span>
             )}
           </div>
         </div>
@@ -98,9 +100,9 @@ export default async function LaneDetail({ params }: { params: { dept: string; l
 
       {mesh && (mesh.inbound.length > 0 || mesh.outbound.length > 0) && (
         <section className="mt-8">
-          <h2 className="text-sm font-semibold">Related</h2>
+          <h2 className="text-sm font-semibold">{t("org.related")}</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Demands and context linked to this lane — the join between the work funnel and the org that governs it.
+            {t("org.relatedIntro")}
           </p>
           <div className="mt-3">
             <RelatedPanel mesh={mesh} truncated={mesh.truncated} />
@@ -124,6 +126,7 @@ function LaneFileCard({
   laneName: string;
   canEdit: boolean;
 }) {
+  const { t } = getT();
   const { score } = file;
   return (
     <Card id={file.key} className="scroll-mt-4 p-5">
@@ -142,12 +145,12 @@ function LaneFileCard({
       <ScoreBar score={score.score} className="mt-2" />
 
       {!score.present ? (
-        <p className="mt-3 rounded-md border border-dashed p-4 text-sm text-muted-foreground">Not written yet. {score.coaching}</p>
+        <p className="mt-3 rounded-md border border-dashed p-4 text-sm text-muted-foreground">{t("org.notWritten")} {score.coaching}</p>
       ) : (
         <>
           {score.missing.length > 0 && (
             <div className="mt-3 rounded-md border border-amber-300 bg-amber-50/50 p-3 text-sm dark:bg-amber-950/20">
-              <div className="font-medium text-amber-800 dark:text-amber-300">To reach full completeness, add:</div>
+              <div className="font-medium text-amber-800 dark:text-amber-300">{t("org.toReachFull")}</div>
               <ul className="mt-1 list-disc pl-5 text-amber-800/90 dark:text-amber-300/90">
                 {score.missing.map((m) => <li key={m}>{m}</li>)}
               </ul>

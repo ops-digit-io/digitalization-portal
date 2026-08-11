@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/components/providers";
 
 /** Create a lane in a department — POSTs to /api/org and opens the new lane. */
 export function NewLane({ deptSlug }: { deptSlug: string }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -34,7 +36,7 @@ export function NewLane({ deptSlug }: { deptSlug: string }) {
   if (!open) {
     return (
       <button onClick={() => setOpen(true)} className="rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-secondary/40">
-        + New lane
+        {t("org.newLane")}
       </button>
     );
   }
@@ -50,7 +52,7 @@ export function NewLane({ deptSlug }: { deptSlug: string }) {
             if (e.key === "Enter") submit();
             if (e.key === "Escape") setOpen(false);
           }}
-          placeholder="Lane name"
+          placeholder={t("org.laneNamePlaceholder")}
           className="h-8 w-48 rounded-md border bg-background px-2.5 text-sm"
         />
         <button
@@ -58,10 +60,10 @@ export function NewLane({ deptSlug }: { deptSlug: string }) {
           disabled={busy || name.trim() === ""}
           className="h-8 rounded-md border bg-primary px-3 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
         >
-          {busy ? "Creating…" : "Create"}
+          {busy ? t("org.creating") : t("org.create")}
         </button>
         <button onClick={() => setOpen(false)} className="h-8 rounded-md border px-3 text-xs text-muted-foreground hover:text-foreground">
-          Cancel
+          {t("org.cancel")}
         </button>
       </div>
       {error && <p className="text-xs text-rose-600">{error}</p>}
