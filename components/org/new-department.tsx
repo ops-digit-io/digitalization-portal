@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/components/providers";
 
 /** Create a department by name — POSTs to /api/org and opens the new department. */
 export function NewDepartment() {
   const router = useRouter();
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -37,7 +39,7 @@ export function NewDepartment() {
         onClick={() => setOpen(true)}
         className="rounded-md border bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
       >
-        + New department
+        {t("org.newDepartment")}
       </button>
     );
   }
@@ -53,7 +55,7 @@ export function NewDepartment() {
             if (e.key === "Enter") submit();
             if (e.key === "Escape") setOpen(false);
           }}
-          placeholder="Department name"
+          placeholder={t("org.departmentNamePlaceholder")}
           className="h-9 w-56 rounded-md border bg-background px-2.5 text-sm"
         />
         <button
@@ -61,10 +63,10 @@ export function NewDepartment() {
           disabled={busy || name.trim() === ""}
           className="h-9 rounded-md border bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
         >
-          {busy ? "Creating…" : "Create"}
+          {busy ? t("org.creating") : t("org.create")}
         </button>
         <button onClick={() => setOpen(false)} className="h-9 rounded-md border px-3 text-sm text-muted-foreground hover:text-foreground">
-          Cancel
+          {t("org.cancel")}
         </button>
       </div>
       {error && <p className="text-xs text-rose-600">{error}</p>}
