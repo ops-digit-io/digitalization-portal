@@ -51,6 +51,7 @@ const I = {
   mesh: "M6 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z M18 5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z M12 15a2 2 0 1 0 0 4 2 2 0 0 0 0-4z M8 8h8 M7 10l4 5 M17 9l-4 6",
   org: "M4 21V7l6-3 6 3v14 M4 21h18 M16 21V10l4 2v9 M8 9h.01 M12 9h.01 M8 13h.01 M12 13h.01 M8 17h.01 M12 17h.01",
   factory: "M3 21h18 M3 21V10l5 3V10l5 3V10l5 3v8 M6 17h.01 M11 17h.01 M16 17h.01",
+  waves: "M2 7c2.5-2 4.5-2 7 0s4.5 2 7 0 4.5-2 6 0 M2 13c2.5-2 4.5-2 7 0s4.5 2 7 0 4.5-2 6 0 M2 19c2.5-2 4.5-2 7 0s4.5 2 7 0 4.5-2 6 0",
 };
 
 // Tiles are pure entry points — no metrics rendered on them.
@@ -71,6 +72,7 @@ export const LAUNCHPAD: TileGroup[] = [
     category: "Plants & IT/OT",
     tiles: [
       { id: "landscape", title: "System Landscape", subtitle: "Plants × ISA-95 · integration state · the UNS backlog", href: "/landscape", icon: I.factory, tone: "violet" },
+      { id: "rollout", title: "Rollout", subtitle: "Technology decisions & scaling waves across the plants", href: "/rollout", icon: I.waves, tone: "violet" },
     ],
   },
   {

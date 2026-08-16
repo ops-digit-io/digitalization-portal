@@ -11,6 +11,7 @@
 import { describe, it, expect } from "vitest";
 import { readRegistry } from "./source.js";
 import { parseLandscape, parsePlants, parseUns, summarise, blockers } from "./landscape.js";
+import { parseTechnology, parseRollout, unadoptedWaves, declined } from "./rollout.js";
 
 describe("shipped registry masters", () => {
   it("registry/landscape.md parses with no unreadable rows", async () => {
@@ -47,5 +48,38 @@ describe("shipped registry masters", () => {
     // The worst blocker is at L3 or above: a blocked historian or MES denies data
     // to the whole plant, which is the ordering the backlog exists to express.
     expect(["L3", "L4"]).toContain(blockers(systems)[0]?.level);
+  });
+
+  it("registry/technology.md and registry/rollout.md parse with no unreadable rows", async () => {
+    const [tech, waves] = await Promise.all([
+      readRegistry("technology").then(parseTechnology),
+      readRegistry("rollout").then(parseRollout),
+    ]);
+    expect(tech.filter((t) => t.needsAttention).map((t) => `${t.id}: ${t.issues.join(", ")}`)).toEqual([]);
+    expect(waves.filter((w) => w.needsAttention).map((w) => `${w.wave}/${w.plant}: ${w.issues.join(", ")}`)).toEqual([]);
+  });
+
+  it("the shipped plan does not break the invariant — no wave scales an unadopted technology", async () => {
+    const [tech, waves] = await Promise.all([
+      readRegistry("technology").then(parseTechnology),
+      readRegistry("rollout").then(parseRollout),
+    ]);
+    expect(unadoptedWaves(waves, tech).map((v) => `${v.wave.wave}/${v.wave.plant}: ${v.reason}`)).toEqual([]);
+  });
+
+  it("records technologies that were declined, not only ones that were adopted", async () => {
+    const tech = parseTechnology(await readRegistry("technology"));
+    // A register with no `hold`/`retire` rows cannot evidence deciding what stays
+    // OUT, which is half of what the responsibility actually is.
+    expect(declined(tech).length).toBeGreaterThan(0);
+  });
+
+  it("every wave names a plant that exists in the plant master", async () => {
+    const [waves, plants] = await Promise.all([
+      readRegistry("rollout").then(parseRollout),
+      readRegistry("plants").then(parsePlants),
+    ]);
+    const known = new Set(plants.map((p) => p.code));
+    expect([...new Set(waves.map((w) => w.plant))].filter((p) => !known.has(p))).toEqual([]);
   });
 });

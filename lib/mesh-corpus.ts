@@ -116,6 +116,10 @@ const TOOL_PIPELINE: readonly [string, string][] = [
   // funnel names a system here, which is why the two feed each other.
   ["org", "landscape"],
   ["landscape", "process"],
+  // A blocked system becomes a wave's blocker; an adopted technology becomes a
+  // wave. So the landscape feeds the rollout, and the rollout feeds the board.
+  ["landscape", "rollout"],
+  ["rollout", "board"],
   ["process", "intake"],
   ["intake", "demands"],
   ["demands", "board"],

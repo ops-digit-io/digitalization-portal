@@ -2,7 +2,7 @@
 
 # Pages and the endpoints they call
 
-**50 pages.** Each row lists the `/api` paths referenced by the page and the client
+**51 pages.** Each row lists the `/api` paths referenced by the page and the client
 components beside it. A page with no calls renders from a server component and reads its
 data directly through `lib/` — which is the portal's default, not an omission.
 
@@ -69,6 +69,7 @@ graph LR
   _requirements(["/requirements"])
   _requirements --> _api_requirements["/api/requirements"]
   _roadmap(["/roadmap"])
+  _rollout(["/rollout"])
   _settings(["/settings"])
   _settings --> _api_model_settings["/api/model-settings"]
   _settings --> _api_status["/api/status"]
@@ -135,6 +136,7 @@ graph LR
 | `/requirements/[id]` | `/api/demands/${encodeURIComponent`<br/>`/api/demands/[id]/requirements-edits`<br/>`/api/demands/[id]/verification` |
 | `/requirements` | `/api/requirements` |
 | `/roadmap` | _server-rendered_ |
+| `/rollout` | _server-rendered_ |
 | `/settings` | `/api/model-settings`<br/>`/api/status` |
 | `/simulate` | _server-rendered_ |
 | `/skill-library` | `/api/registry/import`<br/>`/api/registry/search` |

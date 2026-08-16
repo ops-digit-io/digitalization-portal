@@ -18,6 +18,8 @@ const nextConfig = {
       // runtime (`lib/otx/source.ts`). Ship them, or the pages render empty on
       // the live host while working perfectly in dev.
       "/landscape": ["./registry/*.md"],
+      "/rollout": ["./registry/*.md"],
+      "/handovers": ["./registry/*.md"],
     },
   },
   webpack: (config) => {

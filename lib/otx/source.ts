@@ -22,7 +22,14 @@ import { join } from "node:path";
 const DIR = "registry";
 
 /** The registry masters the IT/OT surfaces read. */
-export type RegistryFile = "plants" | "landscape" | "uns" | "technology" | "rollout" | "ai-portfolio";
+export type RegistryFile =
+  | "plants"
+  | "landscape"
+  | "uns"
+  | "technology"
+  | "rollout"
+  | "ai-portfolio"
+  | "handovers";
 
 /** Read one registry master. `undefined` when it is absent or unreadable. */
 export async function readRegistry(name: RegistryFile, baseDir: string = process.cwd()): Promise<string | undefined> {

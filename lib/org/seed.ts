@@ -143,6 +143,33 @@ Menge paralleler Lanes.
 | L6 Standardisierung | alle Regionen | Abweichung oder neue Technologie | Standard beschlossen, in \`standards.md\` | Mensch | global | Architektur |
 | L7 Demand- und Interaktionsmanagement | Werke | laufend | Bedarf erfasst, priorisiert, beantwortet | Agent-gestützt | global | Abteilungsleitung |
 | L8 Analytics und Insights | DME, Werke | laufend | Auswertung geliefert, Standardimpuls formuliert | Agent-gestützt | global | Analytics |
+| L9 Operations IT Support (Run) | Werke | Störung oder Anfrage im Betrieb | Störung behoben, externe Referenz vergeben, Übergabe quittiert | Mensch + Agent | regional, 24×5 global bei S1 | Ops IT Region |
+
+## L9 — die Run-Lane ist ein Service, kein Abfluss
+
+Die Run-Lane war lange eine Falltür: ein Bedarf wurde als \`run\` klassifiziert, eine
+Zeile geschrieben, und danach sagte nichts mehr, wer sie trägt und gegen welchen
+Maßstab. Das ist als Routing-Regel richtig und als Beschreibung einer Abteilung,
+die jemand führt, wertlos.
+
+Der Katalog dahinter — je Eintrag ein Auslöser, ein Abnahmekriterium und eine
+Eskalation:
+
+| Service | Auslöser | Definition of Done | Schweregrad-Regel | global/regional | Owner |
+|---|---|---|---|---|---|
+| OT connectivity | System oder Signal erreicht den Namespace nicht mehr | Signal fließt wieder, Ursache benannt, externe Referenz vergeben | S1 bei Produktionsstillstand | 24×5 global bei S1, sonst regional | Ops IT Region |
+| Shopfloor application | MES-/SCADA-Client, Sessions, Druck | Arbeitsplatz wieder arbeitsfähig | S3 je Einzelarbeitsplatz | regional | Ops IT Region |
+| Access & identity | Konten, Rollen, Shopfloor-Berechtigungen | Berechtigung erteilt und dokumentiert | S4 | regional | Ops IT Region |
+| Data quality | Wert kommt an, ist aber falsch, alt oder falsch skaliert | Wert korrekt oder als unbrauchbar gekennzeichnet | S2 bei Nutzung in Steuerung oder Qualitätsnachweis | regional | Ops IT Region |
+| Change request (small) | Begrenzte Änderung ohne Gate | Änderung umgesetzt, Rückfallweg dokumentiert | S4 | regional | Ops IT Region |
+
+**Reaktionsziele** (Ortszeit Werk): S1 Produktion steht — 30 min, 24×5 ·
+S2 Produktion beeinträchtigt — 2 h · S3 Einzelarbeitsplatz — 1 Arbeitstag ·
+S4 Anfrage — 3 Arbeitstage.
+
+**Keine personenbezogene Auswertung.** Last wird nach Service und Region
+ausgewertet, nie nach Person; \`Team owner\` ist ein Team. Eine Lücke ist ein Befund
+über den Service, nie über einen Kollegen (Constraint #6, \`docs/14-compliance.md\`).
 
 ## Definition of Done
 
@@ -248,6 +275,22 @@ source-of-truth: Entscheidungsmodell (Confluence) + IT-Governance
 | OT-Anbindung mit Netzwerkbezug | wir | Cybersecurity | Freigabe nötig | nein | execute-with-approval |
 | Standard beschließen oder ablösen | Architektur | Regionen | Konsultation | ja | execute-with-approval |
 | Abweichung vom Standard (Waiver) | Architektur | Werk | eigen, dokumentiert | ja | execute-with-approval |
+| Technologie in den Rollout aufnehmen (\`adopt\`) | Architektur-Board | Regionen | Konsultation, dann Beschluss | ja | execute-with-approval |
+| Technologie ablehnen oder ablösen (\`hold\`/\`retire\`) | Architektur-Board | Regionen | Konsultation, dann Beschluss | ja | execute-with-approval |
+| Rollout-Welle für ein Werk starten | Region Lead | Architektur | eigen, gegen den Standard | ja | execute-with-approval |
+
+## Die Rollout-Entscheidung
+
+Eine Welle darf nur eine Technologie ausrollen, die in \`registry/technology.md\`
+den Ring \`adopt\` trägt. Das ist kein Hinweis, sondern eine geprüfte Invariante
+(\`lib/otx/rollout.ts\`): \`/rollout\` zeigt jede Verletzung als Befund. Ohne sie ist
+„wir entscheiden, was in den Rollout geht" ein Satz und keine Kontrolle — alles
+irgendwo Erprobte könnte still in einem Werk auftauchen.
+
+Ein Ring \`adopt\`, \`hold\` oder \`retire\` ohne benannten Entscheider ist ein Gerücht,
+kein Beschluss; der Parser markiert solche Zeilen. Und \`hold\` ist ein **Ergebnis**,
+kein Versäumnis: zu entscheiden, was nicht in den Rollout geht, ist die Hälfte der
+Aufgabe.
 `;
 
 const risks = `---
