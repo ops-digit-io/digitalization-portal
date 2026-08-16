@@ -302,6 +302,107 @@ source-of-truth: standards.md + Architektur-Board-Beschlüsse
 | Data-Pipeline-Muster | global | gültig | nur mit begründetem Antrag | Architektur | 2026-12-31 |
 | Infrastruktur-Baseline Facility | global | Entwurf | — (noch nicht bindend) | Architektur | 2026-09-30 |
 | Signal- und Datenmodell Shopfloor | global | gültig | Waiver je Use Case, befristet | Analytics | 2026-12-31 |
+
+## Unified Namespace
+
+Der Namespace ist eine **vereinbarte Grammatik**, kein Broker. Der Broker ist
+austauschbar; die Grammatik ist der Standard. Deshalb steht die Konvention in
+\`registry/uns.md\` unter Versionskontrolle und wird auf \`/landscape\` gerendert.
+
+| Standard | Geltungsbereich | Status | Waiver / Ausnahmeverfahren | Owner | gültig bis |
+|---|---|---|---|---|---|
+| STD-UNS-01 Namespace-Wurzel und Werkskürzel | global | gültig | keiner — Werkskürzel sind der Vertrag | Architektur | 2026-12-31 |
+| STD-UNS-02 Bereichs- und Linien-Segmente | global | gültig | Architektur-Board, je Werk befristet | Ops IT Region | 2026-12-31 |
+| STD-UNS-03 Zellen- und Asset-Segmente | global | Entwurf | — (noch nicht bindend) | Ops IT Region | 2026-09-30 |
+| STD-UNS-04 Payload und Einheiten je Signal | global | Entwurf | — (noch nicht bindend) | Architektur | 2026-09-30 |
+| STD-UNS-05 Auftragskontext am Topic | global | Entwurf | — (noch nicht bindend) | Architektur | 2026-09-30 |
+
+## Warum „Entwurf" hier ehrlich ist
+
+Ein Standard, der überall vereinbart und nirgends publiziert ist, ist eine Strategie,
+kein Standard. \`/landscape\` zeigt beides getrennt: wie viele Segmente **agreed**
+sind und wie viele tatsächlich **published**. Der Abstand zwischen beiden Zahlen ist
+die Roadmap.
+`;
+
+const systemsOfRecord = `---
+owner: Architektur — IT/OT Integration
+review-cadence: quarterly
+last-verified: 2026-08-05
+valid-until: 2026-12-31
+verification-method: Abgleich mit \`registry/landscape.md\` und den Werks-Interviews
+source-of-truth: registry/landscape.md + registry/uns.md
+---
+
+# Systems of record
+
+Für jedes Datenobjekt genau eine führende Quelle. Zwei Quellen für ein Objekt sind
+der sicherste Weg zu einer falschen Antwort — und für einen Agenten, der handeln
+soll, der Unterschied zwischen einer Entscheidung und einem Ratespiel.
+
+Der Unified Namespace ändert daran nichts: er ist kein zweites Datenhaltungssystem,
+sondern die **Verteilung** der führenden Quelle an alle Konsumenten. Wer in den
+Namespace publiziert, bleibt der Owner des Datums.
+
+| Datenobjekt | Führende Quelle (System) | Schreibrecht / Data Owner | Aktualität | UNS-Topic |
+|---|---|---|---|---|
+| Auftrag / Fertigungsauftrag | ERP (SAP) | Corporate IT | stündlich | \`rehau/<site>/order\` |
+| Auftragsfortschritt | MES | Ops IT Region | live | \`rehau/<site>/<area>/<line>/order\` |
+| Maschinenzustand | SPS über SCADA | Ops IT Region | live | \`rehau/<site>/<area>/<line>/state\` |
+| Prozesswerte (Ist) | Historian | Ops IT Region | live | \`rehau/<site>/<area>/<line>/<asset>/<signal>\` |
+| Sollwerte / Rezept | MES | Fertigungstechnik | je Auftrag | \`rehau/<site>/<area>/<line>/setpoint\` |
+| Qualitätsmessung inline | Messsystem | Qualität | live | \`rehau/<site>/<area>/<line>/gauge\` |
+| Stammdaten Material | ERP (SAP) | Corporate IT | täglich | \`rehau/<site>/material\` |
+| Anlagenstammdaten | Asset-Register | Instandhaltung | wöchentlich | \`rehau/<site>/asset\` |
+
+## Wo die Kette heute reißt
+
+Wo die Spalte „Führende Quelle" ein System nennt, das in
+\`registry/landscape.md\` \`Interface = none\` trägt, ist die führende Quelle
+**nicht lesbar**. Das ist kein Dokumentationsproblem, sondern genau der K.-o. K2.2
+des Prozess-Funnels: der Prozess kann nicht optimiert werden, weil die Diagnose
+nicht möglich ist. Diese Systeme stehen im UNS-Rückstand auf \`/landscape\`.
+`;
+
+const landscape = `---
+owner: Region Leads (Europe · Americas · Asia)
+review-cadence: quarterly
+last-verified: 2026-08-05
+valid-until: 2026-12-31
+verification-method: Werksbegehung + tatsächlich gezogener Datenauszug je System
+source-of-truth: registry/landscape.md
+---
+
+# Landscape (per facility)
+
+Der Bestand je Werk — was steht, auf welcher ISA-95-Ebene, und wie weit die Daten
+in Richtung Namespace gekommen sind. Die Tabelle wird **nicht hier** gepflegt: sie
+lebt zeilenweise in \`registry/landscape.md\` und wird auf \`/landscape\` gerendert.
+Dieser Abschnitt sagt, wie sie zu lesen ist und was daraus folgt.
+
+Der Zweck ist Wiederverwendung: die nächste Bestandsaufnahme im selben Werk ist
+verlorene Zeit. Deshalb ist „Wiederholte Assessments" eine Kennzahl mit Zielwert 0
+(\`metrics.md\`).
+
+| Facility | Region | Rolle | Konnektivität (Reifegrad) | Legacy / Barriere | Owner |
+|---|---|---|---|---|---|
+| DE-ALD Aldingen | Europe | lead | Namespace modelliert, L0–L4 durchgängig | Beschichtungslinie: Anbieter-Blackbox, kein Leseinterface | Ops IT Europe |
+| DE-VIE Viechtach | Europe | wave-1 | Broker fehlt, nur Direktzugriffe | Extrusionslinie 1: S7-300 ohne OPC-UA, Ersatzteilrisiko | Ops IT Europe |
+| SK-PUC Púchov | Europe | wave-1 | Punkt-zu-Punkt, kein Historian | Eigenentwicklung MES ohne dokumentierte API | Ops IT Europe |
+| PL-BAR Baranowo | Europe | wave-2 | Nächtlicher CSV-Abzug | Kein MES — Auftragssteuerung auf Laufkarten | Ops IT Europe |
+| US-GRV Grove City | Americas | lead | Broker steht, Topic-Baum nicht normkonform | Modellierung nach STD-UNS-02 offen | Ops IT Americas |
+| BR-SAO São Paulo | Americas | wave-2 | Kein MES, OEM-verriegelte Linie | Keine Datenklausel im Anlagenvertrag | Ops IT Americas |
+| CN-SUZ Suzhou | Asia | lead | Punkt-zu-Punkt, kein Historian | Extrusionslinie 7: Netzsegment nicht routbar | Ops IT Asia |
+| CN-FOS Foshan | Asia | wave-1 | CSV-Abzug | SCADA ohne dokumentierte Schnittstelle, Anbieter reagiert nicht | Ops IT Asia |
+| IN-PUN Pune | Asia | wave-2 | Kein MES — Greenfield-Kandidat | Chance: ohne Altlast direkt auf den Standard | Ops IT Asia |
+
+## Wie eine Barriere den Funnel erreicht
+
+Eine Barriere in dieser Liste ist kein Ticket, sondern ein **Multiplikator**. Zweig
+\`Z1b\` des Ablaufs sagt es ausdrücklich: eine nicht ausleitbare Schnittstelle
+„zahlt per Compounding auf jeden weiteren Prozess am selben System ein". Deshalb
+wird der UNS-Rückstand nicht nach Werk priorisiert, sondern danach, **wie viele
+Prozesse ein System freigibt** — höhere ISA-95-Ebene zuerst.
 `;
 
 const portfolio = `---
@@ -342,6 +443,11 @@ const OPERATIONS_DIGITALIZATION: Record<string, string> = {
   "handover-contracts": handoverContracts,
   standards,
   portfolio,
+  // Module sections — the IT/OT axis. `systems-of-record` is critical in the
+  // grammar (`model.ts`), and `landscape` is the section the /landscape surface
+  // renders from `registry/landscape.md`.
+  "systems-of-record": systemsOfRecord,
+  landscape,
 };
 
 const SEED: Record<string, Record<string, string>> = {

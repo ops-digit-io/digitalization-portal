@@ -2,7 +2,7 @@
 
 # Pages and the endpoints they call
 
-**38 pages.** Each row lists the `/api` paths referenced by the page and the client
+**50 pages.** Each row lists the `/api` paths referenced by the page and the client
 components beside it. A page with no calls renders from a server component and reads its
 data directly through `lib/` — which is the portal's default, not an omission.
 
@@ -17,9 +17,10 @@ graph LR
   _analysis(["/analysis"])
   _assistant(["/assistant"])
   _assistant --> _api_agent["/api/agent"]
+  _attention(["/attention"])
+  _backlog(["/backlog"])
   _board(["/board"])
   _build(["/build"])
-  _build --> _api_poc["/api/poc"]
   _catalog__type___name_(["/catalog/[type]/[name]"])
   _catalog__type___name_ --> _api_registry["/api/registry"]
   _catalog__type___name_ --> _api_registry_item["/api/registry/item"]
@@ -31,6 +32,8 @@ graph LR
   _champions --> _api_champions_analyse["/api/champions/analyse"]
   _demands(["/demands"])
   _digest(["/digest"])
+  _docs__slug_(["/docs/[slug]"])
+  _docs(["/docs"])
   _funnel(["/funnel"])
   _handovers(["/handovers"])
   _intake_chat(["/intake/chat"])
@@ -42,9 +45,14 @@ graph LR
   _intake --> _api_intake["/api/intake"]
   _intake --> _api_intake_enhance["/api/intake/enhance"]
   _intake --> _api_intake_similar["/api/intake/similar"]
+  _landscape(["/landscape"])
   _login(["/login"])
   _login --> _api_auth_login["/api/auth/login"]
   _mesh(["/mesh"])
+  _org__dept___lane_(["/org/[dept]/[lane]"])
+  _org__dept_(["/org/[dept]"])
+  _org_framework(["/org/framework"])
+  _org(["/org"])
   _(["/"])
   _personas__requestor_(["/personas/[requestor]"])
   _personas_library(["/personas/library"])
@@ -60,6 +68,7 @@ graph LR
   _requirements__id_ --> _api_demands__id__verification["/api/demands/[id]/verification"]
   _requirements(["/requirements"])
   _requirements --> _api_requirements["/api/requirements"]
+  _roadmap(["/roadmap"])
   _settings(["/settings"])
   _settings --> _api_model_settings["/api/model-settings"]
   _settings --> _api_status["/api/status"]
@@ -79,6 +88,7 @@ graph LR
   _uc__id_(["/uc/[id]"])
   _uc__id__poc(["/uc/[id]/poc"])
   _uc__id__poc --> _api_poc["/api/poc"]
+  _uc__id__poc --> _api_templates["/api/templates"]
   _uc__id__simulate(["/uc/[id]/simulate"])
   _value(["/value"])
 ```
@@ -93,7 +103,7 @@ graph LR
 | `/attention` | _server-rendered_ |
 | `/backlog` | _server-rendered_ |
 | `/board` | _server-rendered_ |
-| `/build` | `/api/poc` |
+| `/build` | _server-rendered_ |
 | `/catalog/[type]/[name]` | `/api/registry`<br/>`/api/registry/item`<br/>`/api/registry/save` |
 | `/catalog/new` | _server-rendered_ |
 | `/catalog` | _server-rendered_ |
@@ -108,12 +118,13 @@ graph LR
 | `/intake/form` | `/api/categories` |
 | `/intake/md` | _server-rendered_ |
 | `/intake` | `/api/intake`<br/>`/api/intake/enhance`<br/>`/api/intake/similar` |
+| `/landscape` | _server-rendered_ |
 | `/login` | `/api/auth/login` |
 | `/mesh` | _server-rendered_ |
-| `/org/[dept]/[lane]` | `/api/org` |
-| `/org/[dept]` | `/api/org` |
+| `/org/[dept]/[lane]` | _server-rendered_ |
+| `/org/[dept]` | _server-rendered_ |
 | `/org/framework` | _server-rendered_ |
-| `/org` | `/api/org` |
+| `/org` | _server-rendered_ |
 | `/` | _server-rendered_ |
 | `/personas/[requestor]` | _server-rendered_ |
 | `/personas/library` | `/api/personas/library` |
@@ -131,6 +142,6 @@ graph LR
 | `/uc/[id]/business-case` | `/api/business-case` |
 | `/uc/[id]/edit` | `/api/demands/${encodeURIComponent`<br/>`/api/demands/[id]/edit` |
 | `/uc/[id]` | _server-rendered_ |
-| `/uc/[id]/poc` | `/api/poc` |
+| `/uc/[id]/poc` | `/api/poc`<br/>`/api/templates` |
 | `/uc/[id]/simulate` | _server-rendered_ |
 | `/value` | _server-rendered_ |

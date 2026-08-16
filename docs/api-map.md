@@ -2,7 +2,7 @@
 
 # API map
 
-Every HTTP endpoint the portal exposes: **58 routes**, grouped by area.
+Every HTTP endpoint the portal exposes: **62 routes**, grouped by area.
 Generated from `app/api/**/route.ts`, so it cannot drift from the code.
 
 ```mermaid
@@ -52,15 +52,15 @@ graph LR
   subgraph model_settings["/api/model-settings"]
     _api_model_settings["/<br/><i>GET POST</i>"]
   end
+  subgraph org["/api/org"]
+    _api_org["/<br/><i>GET POST</i>"]
+  end
   subgraph personas["/api/personas"]
     _api_personas_library__id_["/library/[id]<br/><i>GET PUT DELETE</i>"]
     _api_personas_library["/library<br/><i>GET POST</i>"]
   end
   subgraph poc["/api/poc"]
-    _api_poc["/<br/><i>POST</i>"]
-  end
-  subgraph templates["/api/templates"]
-    _api_templates["/<br/><i>GET POST</i>"]
+    _api_poc["/<br/><i>GET POST</i>"]
   end
   subgraph process["/api/process"]
     _api_process_config["/config<br/><i>GET</i>"]
@@ -98,6 +98,9 @@ graph LR
   end
   subgraph status["/api/status"]
     _api_status["/<br/><i>GET</i>"]
+  end
+  subgraph templates["/api/templates"]
+    _api_templates["/<br/><i>GET POST</i>"]
   end
   subgraph usage["/api/usage"]
     _api_usage["/<br/><i>GET POST</i>"]
@@ -138,8 +141,7 @@ graph LR
 | `/api/org` | GET, POST | `app/api/org/route.ts` |
 | `/api/personas/library/[id]` | GET, PUT, DELETE | `app/api/personas/library/[id]/route.ts` |
 | `/api/personas/library` | GET, POST | `app/api/personas/library/route.ts` |
-| `/api/poc` | POST | `app/api/poc/route.ts` |
-| `/api/templates` | GET, POST | `app/api/templates/route.ts` |
+| `/api/poc` | GET, POST | `app/api/poc/route.ts` |
 | `/api/process/config` | GET | `app/api/process/config/route.ts` |
 | `/api/process/engagements/[slug]/advisory/[key]/decide` | POST | `app/api/process/engagements/[slug]/advisory/[key]/decide/route.ts` |
 | `/api/process/engagements/[slug]/advisory/[key]/generate` | POST | `app/api/process/engagements/[slug]/advisory/[key]/generate/route.ts` |
@@ -169,6 +171,7 @@ graph LR
 | `/api/registry/search` | POST | `app/api/registry/search/route.ts` |
 | `/api/requirements` | POST | `app/api/requirements/route.ts` |
 | `/api/status` | GET | `app/api/status/route.ts` |
+| `/api/templates` | GET, POST | `app/api/templates/route.ts` |
 | `/api/usage` | GET, POST | `app/api/usage/route.ts` |
 | `/api/usage/track` | POST | `app/api/usage/track/route.ts` |
 | `/api/webhooks/github` | POST | `app/api/webhooks/github/route.ts` |

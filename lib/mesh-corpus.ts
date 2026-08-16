@@ -111,6 +111,11 @@ export function demandPlaybookEdges(demandId: string, stage: Stage | undefined, 
  */
 const TOOL_PIPELINE: readonly [string, string][] = [
   ["org", "process"],
+  // The landscape sits beside the process funnel: the funnel diagnoses a process,
+  // the landscape diagnoses the systems it stands on. A K2.2 knockout in the
+  // funnel names a system here, which is why the two feed each other.
+  ["org", "landscape"],
+  ["landscape", "process"],
   ["process", "intake"],
   ["intake", "demands"],
   ["demands", "board"],

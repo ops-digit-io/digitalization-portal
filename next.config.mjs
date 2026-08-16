@@ -14,6 +14,10 @@ const nextConfig = {
       // the ./playbooks registry (bundled fallback) at runtime — ship it. The
       // Kriterienkatalog and Ablauf are TypeScript modules, bundled automatically.
       "/api/process/**": ["./playbooks/**/*"],
+      // The IT/OT surfaces read their hand-edited masters from ./registry at
+      // runtime (`lib/otx/source.ts`). Ship them, or the pages render empty on
+      // the live host while working perfectly in dev.
+      "/landscape": ["./registry/*.md"],
     },
   },
   webpack: (config) => {
