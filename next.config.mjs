@@ -20,6 +20,7 @@ const nextConfig = {
       "/landscape": ["./registry/*.md"],
       "/rollout": ["./registry/*.md"],
       "/handovers": ["./registry/*.md"],
+      "/ai-framework": ["./registry/*.md"],
     },
   },
   webpack: (config) => {

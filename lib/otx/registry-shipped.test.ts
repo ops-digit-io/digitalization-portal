@@ -12,6 +12,7 @@ import { describe, it, expect } from "vitest";
 import { readRegistry } from "./source.js";
 import { parseLandscape, parsePlants, parseUns, summarise, blockers } from "./landscape.js";
 import { parseTechnology, parseRollout, unadoptedWaves, declined } from "./rollout.js";
+import { parseAiPortfolio, evaluate, refusals } from "./ai-portfolio.js";
 
 describe("shipped registry masters", () => {
   it("registry/landscape.md parses with no unreadable rows", async () => {
@@ -72,6 +73,35 @@ describe("shipped registry masters", () => {
     // A register with no `hold`/`retire` rows cannot evidence deciding what stays
     // OUT, which is half of what the responsibility actually is.
     expect(declined(tech).length).toBeGreaterThan(0);
+  });
+
+  it("registry/ai-portfolio.md parses, and every refusal is one the register means", async () => {
+    const rows = parseAiPortfolio(await readRegistry("ai-portfolio"));
+    expect(rows.length).toBeGreaterThan(5);
+    expect(rows.filter((r) => r.needsAttention).map((r) => `${r.id}: ${r.issues.join(", ")}`)).toEqual([]);
+
+    // The portfolio is seeded to demonstrate BOTH outcomes: a control loop with a
+    // written safety case that is permitted, and one without that is refused. If
+    // either disappeared the surface would stop making its point.
+    const v = evaluate(rows);
+    expect(refusals(v).length).toBeGreaterThan(0);
+    expect(v.filter((x) => x.physical && x.ok).length).toBeGreaterThan(0);
+  });
+
+  it("every refused row is refused for a missing safety case, not a typo", async () => {
+    const rows = parseAiPortfolio(await readRegistry("ai-portfolio"));
+    for (const r of refusals(evaluate(rows))) {
+      expect(r.reason).toMatch(/envelope|fallback|abort condition/i);
+    }
+  });
+
+  it("every AI row points at a plant that exists in the plant master", async () => {
+    const [rows, plants] = await Promise.all([
+      readRegistry("ai-portfolio").then(parseAiPortfolio),
+      readRegistry("plants").then(parsePlants),
+    ]);
+    const known = new Set(plants.map((p) => p.code));
+    expect([...new Set(rows.map((r) => r.plant))].filter((p) => !known.has(p))).toEqual([]);
   });
 
   it("every wave names a plant that exists in the plant master", async () => {

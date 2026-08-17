@@ -120,6 +120,10 @@ const TOOL_PIPELINE: readonly [string, string][] = [
   // wave. So the landscape feeds the rollout, and the rollout feeds the board.
   ["landscape", "rollout"],
   ["rollout", "board"],
+  // The AI framework hangs off the Department OS, because its guardrail IS the
+  // Department OS autonomy ladder — not a copy of it.
+  ["org", "ai-framework"],
+  ["ai-framework", "catalog"],
   ["process", "intake"],
   ["intake", "demands"],
   ["demands", "board"],
