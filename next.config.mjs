@@ -21,6 +21,8 @@ const nextConfig = {
       "/rollout": ["./registry/*.md"],
       "/handovers": ["./registry/*.md"],
       "/ai-framework": ["./registry/*.md"],
+      "/scout": ["./registry/*.md"],
+      "/api/scout/sweep": ["./registry/*.md"],
     },
   },
   webpack: (config) => {

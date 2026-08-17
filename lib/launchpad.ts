@@ -53,6 +53,7 @@ const I = {
   factory: "M3 21h18 M3 21V10l5 3V10l5 3V10l5 3v8 M6 17h.01 M11 17h.01 M16 17h.01",
   waves: "M2 7c2.5-2 4.5-2 7 0s4.5 2 7 0 4.5-2 6 0 M2 13c2.5-2 4.5-2 7 0s4.5 2 7 0 4.5-2 6 0 M2 19c2.5-2 4.5-2 7 0s4.5 2 7 0 4.5-2 6 0",
   loop: "M4 9a8 8 0 0 1 13-3l3 3 M20 15a8 8 0 0 1-13 3l-3-3 M20 3v6h-6 M4 21v-6h6",
+  radar: "M12 12a9 9 0 1 0 9 9 M12 12a5 5 0 1 0 5 5 M12 12l8-8 M16 4h4v4",
 };
 
 // Tiles are pure entry points — no metrics rendered on them.
@@ -75,6 +76,7 @@ export const LAUNCHPAD: TileGroup[] = [
       { id: "landscape", title: "System Landscape", subtitle: "Plants × ISA-95 · integration state · the UNS backlog", href: "/landscape", icon: I.factory, tone: "violet" },
       { id: "rollout", title: "Rollout", subtitle: "Technology decisions & scaling waves across the plants", href: "/rollout", icon: I.waves, tone: "violet" },
       { id: "ai-framework", title: "AI Framework", subtitle: "Production models on the ladder · control loops & their safety case", href: "/ai-framework", icon: I.loop, tone: "violet" },
+      { id: "scout", title: "Technology Scout", subtitle: "Sweep public sources · relevance vs. fit to our own gaps", href: "/scout", icon: I.radar, tone: "info" },
     ],
   },
   {

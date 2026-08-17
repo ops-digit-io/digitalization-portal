@@ -124,6 +124,10 @@ const TOOL_PIPELINE: readonly [string, string][] = [
   // Department OS autonomy ladder — not a copy of it.
   ["org", "ai-framework"],
   ["ai-framework", "catalog"],
+  // Discovery feeds decision: the scout scores against the landscape's gaps and
+  // hands accepted candidates to the rollout register as `assess`.
+  ["landscape", "scout"],
+  ["scout", "rollout"],
   ["process", "intake"],
   ["intake", "demands"],
   ["demands", "board"],
