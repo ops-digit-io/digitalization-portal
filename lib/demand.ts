@@ -56,9 +56,21 @@ export interface DemandField {
  * (`buildDemand`/`classifyDemand`) references them and must not depend on IO. Free
  * text is still accepted by the Chat and Markdown tools.
  */
-export const PLANTS = ["DE-ALD", "SK-PUC", "CN-SUZ", "US-GRV", "ALL"] as const;
+export const PLANTS = [
+  // Europe
+  "DE-ALD", "DE-VIE", "SK-PUC", "PL-BAR", "HU-SZE", "RS-SUB",
+  // Americas
+  "US-GRV", "US-CUL", "BR-SAO", "MX-CEL",
+  // Asia
+  "CN-SUZ", "CN-FOS", "IN-PUN",
+  "ALL",
+] as const;
 export const DOMAINS = [
-  "quality", "maintenance", "production", "energy", "procurement", "logistics", "safety", "engineering", "other",
+  "quality", "maintenance", "production", "energy", "procurement", "logistics", "safety", "engineering",
+  // IT/OT vocabulary — integration work is not a business domain like the others,
+  // but it is what a demand about a broker, a namespace or an unreadable PLC IS.
+  "ot_integration", "traceability", "process_control",
+  "other",
 ] as const;
 
 const GROUP_PROBLEM = "The problem";
@@ -303,6 +315,12 @@ const DOMAIN_RULES: { domain: string; terms: RegExp }[] = [
   { domain: "production", terms: /\b(production|line|shift|throughput|oee|cycle)/i },
   { domain: "procurement", terms: /\b(procure|supplier|vendor|tender|purchas|sourcing)/i },
   { domain: "logistics", terms: /\b(logistic|warehouse|inventory|material flow|shipment)/i },
+  // IT/OT rules sit last: a demand that says "OEE from the SCADA" is a production
+  // demand that happens to name a system, and the earlier rules should win. Only
+  // text whose SUBJECT is the integration itself falls through to here.
+  { domain: "ot_integration", terms: /\b(opc.?ua|opcua|mqtt|sparkplug|unified namespace|uns|broker|edge gateway|plc|scada|historian|isa.?95|middleware|interface|schnittstelle)/i },
+  { domain: "traceability", terms: /\b(traceab|genealog|serial number|batch record|as.?built|rückverfolg)/i },
+  { domain: "process_control", terms: /\b(setpoint|sollwert|closed.?loop|regelkreis|control loop|feedback control|pid)/i },
 ];
 
 export interface Classification {

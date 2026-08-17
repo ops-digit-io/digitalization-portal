@@ -111,6 +111,23 @@ export function demandPlaybookEdges(demandId: string, stage: Stage | undefined, 
  */
 const TOOL_PIPELINE: readonly [string, string][] = [
   ["org", "process"],
+  // The landscape sits beside the process funnel: the funnel diagnoses a process,
+  // the landscape diagnoses the systems it stands on. A K2.2 knockout in the
+  // funnel names a system here, which is why the two feed each other.
+  ["org", "landscape"],
+  ["landscape", "process"],
+  // A blocked system becomes a wave's blocker; an adopted technology becomes a
+  // wave. So the landscape feeds the rollout, and the rollout feeds the board.
+  ["landscape", "rollout"],
+  ["rollout", "board"],
+  // The AI framework hangs off the Department OS, because its guardrail IS the
+  // Department OS autonomy ladder — not a copy of it.
+  ["org", "ai-framework"],
+  ["ai-framework", "catalog"],
+  // Discovery feeds decision: the scout scores against the landscape's gaps and
+  // hands accepted candidates to the rollout register as `assess`.
+  ["landscape", "scout"],
+  ["scout", "rollout"],
   ["process", "intake"],
   ["intake", "demands"],
   ["demands", "board"],

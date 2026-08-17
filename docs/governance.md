@@ -2,7 +2,7 @@
 
 # Governance graph
 
-**44 playbooks · 23 skills · 6 contracts** —
+**45 playbooks · 23 skills · 6 contracts** —
 all in `du-agent-registry`, none in this repository.
 
 A playbook composes skills, and a skill may compose skills of its own — resolved
@@ -65,7 +65,7 @@ graph LR
 Single-purpose prompts — the fourteen ported section coaches, the four advisory passes,
 and the agent framings. They are guidance in themselves and compose nothing.
 
-`process-advisory-challenge` · `process-advisory-clusters` · `process-advisory-improvements` · `process-advisory-target-tech` · `process-agent-advisory` · `process-agent-analysis-user` · `process-agent-digest-shape` · `process-agent-digest` · `process-agent-dimension-tail-export` · `process-agent-dimension-tail` · `process-agent-dimension` · `process-agent-section-tail-export` · `process-agent-section-tail` · `process-agent-section` · `process-dimension-coach` · `process-section-business-case` · `process-section-cost-of-change` · `process-section-diagnosis` · `process-section-diagnostics` · `process-section-flow` · `process-section-increment` · `process-section-iteration` · `process-section-knowledge` · `process-section-kpi` · `process-section-literacy` · `process-section-mapping` · `process-section-profile` · `process-section-purpose` · `process-section-toolchain` · `process-shared-context-oesl` · `process-shared-data-and-absence` · `process-shared-stance` · `process-tool-playbook`
+`process-advisory-challenge` · `process-advisory-clusters` · `process-advisory-improvements` · `process-advisory-target-tech` · `process-agent-advisory` · `process-agent-analysis-user` · `process-agent-digest-shape` · `process-agent-digest` · `process-agent-dimension-tail-export` · `process-agent-dimension-tail` · `process-agent-dimension` · `process-agent-section-tail-export` · `process-agent-section-tail` · `process-agent-section` · `process-dimension-coach` · `process-section-business-case` · `process-section-cost-of-change` · `process-section-diagnosis` · `process-section-diagnostics` · `process-section-flow` · `process-section-increment` · `process-section-iteration` · `process-section-knowledge` · `process-section-kpi` · `process-section-literacy` · `process-section-mapping` · `process-section-profile` · `process-section-purpose` · `process-section-toolchain` · `process-shared-context-oesl` · `process-shared-data-and-absence` · `process-shared-stance` · `process-tool-playbook` · `technology-scout`
 
 ## Skills
 

@@ -166,6 +166,197 @@ export function canRaiseTo(target: AuthorityLevel, ctx: LaneReadiness): { ok: bo
   return { ok: true };
 }
 
+// ------------------------------------------------- control surface (the OT axis)
+
+/**
+ * WHERE THE CONSEQUENCE LANDS — a second axis, orthogonal to the ladder.
+ *
+ * The ladder answers "how far may the agent go?". It does not answer "how far
+ * does the result travel?", and for production those are different questions. An
+ * agent at `execute-autonomously` that files a ticket and one that moves a
+ * machine parameter sit on the same rung and are not the same risk.
+ *
+ * Deliberately NOT a sixth rung. A closed loop is not "more autonomous than
+ * autonomous" — it is the same autonomy pointed at something physical. Adding a
+ * rung would also break `authorityLadder()`'s ordering, `canRaiseTo`'s
+ * thresholds, and fifteen already-translated `autonomy.*` keys across ten
+ * locales, for a distinction that is not ordinal in the first place.
+ *
+ * Crossing the two axes yields the vocabulary the production world already uses,
+ * derived rather than declared:
+ *
+ *   recommend             × setpoint = an operator assistance system
+ *   execute-with-approval × setpoint = a SEMI-AUTONOMOUS control loop
+ *   execute-autonomously  × setpoint = an AUTONOMOUS control loop
+ */
+export const CONTROL_SURFACES = ["advice", "record", "ticket", "setpoint"] as const;
+export type ControlSurface = (typeof CONTROL_SURFACES)[number];
+
+export interface SurfacePolicy {
+  surface: ControlSurface;
+  /** 0…3. Higher means the consequence travels further from the screen. */
+  reach: number;
+  label: string;
+  /** One line: what actually changes in the world. */
+  lands: string;
+  /** The consequence is physical — it changes what a machine does. */
+  physical: boolean;
+}
+
+const SURFACE: Record<ControlSurface, Omit<SurfacePolicy, "surface" | "reach">> = {
+  advice: {
+    label: "Advice",
+    lands: "A human reads it. Nothing outside the conversation changes.",
+    physical: false,
+  },
+  record: {
+    label: "Record",
+    lands: "A portal artifact changes — a draft, an analysis, a business case.",
+    physical: false,
+  },
+  ticket: {
+    label: "Ticket",
+    lands: "A system of record changes — a work order, an incident, a maintenance call.",
+    physical: false,
+  },
+  setpoint: {
+    label: "Setpoint",
+    lands: "A process parameter on a machine changes. Material is made differently.",
+    physical: true,
+  },
+};
+
+export const SURFACE_POLICY: Record<ControlSurface, SurfacePolicy> = Object.fromEntries(
+  CONTROL_SURFACES.map((s, i) => [s, { surface: s, reach: i, ...SURFACE[s] }]),
+) as Record<ControlSurface, SurfacePolicy>;
+
+export function isControlSurface(v: unknown): v is ControlSurface {
+  return typeof v === "string" && (CONTROL_SURFACES as readonly string[]).includes(v);
+}
+
+export function surfacePolicy(surface: ControlSurface): SurfacePolicy {
+  return SURFACE_POLICY[surface];
+}
+
+/**
+ * What a lane at `level` acting on `surface` IS, in the words the plant uses.
+ * Returns undefined where the combination has no established name.
+ */
+export function loopKind(level: AuthorityLevel, surface: ControlSurface): string | undefined {
+  if (surface !== "setpoint") return undefined;
+  if (level === "recommend") return "operator assistance system";
+  if (level === "execute-with-approval") return "semi-autonomous control loop";
+  if (level === "execute-autonomously") return "autonomous control loop";
+  return undefined;
+}
+
+/**
+ * The three things a brief must carry before an agent may move a setpoint. These
+ * are not paperwork: each answers a question the plant will ask on the first bad
+ * shift, and "we'll work it out then" is not an answer at 3am.
+ */
+export interface SafetyCase {
+  /** The bounded range the agent may move within — outside it, it may not act at all. */
+  envelope: boolean;
+  /** What the machine does when the agent stops. Silence is not a fallback. */
+  fallback: boolean;
+  /** The watched condition that halts the loop, and who is told. */
+  abortCondition: boolean;
+}
+
+export interface SurfaceReadiness extends LaneReadiness {
+  safety?: Partial<SafetyCase>;
+}
+
+const SAFETY_LABEL: Record<keyof SafetyCase, string> = {
+  envelope: "a bounded envelope (the range it may move within)",
+  fallback: "a named fallback (what the machine does when the agent stops)",
+  abortCondition: "a watched abort condition (what halts the loop, and who is told)",
+};
+
+/** Which parts of the safety case are missing, in a stable order. */
+export function missingSafetyCase(safety: Partial<SafetyCase> | undefined): (keyof SafetyCase)[] {
+  const s = safety ?? {};
+  return (["envelope", "fallback", "abortCondition"] as (keyof SafetyCase)[]).filter((k) => s[k] !== true);
+}
+
+/**
+ * May a lane at `level` act on `surface`?
+ *
+ * Composed WITH `canRaiseTo`, never instead of it: the ladder still decides
+ * whether the lane may act at all, and this only narrows further. So the rule
+ * reads as one sentence — autonomy is earned per lane, a closed loop is earned
+ * per surface.
+ *
+ * Non-acting rungs pass trivially: an agent that only drafts cannot move a
+ * setpoint no matter what surface its brief names.
+ */
+export function canActOn(
+  level: AuthorityLevel,
+  surface: ControlSurface,
+  ctx: SurfaceReadiness,
+): { ok: boolean; reason?: string } {
+  // The ladder first — it is the broader gate and its refusal is the honest one.
+  const ladder = canRaiseTo(level, ctx);
+  if (!ladder.ok) return ladder;
+
+  // Nothing acts below execute-*, so no surface can be reached.
+  if (!authorityPolicy(level).acts) return { ok: true };
+
+  if (!surfacePolicy(surface).physical) return { ok: true };
+
+  const missing = missingSafetyCase(ctx.safety);
+  if (missing.length > 0) {
+    const kind = loopKind(level, surface) ?? "control loop";
+    return {
+      ok: false,
+      reason:
+        `This lane would be ${a(kind)}: it moves a process parameter on a machine. ` +
+        `Before it may, the agent brief must carry ${missing.map((m) => SAFETY_LABEL[m]).join(", ")}. ` +
+        `A complete brief earns autonomy; it does not by itself earn a machine.`,
+    };
+  }
+  return { ok: true };
+}
+
+function a(noun: string): string {
+  return /^[aeiou]/i.test(noun) ? `an ${noun}` : `a ${noun}`;
+}
+
+/**
+ * Set the control surface named in an agent-brief's "Control surface" section —
+ * the mirror of `setAuthorityInBrief`, and read back by `controlSurfaceOf`.
+ */
+export function setControlSurfaceInBrief(source: string, surface: ControlSurface): string {
+  const p = surfacePolicy(surface);
+  const body = `_This lane acts on \`${surface}\`._ ${p.lands}`;
+  const lines = (source ?? "").split(/\r?\n/);
+  const isHeading = (l: string) => /^#{1,6}\s/.test(l);
+  const start = lines.findIndex((l) => /^#{1,6}\s+.*(control surface|wirkfläche|steuerfläche)/i.test(l));
+  if (start === -1) {
+    const base = (source ?? "").replace(/\s*$/, "");
+    return `${base}\n\n## Control surface\n\n${body}\n`;
+  }
+  let end = start + 1;
+  while (end < lines.length && !isHeading(lines[end]!)) end++;
+  return [...lines.slice(0, start + 1), "", body, "", ...lines.slice(end)].join("\n").replace(/\n{3,}/g, "\n\n");
+}
+
+/**
+ * Read a brief's control surface back. Mirrors `authorityLevelOf` in
+ * `scaffold.ts`, INCLUDING its ambiguity rule: exactly one distinct surface word
+ * in the document resolves; two or none does not. Prose that mentions several
+ * must not silently pick one.
+ */
+export function controlSurfaceOf(source: string | undefined): ControlSurface | null {
+  const hits = new Set(
+    [...(source ?? "").matchAll(/\b(advice|record|ticket|setpoint)\b/gi)].map((m) => m[1]!.toLowerCase()),
+  );
+  if (hits.size !== 1) return null;
+  const only = [...hits][0]!;
+  return isControlSurface(only) ? only : null;
+}
+
 // ------------------------------------------------------------- brief rewrite
 
 /**

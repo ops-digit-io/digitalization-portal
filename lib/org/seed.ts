@@ -143,6 +143,33 @@ Menge paralleler Lanes.
 | L6 Standardisierung | alle Regionen | Abweichung oder neue Technologie | Standard beschlossen, in \`standards.md\` | Mensch | global | Architektur |
 | L7 Demand- und Interaktionsmanagement | Werke | laufend | Bedarf erfasst, priorisiert, beantwortet | Agent-gestützt | global | Abteilungsleitung |
 | L8 Analytics und Insights | DME, Werke | laufend | Auswertung geliefert, Standardimpuls formuliert | Agent-gestützt | global | Analytics |
+| L9 Operations IT Support (Run) | Werke | Störung oder Anfrage im Betrieb | Störung behoben, externe Referenz vergeben, Übergabe quittiert | Mensch + Agent | regional, 24×5 global bei S1 | Ops IT Region |
+
+## L9 — die Run-Lane ist ein Service, kein Abfluss
+
+Die Run-Lane war lange eine Falltür: ein Bedarf wurde als \`run\` klassifiziert, eine
+Zeile geschrieben, und danach sagte nichts mehr, wer sie trägt und gegen welchen
+Maßstab. Das ist als Routing-Regel richtig und als Beschreibung einer Abteilung,
+die jemand führt, wertlos.
+
+Der Katalog dahinter — je Eintrag ein Auslöser, ein Abnahmekriterium und eine
+Eskalation:
+
+| Service | Auslöser | Definition of Done | Schweregrad-Regel | global/regional | Owner |
+|---|---|---|---|---|---|
+| OT connectivity | System oder Signal erreicht den Namespace nicht mehr | Signal fließt wieder, Ursache benannt, externe Referenz vergeben | S1 bei Produktionsstillstand | 24×5 global bei S1, sonst regional | Ops IT Region |
+| Shopfloor application | MES-/SCADA-Client, Sessions, Druck | Arbeitsplatz wieder arbeitsfähig | S3 je Einzelarbeitsplatz | regional | Ops IT Region |
+| Access & identity | Konten, Rollen, Shopfloor-Berechtigungen | Berechtigung erteilt und dokumentiert | S4 | regional | Ops IT Region |
+| Data quality | Wert kommt an, ist aber falsch, alt oder falsch skaliert | Wert korrekt oder als unbrauchbar gekennzeichnet | S2 bei Nutzung in Steuerung oder Qualitätsnachweis | regional | Ops IT Region |
+| Change request (small) | Begrenzte Änderung ohne Gate | Änderung umgesetzt, Rückfallweg dokumentiert | S4 | regional | Ops IT Region |
+
+**Reaktionsziele** (Ortszeit Werk): S1 Produktion steht — 30 min, 24×5 ·
+S2 Produktion beeinträchtigt — 2 h · S3 Einzelarbeitsplatz — 1 Arbeitstag ·
+S4 Anfrage — 3 Arbeitstage.
+
+**Keine personenbezogene Auswertung.** Last wird nach Service und Region
+ausgewertet, nie nach Person; \`Team owner\` ist ein Team. Eine Lücke ist ein Befund
+über den Service, nie über einen Kollegen (Constraint #6, \`docs/14-compliance.md\`).
 
 ## Definition of Done
 
@@ -248,6 +275,22 @@ source-of-truth: Entscheidungsmodell (Confluence) + IT-Governance
 | OT-Anbindung mit Netzwerkbezug | wir | Cybersecurity | Freigabe nötig | nein | execute-with-approval |
 | Standard beschließen oder ablösen | Architektur | Regionen | Konsultation | ja | execute-with-approval |
 | Abweichung vom Standard (Waiver) | Architektur | Werk | eigen, dokumentiert | ja | execute-with-approval |
+| Technologie in den Rollout aufnehmen (\`adopt\`) | Architektur-Board | Regionen | Konsultation, dann Beschluss | ja | execute-with-approval |
+| Technologie ablehnen oder ablösen (\`hold\`/\`retire\`) | Architektur-Board | Regionen | Konsultation, dann Beschluss | ja | execute-with-approval |
+| Rollout-Welle für ein Werk starten | Region Lead | Architektur | eigen, gegen den Standard | ja | execute-with-approval |
+
+## Die Rollout-Entscheidung
+
+Eine Welle darf nur eine Technologie ausrollen, die in \`registry/technology.md\`
+den Ring \`adopt\` trägt. Das ist kein Hinweis, sondern eine geprüfte Invariante
+(\`lib/otx/rollout.ts\`): \`/rollout\` zeigt jede Verletzung als Befund. Ohne sie ist
+„wir entscheiden, was in den Rollout geht" ein Satz und keine Kontrolle — alles
+irgendwo Erprobte könnte still in einem Werk auftauchen.
+
+Ein Ring \`adopt\`, \`hold\` oder \`retire\` ohne benannten Entscheider ist ein Gerücht,
+kein Beschluss; der Parser markiert solche Zeilen. Und \`hold\` ist ein **Ergebnis**,
+kein Versäumnis: zu entscheiden, was nicht in den Rollout geht, ist die Hälfte der
+Aufgabe.
 `;
 
 const risks = `---
@@ -302,6 +345,154 @@ source-of-truth: standards.md + Architektur-Board-Beschlüsse
 | Data-Pipeline-Muster | global | gültig | nur mit begründetem Antrag | Architektur | 2026-12-31 |
 | Infrastruktur-Baseline Facility | global | Entwurf | — (noch nicht bindend) | Architektur | 2026-09-30 |
 | Signal- und Datenmodell Shopfloor | global | gültig | Waiver je Use Case, befristet | Analytics | 2026-12-31 |
+
+## Unified Namespace
+
+Der Namespace ist eine **vereinbarte Grammatik**, kein Broker. Der Broker ist
+austauschbar; die Grammatik ist der Standard. Deshalb steht die Konvention in
+\`registry/uns.md\` unter Versionskontrolle und wird auf \`/landscape\` gerendert.
+
+| Standard | Geltungsbereich | Status | Waiver / Ausnahmeverfahren | Owner | gültig bis |
+|---|---|---|---|---|---|
+| STD-UNS-01 Namespace-Wurzel und Werkskürzel | global | gültig | keiner — Werkskürzel sind der Vertrag | Architektur | 2026-12-31 |
+| STD-UNS-02 Bereichs- und Linien-Segmente | global | gültig | Architektur-Board, je Werk befristet | Ops IT Region | 2026-12-31 |
+| STD-UNS-03 Zellen- und Asset-Segmente | global | Entwurf | — (noch nicht bindend) | Ops IT Region | 2026-09-30 |
+| STD-UNS-04 Payload und Einheiten je Signal | global | Entwurf | — (noch nicht bindend) | Architektur | 2026-09-30 |
+| STD-UNS-05 Auftragskontext am Topic | global | Entwurf | — (noch nicht bindend) | Architektur | 2026-09-30 |
+
+## Warum „Entwurf" hier ehrlich ist
+
+Ein Standard, der überall vereinbart und nirgends publiziert ist, ist eine Strategie,
+kein Standard. \`/landscape\` zeigt beides getrennt: wie viele Segmente **agreed**
+sind und wie viele tatsächlich **published**. Der Abstand zwischen beiden Zahlen ist
+die Roadmap.
+`;
+
+const systemsOfRecord = `---
+owner: Architektur — IT/OT Integration
+review-cadence: quarterly
+last-verified: 2026-08-05
+valid-until: 2026-12-31
+verification-method: Abgleich mit \`registry/landscape.md\` und den Werks-Interviews
+source-of-truth: registry/landscape.md + registry/uns.md
+---
+
+# Systems of record
+
+Für jedes Datenobjekt genau eine führende Quelle. Zwei Quellen für ein Objekt sind
+der sicherste Weg zu einer falschen Antwort — und für einen Agenten, der handeln
+soll, der Unterschied zwischen einer Entscheidung und einem Ratespiel.
+
+Der Unified Namespace ändert daran nichts: er ist kein zweites Datenhaltungssystem,
+sondern die **Verteilung** der führenden Quelle an alle Konsumenten. Wer in den
+Namespace publiziert, bleibt der Owner des Datums.
+
+| Datenobjekt | Führende Quelle (System) | Schreibrecht / Data Owner | Aktualität | UNS-Topic |
+|---|---|---|---|---|
+| Auftrag / Fertigungsauftrag | ERP (SAP) | Corporate IT | stündlich | \`rehau/<site>/order\` |
+| Auftragsfortschritt | MES | Ops IT Region | live | \`rehau/<site>/<area>/<line>/order\` |
+| Maschinenzustand | SPS über SCADA | Ops IT Region | live | \`rehau/<site>/<area>/<line>/state\` |
+| Prozesswerte (Ist) | Historian | Ops IT Region | live | \`rehau/<site>/<area>/<line>/<asset>/<signal>\` |
+| Sollwerte / Rezept | MES | Fertigungstechnik | je Auftrag | \`rehau/<site>/<area>/<line>/setpoint\` |
+| Qualitätsmessung inline | Messsystem | Qualität | live | \`rehau/<site>/<area>/<line>/gauge\` |
+| Stammdaten Material | ERP (SAP) | Corporate IT | täglich | \`rehau/<site>/material\` |
+| Anlagenstammdaten | Asset-Register | Instandhaltung | wöchentlich | \`rehau/<site>/asset\` |
+
+## Wo die Kette heute reißt
+
+Wo die Spalte „Führende Quelle" ein System nennt, das in
+\`registry/landscape.md\` \`Interface = none\` trägt, ist die führende Quelle
+**nicht lesbar**. Das ist kein Dokumentationsproblem, sondern genau der K.-o. K2.2
+des Prozess-Funnels: der Prozess kann nicht optimiert werden, weil die Diagnose
+nicht möglich ist. Diese Systeme stehen im UNS-Rückstand auf \`/landscape\`.
+`;
+
+const landscape = `---
+owner: Region Leads (Europe · Americas · Asia)
+review-cadence: quarterly
+last-verified: 2026-08-05
+valid-until: 2026-12-31
+verification-method: Werksbegehung + tatsächlich gezogener Datenauszug je System
+source-of-truth: registry/landscape.md
+---
+
+# Landscape (per facility)
+
+Der Bestand je Werk — was steht, auf welcher ISA-95-Ebene, und wie weit die Daten
+in Richtung Namespace gekommen sind. Die Tabelle wird **nicht hier** gepflegt: sie
+lebt zeilenweise in \`registry/landscape.md\` und wird auf \`/landscape\` gerendert.
+Dieser Abschnitt sagt, wie sie zu lesen ist und was daraus folgt.
+
+Der Zweck ist Wiederverwendung: die nächste Bestandsaufnahme im selben Werk ist
+verlorene Zeit. Deshalb ist „Wiederholte Assessments" eine Kennzahl mit Zielwert 0
+(\`metrics.md\`).
+
+| Facility | Region | Rolle | Konnektivität (Reifegrad) | Legacy / Barriere | Owner |
+|---|---|---|---|---|---|
+| DE-ALD Aldingen | Europe | lead | Namespace modelliert, L0–L4 durchgängig | Beschichtungslinie: Anbieter-Blackbox, kein Leseinterface | Ops IT Europe |
+| DE-VIE Viechtach | Europe | wave-1 | Broker fehlt, nur Direktzugriffe | Extrusionslinie 1: S7-300 ohne OPC-UA, Ersatzteilrisiko | Ops IT Europe |
+| SK-PUC Púchov | Europe | wave-1 | Punkt-zu-Punkt, kein Historian | Eigenentwicklung MES ohne dokumentierte API | Ops IT Europe |
+| PL-BAR Baranowo | Europe | wave-2 | Nächtlicher CSV-Abzug | Kein MES — Auftragssteuerung auf Laufkarten | Ops IT Europe |
+| US-GRV Grove City | Americas | lead | Broker steht, Topic-Baum nicht normkonform | Modellierung nach STD-UNS-02 offen | Ops IT Americas |
+| BR-SAO São Paulo | Americas | wave-2 | Kein MES, OEM-verriegelte Linie | Keine Datenklausel im Anlagenvertrag | Ops IT Americas |
+| CN-SUZ Suzhou | Asia | lead | Punkt-zu-Punkt, kein Historian | Extrusionslinie 7: Netzsegment nicht routbar | Ops IT Asia |
+| CN-FOS Foshan | Asia | wave-1 | CSV-Abzug | SCADA ohne dokumentierte Schnittstelle, Anbieter reagiert nicht | Ops IT Asia |
+| IN-PUN Pune | Asia | wave-2 | Kein MES — Greenfield-Kandidat | Chance: ohne Altlast direkt auf den Standard | Ops IT Asia |
+
+## Wie eine Barriere den Funnel erreicht
+
+Eine Barriere in dieser Liste ist kein Ticket, sondern ein **Multiplikator**. Zweig
+\`Z1b\` des Ablaufs sagt es ausdrücklich: eine nicht ausleitbare Schnittstelle
+„zahlt per Compounding auf jeden weiteren Prozess am selben System ein". Deshalb
+wird der UNS-Rückstand nicht nach Werk priorisiert, sondern danach, **wie viele
+Prozesse ein System freigibt** — höhere ISA-95-Ebene zuerst.
+`;
+
+const guardrails = `---
+owner: Architektur — IT/OT Integration
+review-cadence: quarterly
+last-verified: 2026-08-05
+valid-until: 2026-12-31
+verification-method: Review mit Cybersecurity und den Region Leads
+source-of-truth: Entscheidungsmodell + Freigaben Cybersecurity
+---
+
+# Guardrails
+
+## Leitplanken — was nie passieren darf
+
+- **Kein Schreibvorgang in eine Anlage ohne Sicherheitsnachweis.** Erreicht eine
+  Lane eine handelnde Stufe auf der Wirkfläche \`setpoint\`, muss ihr Agent-Brief
+  drei Dinge nennen: Envelope, Rückfall und Abbruchbedingung. \`canActOn\`
+  (\`lib/org/autonomy.ts\`) verweigert sonst — kein Hinweis, eine Ablehnung mit
+  Begründung. Ein vollständiger Brief verdient Autonomie; eine Maschine verdient
+  er damit noch nicht.
+- **Kein Zustand, in dem der zuletzt geschriebene Sollwert ohne Aufsicht
+  stehenbleibt.** Hört ein Agent auf, fährt die Anlage auf dem Rezeptwert weiter.
+  Schweigen ist kein Rückfall.
+- **Keine Lane schreibt über ihren Scope hinaus** — nicht auf eine andere Linie,
+  nicht in einem anderen Werk, auch nicht „nur einmal zum Testen".
+- **Kein Agent passiert ein Gate** und **kein Agent merged** (Constraints #1, #2).
+  Das gilt auch für Rollout-Entscheidungen: \`adopt\` ist ein menschlicher Beschluss.
+- **Keine personenbezogene Auswertung** (Constraint #6). Auch nicht als Nebenprodukt
+  einer Betriebsauswertung.
+
+## Schreib- und Außenwirkungsgrenzen
+
+| Wirkfläche | Wer darf handeln | Zusätzliche Bedingung |
+|---|---|---|
+| \`advice\` | jede Lane ab \`recommend\` | keine |
+| \`record\` | Lane ab \`execute-with-approval\` | Artefakt bleibt im Portal, Mensch merged |
+| \`ticket\` | Lane ab \`execute-with-approval\` | externe Referenz wird zurückgeschrieben |
+| \`setpoint\` | Lane ab \`execute-with-approval\` | Envelope + Rückfall + Abbruchbedingung, Freigabe Cybersecurity bei Netzbezug |
+
+## Warum die zweite Achse
+
+Die Leiter beantwortet „wie weit darf der Agent gehen?". Sie beantwortet nicht
+„wie weit reicht die Folge?". Ein Agent, der ein Ticket schreibt, und einer, der
+eine Zonentemperatur verstellt, stehen auf derselben Sprosse und sind nicht
+dasselbe Risiko. Autonomie wird je Lane verdient — ein geschlossener Regelkreis
+zusätzlich je Wirkfläche.
 `;
 
 const portfolio = `---
@@ -342,6 +533,12 @@ const OPERATIONS_DIGITALIZATION: Record<string, string> = {
   "handover-contracts": handoverContracts,
   standards,
   portfolio,
+  // Module sections — the IT/OT axis. `systems-of-record` is critical in the
+  // grammar (`model.ts`), and `landscape` is the section the /landscape surface
+  // renders from `registry/landscape.md`.
+  "systems-of-record": systemsOfRecord,
+  landscape,
+  guardrails,
 };
 
 const SEED: Record<string, Record<string, string>> = {
@@ -477,6 +674,170 @@ last-verified: 2026-08-05
 | Re-assessment rate | second assessment of same facility / total | \`landscape.md\` | 0 |
 `;
 
+// ─────────────────────────────────────────────────────── ot-setpoint-advisory
+//
+// The lane that shows what the second axis is for. It sits at
+// `execute-with-approval` × `setpoint` — a SEMI-AUTONOMOUS CONTROL LOOP — which is
+// the exact combination `canActOn` refuses until the brief carries an envelope, a
+// fallback and an abort condition. This brief carries all three, so the lane is
+// permitted; strip any one of them and the portal says no, with the reason.
+//
+// The five authority words appear only under "## Authority level", and the four
+// surface words only under "## Control surface": `authorityLevelOf` and
+// `controlSurfaceOf` both resolve only when exactly ONE distinct word is present
+// in the document, so prose elsewhere saying "the agent recommends a setpoint"
+// would silently resolve the lane to nothing.
+
+const otLanePlaybook = `---
+owner: Fertigungstechnik — Werk Aldingen
+review-cadence: monthly
+last-verified: 2026-08-05
+---
+
+# OT Setpoint Advisory — Playbook
+
+Die Wanddicke driftet über eine Schicht, weil Massetemperatur und Abzug sich
+gegenseitig nachziehen. Der Loop schlägt eine Korrektur der Zonentemperatur vor;
+der Anlagenführer bestätigt sie, bevor sie an die Linie geht.
+
+| Schritt | Mensch/Agent | Was passiert | Wartezustand |
+|---|---|---|---|
+| 1 | Agent | Messwerte der letzten 30 min aus dem Namespace lesen | — |
+| 2 | Agent | Drift gegen das Rezept prüfen, Korrektur im Envelope rechnen | — |
+| 3 | Agent | Vorschlag an das HMI mit Begründung und Konfidenz | wartet auf Quittung |
+| 4 | Mensch | Anlagenführer bestätigt oder verwirft | — |
+| 5 | Agent | Bestätigten Sollwert schreiben, Wirkung 10 min nachmessen | — |
+
+## Ausnahmen und Fehlerpfade
+
+- **Messkette fällt aus** (Gauge > 60 s offline): kein Vorschlag mehr, Loop meldet
+  sich ab, Linie fährt auf dem Rezeptwert weiter.
+- **Vorschlag würde den Envelope verlassen**: kein Vorschlag, stattdessen Hinweis
+  an die Fertigungstechnik — das ist ein Rezeptthema, kein Regelthema.
+- **Zwei Vorschläge in Folge verworfen**: Loop pausiert und meldet sich bei der
+  Fertigungstechnik. Ein Modell, dem der Anlagenführer nicht folgt, hat unrecht
+  oder erklärt sich schlecht; beides gehört geprüft.
+- **Auftragswechsel**: Loop pausiert bis zum ersten stabilen Messfenster.
+
+## Kontrollpunkte / Nacharbeitsregel
+
+Jede geschriebene Änderung steht mit Zeitstempel, Vorher-/Nachherwert und der
+Quittung des Anlagenführers im Auftragsprotokoll. Ohne Quittung kein Schreibvorgang.
+
+## Übergaben
+
+Bei Pausieren übernimmt die Fertigungstechnik des Werks; bei Verdacht auf einen
+Messkettenfehler geht der Fall als \`Data quality\` in die Run-Lane (L9).
+`;
+
+const otLaneSkills = `---
+owner: Fertigungstechnik — Werk Aldingen
+review-cadence: quarterly
+last-verified: 2026-08-05
+---
+
+# OT Setpoint Advisory — Skills, tools & interfaces
+
+## Tools
+Namespace-Reader (lesend), Drift-Modell (AI-003/AI-004), HMI-Vorschlagskanal,
+Auftragsprotokoll-Writer.
+
+## Interfaces / systems
+Lesen: \`rehau/ald/extrusion/l3/gauge\`, \`.../state\`, \`.../order\` über den Broker.
+Schreiben: **ausschließlich** \`rehau/ald/extrusion/l3/setpoint\`, und nur nach
+quittiertem Vorschlag. Kein direkter SPS-Zugriff, kein Zugriff auf andere Linien.
+`;
+
+const otLaneTasks = `---
+owner: Fertigungstechnik — Werk Aldingen
+review-cadence: monthly
+last-verified: 2026-08-05
+---
+
+# OT Setpoint Advisory — Recurring tasks
+
+| Task | Trigger | Template | Owner |
+|---|---|---|---|
+| Wirkung der Schicht auswerten | Schichtende | Loop-Report | agent |
+| Verworfene Vorschläge durchsehen | wöchentlich | Ablehnungsliste | Fertigungstechnik |
+| Envelope gegen Rezeptänderungen prüfen | Rezept geändert | Envelope-Review | Fertigungstechnik |
+| Abbruchbedingung scharf schalten nach Wartung | Wartung an der Messkette | Freigabe-Checkliste | Fertigungstechnik |
+`;
+
+const otLaneMetrics = `---
+owner: Fertigungstechnik — Werk Aldingen
+review-cadence: monthly
+last-verified: 2026-08-05
+---
+
+# OT Setpoint Advisory — Lane metrics
+
+| Metric | Formula | Source (system + field) | Target |
+|---|---|---|---|
+| Annahmequote | quittierte / vorgeschlagene Korrekturen | Auftragsprotokoll | > 70 % |
+| Wanddicken-Streuung | σ über die Schicht | Historian, \`gauge/wall-thickness\` | −20 % ggü. Baseline |
+| Envelope-Verletzungen | Vorschläge außerhalb ±3 K | Loop-Report | 0 |
+| Abbrüche je 100 Schichten | Zählung der Abbruchbedingung | Loop-Report | < 5 |
+`;
+
+const otLaneAgentBrief = `---
+owner: Fertigungstechnik — Werk Aldingen
+review-cadence: monthly
+last-verified: 2026-08-05
+---
+
+# OT Setpoint Advisory — Agent brief
+
+## Scope
+Zonentemperatur-Korrekturen für Extrusionslinie 3 im Werk Aldingen vorschlagen und
+nach Quittung schreiben. Nicht: Rezepte ändern, andere Linien, andere Werke,
+Qualitätsentscheide über die freigegebene Ware.
+
+## Authority level
+\`execute-with-approval\` — der Agent bereitet die reale Änderung vor; sie wird erst
+nach Bestätigung durch den Anlagenführer wirksam.
+
+## Control surface
+\`setpoint\` — die Wirkung landet an einem Prozessparameter der Maschine. Material
+wird danach anders hergestellt. Damit ist diese Lane ein halbautonomer Regelkreis
+und braucht die drei Punkte unten, bevor sie handeln darf.
+
+## Envelope
+±3 K um den Rezeptwert je Zone, maximal eine Korrektur alle 10 Minuten. Ein
+Vorschlag außerhalb dieses Bandes wird nicht gestellt, sondern eskaliert.
+
+## Fallback
+Hört der Agent auf — Ausfall, Netz, Abmeldung —, fährt die Linie auf dem
+Rezeptwert weiter. Es gibt keinen Zustand, in dem der zuletzt geschriebene Wert
+ohne Aufsicht stehenbleibt.
+
+## Abort condition
+Messkette länger als 60 s offline **oder** zwei aufeinanderfolgende Messwerte
+außerhalb des Bandes: der Loop bricht ab, schreibt nicht mehr und meldet sich beim
+Anlagenführer und der Fertigungstechnik.
+
+## Rights per data object
+Lesen: Messwerte, Maschinenzustand, Auftragskontext der eigenen Linie.
+Schreiben: nur der Sollwert der eigenen Linie, nur nach Quittung.
+
+## Guardrails
+Kein Schreibvorgang ohne Quittung. Kein Zugriff auf eine Linie, die nicht in
+\`scope\` steht. Keine Änderung während eines Auftragswechsels.
+
+## Escalation
+Abbruchbedingung oder zwei verworfene Vorschläge in Folge: sofort an die
+Fertigungstechnik des Werks. Verdacht auf Messkettenfehler: als \`Data quality\` in
+die Run-Lane (L9).
+`;
+
+const OT_SETPOINT_ADVISORY: Record<string, string> = {
+  playbook: otLanePlaybook,
+  skills: otLaneSkills,
+  tasks: otLaneTasks,
+  metrics: otLaneMetrics,
+  "agent-brief": otLaneAgentBrief,
+};
+
 const CONNECTIVITY_ASSESSMENT: Record<string, string> = {
   playbook: lanePlaybook,
   skills: laneSkills,
@@ -487,7 +848,10 @@ const CONNECTIVITY_ASSESSMENT: Record<string, string> = {
 
 /** Bundled lanes, keyed by department slug → lane slug → { file key → markdown }. */
 const SEED_LANES: Record<string, Record<string, Record<string, string>>> = {
-  "operations-digitalization": { "connectivity-assessment": CONNECTIVITY_ASSESSMENT },
+  "operations-digitalization": {
+    "connectivity-assessment": CONNECTIVITY_ASSESSMENT,
+    "ot-setpoint-advisory": OT_SETPOINT_ADVISORY,
+  },
 };
 
 /** The lane slugs the seed provides for a department. */

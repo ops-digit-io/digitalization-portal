@@ -95,6 +95,15 @@ export const LANE_FILES: readonly SectionDef[] = [
     ],
     excellence: [
       { type: "heading", pattern: "(?i)(datenobjekt|data object|rechte|rights)", weight: 10, label: "rights per data object" },
+      // The control-surface axis (`autonomy.ts`). EXCELLENCE, never REQUIRED:
+      // `scoreSection` computes the required percentage on its own, and
+      // `EXECUTE_READINESS = 100` gates on it — so a new required criterion would
+      // re-weight every finished brief below the bar and silently REVOKE acting
+      // authority from lanes that already hold it. The enforcement for OT lanes
+      // lives in `canActOn`, which refuses at the point of acting rather than by
+      // moving a score.
+      { type: "heading", pattern: "(?i)(control surface|wirkfläche|steuerfläche)", weight: 8, label: "the control surface (where the consequence lands)" },
+      { type: "heading", pattern: "(?i)(envelope|rückfall|fallback|abbruch|abort)", weight: 8, label: "the safety case for a physical surface — envelope, fallback, abort condition" },
     ],
     coaching: "For this lane, which of the five authority levels may the agent reach, and what is the one action it must always escalate?",
     // Not "critical" in the framework's validity sense (valid-until belongs to
