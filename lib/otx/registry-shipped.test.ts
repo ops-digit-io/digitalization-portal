@@ -9,10 +9,12 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { readFile } from "node:fs/promises";
 import { readRegistry } from "./source.js";
 import { parseLandscape, parsePlants, parseUns, summarise, blockers } from "./landscape.js";
 import { parseTechnology, parseRollout, unadoptedWaves, declined } from "./rollout.js";
 import { parseAiPortfolio, evaluate, refusals } from "./ai-portfolio.js";
+import { parseTools, redundancies, unowned, lifecycleDebt, islands } from "./toolscape.js";
 
 describe("shipped registry masters", () => {
   it("registry/landscape.md parses with no unreadable rows", async () => {
@@ -102,6 +104,41 @@ describe("shipped registry masters", () => {
     ]);
     const known = new Set(plants.map((p) => p.code));
     expect([...new Set(rows.map((r) => r.plant))].filter((p) => !known.has(p))).toEqual([]);
+  });
+
+  it("registry/tools.md parses with no unreadable rows", async () => {
+    const tools = parseTools(await readRegistry("tools"));
+    expect(tools.length).toBeGreaterThan(20);
+    expect(tools.filter((t) => t.needsAttention).map((t) => `${t.id}: ${t.issues.join(", ")}`)).toEqual([]);
+  });
+
+  it("the shipped portfolio demonstrates every finding the surface can make", async () => {
+    // Seeded to exercise all four. If any of these went to zero the page would
+    // render an empty section and stop making its point, which is a regression
+    // in the fixture rather than in the engine — but a regression either way.
+    const tools = parseTools(await readRegistry("tools"));
+    expect(redundancies(tools).length).toBeGreaterThan(0);
+    expect(unowned(tools).length).toBeGreaterThan(0);
+    expect(lifecycleDebt(tools).length).toBeGreaterThan(0);
+    expect(islands(tools).length).toBeGreaterThan(0);
+  });
+
+  it("uses a controlled capability vocabulary — every capability serves at least one tool twice or is deliberate", async () => {
+    // The whole register turns decorative if capabilities are invented per tool,
+    // because then nothing ever overlaps. This does not demand overlap; it demands
+    // that capabilities are SHARED where they should be, caught as a ratio.
+    const tools = parseTools(await readRegistry("tools"));
+    const caps = new Set(tools.map((t) => t.capability));
+    expect(caps.size).toBeLessThan(tools.length);
+  });
+
+  it("every tool names a domain that exists in the domain taxonomy", async () => {
+    const [tools, domainsMd] = await Promise.all([
+      readRegistry("tools").then(parseTools),
+      readFile(new URL("../../registry/domains.md", import.meta.url), "utf8"),
+    ]);
+    const known = new Set([...domainsMd.matchAll(/^\| ([a-z_]+) \|/gm)].map((m) => m[1]));
+    expect([...new Set(tools.map((t) => t.domain))].filter((d) => d !== "" && !known.has(d))).toEqual([]);
   });
 
   it("every wave names a plant that exists in the plant master", async () => {
