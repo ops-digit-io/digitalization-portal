@@ -448,6 +448,40 @@ wird der UNS-Rückstand nicht nach Werk priorisiert, sondern danach, **wie viele
 Prozesse ein System freigibt** — höhere ISA-95-Ebene zuerst.
 `;
 
+const capabilities = `---
+owner: Head of Operations Digitalization
+review-cadence: quarterly
+last-verified: 2026-08-05
+---
+
+# Capabilities & gaps
+
+## Fähigkeiten
+
+Die Abteilung kann heute: Konnektivität herstellen und Signale in den Namespace
+bringen; Prozesse diagnostizieren und bewerten; technische Artefakte je Use Case
+liefern; Standards setzen und Rollout-Wellen fahren; Produktionsmodelle bis an die
+Anlage führen — mit Sicherheitsnachweis.
+
+## Engpässe und Lücken
+
+| Lücke | Wirkung | Erste Gegenmaßnahme |
+|---|---|---|
+| Kein durchgängiges Application-Ownership | Anwendungen ohne benanntes Team tauchen erst auf, wenn sie ausfallen | \\\`registry/tools.md\\\` mit Business- und IT-Owner je Zeile; \\\`/tool-landscape\\\` meldet jede Lücke |
+| Fähigkeiten doppelt belegt | Elf Fähigkeiten werden von mehr als einem Tool bedient; niemand entscheidet | Je Fähigkeit genau ein \\\`invest\\\`-Tool benennen; Doppelung wird zur Rollout-Entscheidung |
+| Beschlüsse ohne Vollzug | Als \\\`eliminate\\\` markierte Tools tragen weiter kritische Last | Lifecycle-Schuld je Quartal durchgehen; wer nicht abschalten kann, benennt den Fall, der es verhindert |
+| OT-Datenzugang | K2.2/K5.1 blockieren Optimierung in mehreren Werken | UNS-Rückstand nach freigegebenen Prozessen priorisieren |
+| Regionale Autonomie vs. Standard | Regionen lösen dieselbe Aufgabe lokal | Standard vor Skalierung; Waiver dokumentiert statt geduldet |
+
+## Warum die Tool-Landschaft hierher gehört
+
+Eine Fähigkeitslücke ist erst dann handhabbar, wenn sie an einem Bestand hängt.
+\\\`/tool-landscape\\\` ist dieser Bestand für das ganze Unternehmen — nicht nur für
+die Werke: welches Tool welche Fähigkeit bedient, wer es verantwortet, wohin es
+geht. Die Werkssysteme sind darin eine Schicht; \\\`/landscape\\\` ist die Tiefe
+darunter.
+`;
+
 const guardrails = `---
 owner: Architektur — IT/OT Integration
 review-cadence: quarterly
@@ -538,6 +572,7 @@ const OPERATIONS_DIGITALIZATION: Record<string, string> = {
   // renders from `registry/landscape.md`.
   "systems-of-record": systemsOfRecord,
   landscape,
+  capabilities,
   guardrails,
 };
 

@@ -2,7 +2,7 @@
 
 # Pages and the endpoints they call
 
-**53 pages.** Each row lists the `/api` paths referenced by the page and the client
+**54 pages.** Each row lists the `/api` paths referenced by the page and the client
 components beside it. A page with no calls renders from a server component and reads its
 data directly through `lib/` — which is the portal's default, not an omission.
 
@@ -80,6 +80,7 @@ graph LR
   _skill_library(["/skill-library"])
   _skill_library --> _api_registry_import["/api/registry/import"]
   _skill_library --> _api_registry_search["/api/registry/search"]
+  _tool_landscape(["/tool-landscape"])
   _triage(["/triage"])
   _triage --> _api_demands___encodeURIComponent["/api/demands/${encodeURIComponent"]
   _triage --> _api_demands__id__advance["/api/demands/[id]/advance"]
@@ -145,6 +146,7 @@ graph LR
 | `/settings` | `/api/model-settings`<br/>`/api/status` |
 | `/simulate` | _server-rendered_ |
 | `/skill-library` | `/api/registry/import`<br/>`/api/registry/search` |
+| `/tool-landscape` | _server-rendered_ |
 | `/triage` | `/api/demands/${encodeURIComponent`<br/>`/api/demands/[id]/advance`<br/>`/api/demands/[id]/triage` |
 | `/uc/[id]/business-case` | `/api/business-case` |
 | `/uc/[id]/edit` | `/api/demands/${encodeURIComponent`<br/>`/api/demands/[id]/edit` |

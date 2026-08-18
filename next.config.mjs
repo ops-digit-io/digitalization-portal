@@ -17,6 +17,7 @@ const nextConfig = {
       // The IT/OT surfaces read their hand-edited masters from ./registry at
       // runtime (`lib/otx/source.ts`). Ship them, or the pages render empty on
       // the live host while working perfectly in dev.
+      "/tool-landscape": ["./registry/*.md"],
       "/landscape": ["./registry/*.md"],
       "/rollout": ["./registry/*.md"],
       "/handovers": ["./registry/*.md"],

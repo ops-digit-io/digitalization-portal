@@ -29,7 +29,8 @@ export type RegistryFile =
   | "technology"
   | "rollout"
   | "ai-portfolio"
-  | "handovers";
+  | "handovers"
+  | "tools";
 
 /** Read one registry master. `undefined` when it is absent or unreadable. */
 export async function readRegistry(name: RegistryFile, baseDir: string = process.cwd()): Promise<string | undefined> {

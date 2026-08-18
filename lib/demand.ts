@@ -65,8 +65,12 @@ export const PLANTS = [
   "CN-SUZ", "CN-FOS", "IN-PUN",
   "ALL",
 ] as const;
+// Kept in step with `registry/domains.md`, the documented master — the two had
+// drifted (each held values the other did not) until the tool landscape needed
+// them to agree. `lib/otx/registry-shipped.test.ts` now guards it.
 export const DOMAINS = [
-  "quality", "maintenance", "production", "energy", "procurement", "logistics", "safety", "engineering",
+  "quality", "maintenance", "production", "engineering", "procurement", "supply_chain", "logistics",
+  "energy", "esg", "safety", "hr", "finance_admin",
   // IT/OT vocabulary — integration work is not a business domain like the others,
   // but it is what a demand about a broker, a namespace or an unreadable PLC IS.
   "ot_integration", "traceability", "process_control",

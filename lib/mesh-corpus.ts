@@ -114,6 +114,11 @@ const TOOL_PIPELINE: readonly [string, string][] = [
   // The landscape sits beside the process funnel: the funnel diagnoses a process,
   // the landscape diagnoses the systems it stands on. A K2.2 knockout in the
   // funnel names a system here, which is why the two feed each other.
+  // The enterprise application portfolio sits ABOVE the OT landscape: a plant
+  // system is one slice of it, and an overlap here is a rollout decision there.
+  ["org", "tool-landscape"],
+  ["tool-landscape", "landscape"],
+  ["tool-landscape", "rollout"],
   ["org", "landscape"],
   ["landscape", "process"],
   // A blocked system becomes a wave's blocker; an adopted technology becomes a

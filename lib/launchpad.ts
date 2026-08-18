@@ -54,6 +54,7 @@ const I = {
   waves: "M2 7c2.5-2 4.5-2 7 0s4.5 2 7 0 4.5-2 6 0 M2 13c2.5-2 4.5-2 7 0s4.5 2 7 0 4.5-2 6 0 M2 19c2.5-2 4.5-2 7 0s4.5 2 7 0 4.5-2 6 0",
   loop: "M4 9a8 8 0 0 1 13-3l3 3 M20 15a8 8 0 0 1-13 3l-3-3 M20 3v6h-6 M4 21v-6h6",
   radar: "M12 12a9 9 0 1 0 9 9 M12 12a5 5 0 1 0 5 5 M12 12l8-8 M16 4h4v4",
+  stack: "M12 3 3 7.5 12 12l9-4.5z M3 12l9 4.5L21 12 M3 16.5 12 21l9-4.5",
 };
 
 // Tiles are pure entry points — no metrics rendered on them.
@@ -68,11 +69,13 @@ export const LAUNCHPAD: TileGroup[] = [
     ],
   },
   {
-    // The plant network and its systems — the standing landscape the demands run
-    // on. Sits next to the process funnel because both are pre-demand: one
-    // diagnoses a process, the other the systems that process stands on.
-    category: "Plants & IT/OT",
+    // The standing landscape the demands run on, and what happens to it: the
+    // whole application portfolio, the OT depth beneath it, what gets rolled out,
+    // and what is being scouted. Pre-demand, like the process funnel beside it —
+    // one diagnoses a process, these diagnose what the process stands on.
+    category: "Landscape & technology",
     tiles: [
+      { id: "tool-landscape", title: "Tool Landscape", subtitle: "Every application, by capability · overlaps, shadow IT, lifecycle debt", href: "/tool-landscape", icon: I.stack, tone: "violet" },
       { id: "landscape", title: "System Landscape", subtitle: "Plants × ISA-95 · integration state · the UNS backlog", href: "/landscape", icon: I.factory, tone: "violet" },
       { id: "rollout", title: "Rollout", subtitle: "Technology decisions & scaling waves across the plants", href: "/rollout", icon: I.waves, tone: "violet" },
       { id: "ai-framework", title: "AI Framework", subtitle: "Production models on the ladder · control loops & their safety case", href: "/ai-framework", icon: I.loop, tone: "violet" },
