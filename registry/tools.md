@@ -8,12 +8,11 @@ serves which capability, who owns it, and where it is going.
 > Illustrative portfolio, seeded to exercise the model end to end. Replace with
 > the real application register; the columns are the contract.
 
-This file is the CURATED master. It is not the whole register: `/landscape`
-consolidates it with the plant systems in `registry/landscape.md`, with tools
-added by hand in the portal (which land in `landscape/tools.md` on the process
-repo, same columns, same parser), and with the tools use cases declare. Anything
-that behaves like a tool ends up in one list, because every tool is a risk and a
-cost whether or not somebody remembered to file it here.
+This file is the CURATED master, not the whole register: `/landscape` consolidates
+it with the plant systems in `registry/landscape.md`, with tools added in the
+portal (`landscape/tools.md` — same columns, same parser) and with the tools use
+cases declare. Everything that behaves like a tool ends up in one list, because
+every tool is a risk and a cost whether or not somebody filed it here.
 
 **One table per file.** `parseFirstTable` reads every `|`-prefixed line in the
 document and treats the first as the header, so a second table would silently
@@ -43,12 +42,10 @@ read the same way: `isolated` → `file-export` → `point-to-point` → `api` �
 between two tools with four users each is not the same problem as one between
 two tools with two thousand.
 
-`Annual cost` is the run cost in EUR per year — licence plus hosting plus
-support, as controlling books it. It is the budget half of the register: every
-finding above (an overlap, a tool marked `eliminate` that is still running, an
-unowned tool) becomes a number once the cost is there. An EMPTY cell is not
-zero — it means nobody has costed the tool, which is its own finding
-(*unbudgeted*) and one of the risk factors the surface scores.
+`Annual cost` is the run cost in EUR per year — licence, hosting and support, as
+controlling books it. It is what turns a finding into a number. An EMPTY cell is
+not zero: nobody has costed the tool, which is its own finding (*unbudgeted*) and
+one of the risk factors the surface scores.
 
 `Business owner` and `IT owner` name **teams**, never people (constraint #6). A
 row missing either is shadow IT, and that is exactly what the surface reports.

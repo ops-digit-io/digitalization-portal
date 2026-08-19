@@ -16,21 +16,13 @@ directory is the `du-demands` repository the portal reads and writes.
 
 ## Declaring the tools a demand touches
 
-The intake asks **"Tools & systems"** and renders the answer as one
-`## State` key:
+The intake asks **"Tools & systems"** and renders the answer as one `## State` key:
 
 ```
 - **Tools:** SAP S/4HANA, Power BI, Critical Manufacturing MES
 ```
 
-Comma-separated, by name, free text — the tool a demand is about is often the one
-no register has heard of, and a picker would make it unnameable. `/landscape`
-reads that line and puts every name on the consolidated tool register: a name it
-recognises becomes a dependency of that tool (so the tool shows which use cases
-stand on it, and the use case shows what it is standing on); a name nothing
-recognises becomes a row of its own, marked *named by a use case, in no register*
-— which is exactly the tool nobody owns and nobody budgeted.
-
-The key is optional and unknown `## State` keys are preserved rather than
-rejected, so a demand written before the field existed still parses; adding the
-line by hand has the same effect as answering the question.
+`/landscape` reads that line: a name it knows becomes a dependency on that tool, a
+name nothing knows becomes a row marked *named by a use case, in no register*. The
+same names become `depends-on` edges in the context mesh. Optional, and free text
+on purpose — the tool a demand is about is often the one no register has heard of.

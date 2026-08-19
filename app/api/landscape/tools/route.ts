@@ -3,10 +3,9 @@ import { can } from "@/lib/rbac";
 import { getSession } from "@/lib/auth/current";
 import { readRegistry } from "@/lib/otx/source";
 import { parseTools } from "@/lib/otx/toolscape";
-import { parseLandscape } from "@/lib/otx/landscape";
-import { addTool, listManualTools } from "@/lib/otx/tool-store";
-import { consolidate, budget, summariseConsolidated } from "@/lib/otx/consolidate";
-import { listDemandDocs } from "@/lib/demands-store";
+import { addTool } from "@/lib/otx/tool-store";
+import { budget, summariseConsolidated } from "@/lib/otx/consolidate";
+import { loadRegister } from "@/lib/otx/register";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,19 +26,7 @@ export async function GET() {
   const session = await getSession();
   if (!can(session, "view_board")) return NextResponse.json({ error: "not authenticated" }, { status: 401 });
 
-  const [registerMd, landscapeMd, manual, demands] = await Promise.all([
-    readRegistry("tools"),
-    readRegistry("landscape"),
-    listManualTools().catch(() => []),
-    listDemandDocs().catch(() => []),
-  ]);
-
-  const entries = consolidate({
-    register: parseTools(registerMd),
-    manual,
-    systems: parseLandscape(landscapeMd),
-    demands,
-  });
+  const { entries } = await loadRegister();
 
   return NextResponse.json({
     tools: entries,

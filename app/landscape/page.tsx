@@ -4,10 +4,8 @@ import { can } from "@/lib/rbac";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { readRegistry } from "@/lib/otx/source";
-import { listManualTools } from "@/lib/otx/tool-store";
-import { listDemandDocs } from "@/lib/demands-store";
+import { loadRegister } from "@/lib/otx/register";
 import {
-  parseLandscape,
   parsePlants,
   parseUns,
   maturityByPlant,
@@ -15,29 +13,18 @@ import {
   summarise,
   unsConventionProgress,
   ISA_LEVELS,
-  INTEGRATION_STATES,
   MAX_INTEGRATION_RANK,
   type PlantRow,
 } from "@/lib/otx/landscape";
+import { redundancies, unowned, lifecycleDebt, byCapability, toolIntegrationRank } from "@/lib/otx/toolscape";
 import {
-  parseTools,
-  redundancies,
-  unowned,
-  lifecycleDebt,
-  byCapability,
-  toolIntegrationRank,
-  LIFECYCLES,
-  LIFECYCLE_MEANING,
-  TOOL_INTEGRATIONS,
-} from "@/lib/otx/toolscape";
-import {
-  consolidate,
   budget,
   summariseConsolidated,
   registerGaps,
   useCaseExposure,
   topRisks,
   integrationHealth,
+  toolNodeId,
   ORIGIN_MEANING,
   type ToolEntry,
 } from "@/lib/otx/consolidate";
@@ -59,27 +46,22 @@ export const dynamic = "force-dynamic";
 /**
  * The landscape — ONE register of everything that behaves like a tool.
  *
- * This page used to be two: an enterprise application register (`/tool-landscape`)
- * and a plant system landscape (`/landscape`), with a third answer — the tool a
- * use case names — living nowhere at all. That split is exactly how a tool ends up
- * load-bearing in three places and governed in none, so they are consolidated
- * here: the register, the plant systems beneath it, the tools recorded by hand in
- * the portal, and the tools use cases declare, in one list.
+ * This page used to be two (an application register and a plant system landscape)
+ * with a third answer, the tool a use case names, living nowhere. Consolidated
+ * here: the register, the plant systems beneath it, the tools recorded by hand and
+ * the tools use cases declare. Risk and budget lead, because every tool is both,
+ * and both are derived from the register's own facts rather than stored.
  *
- * The consolidation is what makes the two questions that matter answerable at all,
- * and they lead the page, because **every tool is a risk and a cost**:
- *
- *   RISK    derived from the register's own facts — unowned, isolated, decided
- *           against and still running, off-register, unreadable in the plants —
- *           never a stored rating that can be quietly downgraded.
- *   BUDGET  what the portfolio costs, and what each finding costs. An overlap is
- *           an argument; an overlap with €4.6m against it is a decision.
- *
- * Everything below those two is the evidence: the gaps, the use cases standing on
- * them, the capability spine, the OT depth, and the inventory last, where
- * reference material belongs. The page derives; only the "Add a tool" form writes,
- * and it writes markdown to git like every other artifact here.
+ * Written to be READ AT A GLANCE: a heading, one line of context, the table. The
+ * reasoning behind the model lives in `lib/otx/consolidate.ts` and the registry
+ * masters — a page that has to be read before it can be used is a page nobody
+ * uses. Everything here derives; only the "Add a tool" form writes.
  */
+
+/** A tool's node in the mesh — the same one the graph and the demand pages use. */
+function meshHref(t: { id: string; tool: string }): string {
+  return `/mesh?focus=${encodeURIComponent(`application:${toolNodeId(t)}`)}`;
+}
 
 function ToolChip({ t }: { t: ToolEntry }) {
   return (
@@ -87,13 +69,13 @@ function ToolChip({ t }: { t: ToolEntry }) {
       <span className="text-xs font-medium">{t.tool}</span>
       {t.lifecycle ? <Chip tone={LIFECYCLE_TONE[t.lifecycle]}>{t.lifecycle}</Chip> : null}
       {t.annualCost !== null ? (
-        <span className="text-[10px] tabular-nums text-muted-foreground">{eur(t.annualCost)}/yr</span>
+        <span className="text-[10px] tabular-nums text-muted-foreground">{eur(t.annualCost)}</span>
       ) : null}
     </span>
   );
 }
 
-/** A level cell in the plant × ISA-95 matrix: mean maturity, shaded, with the blocked count. */
+/** A level cell in the plant × ISA-95 matrix: mean maturity, shaded, blocked count. */
 function LevelCell({ rank, blocked }: { rank: number | null; blocked: number }) {
   if (rank === null) return <td className="px-2 py-2 text-center text-xs text-muted-foreground/40">—</td>;
   const pct = Math.round((rank / MAX_INTEGRATION_RANK) * 100);
@@ -108,6 +90,22 @@ function LevelCell({ rank, blocked }: { rank: number | null; blocked: number }) 
   );
 }
 
+/** Heading, one line of context, content. The page's only layout rule. */
+function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <section className="mb-6">
+      <div className="mb-2 flex flex-wrap items-baseline gap-x-3">
+        <h2 className="text-sm font-semibold">{title}</h2>
+        {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+const TH = "px-3 py-2 font-medium";
+const THEAD = "border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground";
+
 export default async function LandscapePage() {
   const session = await getSession();
   if (!can(session, "view_board")) {
@@ -119,23 +117,15 @@ export default async function LandscapePage() {
     );
   }
 
-  // Four sources, read concurrently, each degrading on its own: a funnel that
-  // cannot be read costs the use-case links, not the register.
-  const [toolsMd, landscapeMd, plantsMd, unsMd, manual, demands] = await Promise.all([
-    readRegistry("tools"),
-    readRegistry("landscape"),
+  const [{ entries, systems }, plantsMd, unsMd] = await Promise.all([
+    loadRegister(),
     readRegistry("plants"),
     readRegistry("uns"),
-    listManualTools().catch(() => []),
-    listDemandDocs().catch(() => []),
   ]);
 
-  const register = parseTools(toolsMd);
-  const systems = parseLandscape(landscapeMd);
   const plants: PlantRow[] = parsePlants(plantsMd);
   const uns = parseUns(unsMd);
 
-  const entries = consolidate({ register, manual, systems, demands });
   const summary = summariseConsolidated(entries);
   const money = budget(entries);
   const risks = topRisks(entries, 12);
@@ -143,14 +133,13 @@ export default async function LandscapePage() {
   const exposure = useCaseExposure(entries);
   const health = integrationHealth(entries);
 
-  // The enterprise findings, computed over the CONSOLIDATED list — an off-register
-  // plant system now takes part in the overlap analysis like anything else.
+  // The enterprise findings, over the CONSOLIDATED list — an off-register plant
+  // system takes part in the overlap analysis like anything else.
   const overlaps = redundancies(entries);
   const shadow = unowned(entries);
   const debt = lifecycleDebt(entries);
   const caps = byCapability(entries);
 
-  // The OT half.
   const ot = summarise(systems);
   const perPlant = maturityByPlant(systems);
   const backlog = blockers(systems);
@@ -166,11 +155,9 @@ export default async function LandscapePage() {
       <main className="mx-auto max-w-[820px] px-6 py-10">
         <h1 className="text-lg font-semibold">Landscape</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Nothing recorded yet. The register lives in{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">registry/tools.md</code> (applications) and{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">registry/landscape.md</code> (plant systems) — one
-          row each, edited by hand in git. You can also record a tool here and it lands in{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">landscape/tools.md</code>.
+          Nothing recorded yet. Applications live in{" "}
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">registry/tools.md</code>, plant systems in{" "}
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">registry/landscape.md</code> — or record one here.
         </p>
         {canAdd ? (
           <div className="mt-4">
@@ -189,14 +176,11 @@ export default async function LandscapePage() {
         <span className="text-foreground">Landscape</span>
       </nav>
 
-      <header className="mb-4 flex flex-wrap items-start justify-between gap-4">
+      <header className="mb-4 flex flex-wrap items-baseline justify-between gap-4">
         <div>
           <h1 className="text-lg font-semibold">Tool &amp; system landscape</h1>
-          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            One register of everything that behaves like a tool: the applications the company runs, the systems in the
-            plants beneath them, the tools recorded here by hand, and the tools use cases declare. Every one of them
-            is a risk and a cost, so both are derived on every row — from the register&apos;s own facts, never stored,
-            so neither can drift from what a human wrote down.
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Every tool in one register — applications, plant systems, and what use cases build on. Risk and cost per row.
           </p>
         </div>
         {canAdd ? <AddTool capabilities={capabilityNames} domains={domainNames} /> : null}
@@ -204,58 +188,32 @@ export default async function LandscapePage() {
 
       <Card className="mb-5 p-4">
         <dl className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          <Stat
-            label="Tools"
-            value={String(summary.entries)}
-            hint={`${summary.registered} registered · ${summary.offRegister + summary.fromUseCases + summary.manual} not`}
-          />
-          <Stat
-            label="Annual cost"
-            value={eur(money.total)}
-            hint={money.coverage === null ? "nothing costed" : `${money.coverage}% of tools costed`}
-          />
-          <Stat
-            label="At risk"
-            value={String(summary.atRisk)}
-            hint={`${eur(money.atRisk)}/yr behind them`}
-            alarm={summary.atRisk > 0}
-          />
+          <Stat label="Tools" value={String(summary.entries)} hint={`${summary.registered} registered`} />
+          <Stat label="Annual cost" value={eur(money.total)} hint={money.coverage === null ? "none costed" : `${money.coverage}% costed`} />
+          <Stat label="At risk" value={String(summary.atRisk)} hint={`${eur(money.atRisk)} behind them`} alarm={summary.atRisk > 0} />
           <Stat
             label="Off the register"
             value={String(summary.offRegister + summary.fromUseCases)}
-            hint="in the plants or in a use case, in no register"
+            hint="in plants or use cases"
             alarm={summary.offRegister + summary.fromUseCases > 0}
           />
-          <Stat label="Used by cases" value={String(summary.inUse)} hint={`${exposure.length} use case(s) depend on a tool`} />
-          <Stat
-            label="Integration"
-            value={health === null ? "—" : `${health}%`}
-            hint={`${ot.blocked} plant systems unreadable`}
-          />
+          <Stat label="Used by cases" value={String(summary.inUse)} hint={`${exposure.length} use cases`} />
+          <Stat label="Integration" value={health === null ? "—" : `${health}%`} hint={`${ot.blocked} unreadable`} />
         </dl>
       </Card>
 
-      {/* ── 1. Risk ─────────────────────────────────────────────────────── */}
-      <section className="mb-6">
-        <h2 className="mb-1 text-sm font-semibold">Risk register — why each tool is exposed</h2>
-        <p className="mb-3 max-w-3xl text-xs text-muted-foreground">
-          Derived, never rated: the score is the sum of the findings this register already makes — no owner, isolated,
-          decided against and still running, off the register, unreadable in the plants, unbudgeted — each weighted by
-          how much stops when the tool does. Nothing can be quietly downgraded, because there is nothing to downgrade;
-          the way to lower a score is to fix the fact underneath it. The twelve worst are here; every row carries
-          its score in the register at the bottom.
-        </p>
+      <Section title="Risk" hint="Derived from the register's facts. Worst 12; every score is in the table at the end.">
         {risks.length === 0 ? (
-          <Card className="p-4 text-sm text-muted-foreground">Nothing in the register scores above zero.</Card>
+          <Card className="p-4 text-sm text-muted-foreground">Nothing scores above zero.</Card>
         ) : (
           <Card className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <thead className={THEAD}>
                 <tr>
-                  <th className="px-3 py-2 font-medium">Tool</th>
-                  <th className="px-3 py-2 text-right font-medium">Risk</th>
-                  <th className="px-3 py-2 text-right font-medium">Cost/yr</th>
-                  <th className="px-3 py-2 font-medium">Why</th>
+                  <th className={TH}>Tool</th>
+                  <th className={`${TH} text-right`}>Risk</th>
+                  <th className={`${TH} text-right`}>Cost/yr</th>
+                  <th className={TH}>Why</th>
                 </tr>
               </thead>
               <tbody>
@@ -263,23 +221,21 @@ export default async function LandscapePage() {
                   <tr key={`${t.id}-${t.tool}`} className="border-b align-top last:border-0">
                     <td className="px-3 py-2">
                       <div className="flex flex-wrap items-baseline gap-1.5">
-                        <span className="font-medium">{t.tool}</span>
+                        <Link href={meshHref(t)} className="font-medium hover:underline">{t.tool}</Link>
                         <Chip tone={ORIGIN_TONE[t.origin]} title={ORIGIN_MEANING[t.origin]}>{ORIGIN_LABEL[t.origin]}</Chip>
                         {t.criticality ? <Chip tone={CRIT_TONE[t.criticality]}>{t.criticality}</Chip> : null}
                       </div>
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {t.capability || "no capability"}
                         {t.plants.length > 0 ? ` · ${t.plants.join(", ")}` : ""}
-                        {t.useCases.length > 0 ? ` · ${t.useCases.length} use case(s)` : ""}
+                        {t.useCases.length > 0 ? ` · ${t.useCases.length} use case${t.useCases.length === 1 ? "" : "s"}` : ""}
                       </p>
                     </td>
                     <td className="px-3 py-2 text-right">
                       <Chip tone={RISK_TONE[t.risk.band]}>{t.risk.band}</Chip>
                       <div className="mt-0.5 text-xs tabular-nums text-muted-foreground">{t.risk.score}</div>
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {t.annualCost === null ? <span className="text-muted-foreground">—</span> : eur(t.annualCost)}
-                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">{eur(t.annualCost)}</td>
                     <td className="px-3 py-2">
                       <ul className="space-y-0.5 text-xs text-muted-foreground">
                         {t.risk.factors.map((f) => (
@@ -295,54 +251,35 @@ export default async function LandscapePage() {
             </table>
           </Card>
         )}
-      </section>
+      </Section>
 
-      {/* ── 2. Budget ───────────────────────────────────────────────────── */}
-      <section className="mb-6">
-        <h2 className="mb-1 text-sm font-semibold">Budget — what the findings cost</h2>
-        <p className="mb-3 max-w-3xl text-xs text-muted-foreground">
-          Money already leaving the company, sorted by how much. None of it is a projected saving: an overlap does not
-          become a saving until somebody switches a tool off, and this is a register, not an argument. A tool with no
-          figure is not free — it is uncosted, and there are {money.unbudgeted} of those.
-        </p>
+      <Section title="Budget" hint="Money already being spent, by finding — not projected savings.">
         <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
           <Card className="p-4">
-            <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-              <Stat label="Annual run cost" value={eur(money.total)} hint="everything with a figure on it" />
-              <Stat
-                label="Behind at-risk tools"
-                value={eur(money.atRisk)}
-                hint="carried by high or critical rows"
-                alarm={money.atRisk > 0}
-              />
-              <Stat
-                label="Uncosted"
-                value={String(money.unbudgeted)}
-                hint="tools in service nobody has priced"
-                alarm={money.unbudgeted > 0}
-              />
+            <dl className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
+              <Stat label="Annual run cost" value={eur(money.total)} />
+              <Stat label="Behind at-risk tools" value={eur(money.atRisk)} alarm={money.atRisk > 0} />
+              <Stat label="Uncosted" value={String(money.unbudgeted)} hint="tools nobody has priced" alarm={money.unbudgeted > 0} />
             </dl>
           </Card>
           <Card className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <thead className={THEAD}>
                 <tr>
-                  <th className="px-3 py-2 font-medium">Spend</th>
-                  <th className="px-3 py-2 text-right font-medium">€/yr</th>
-                  <th className="px-3 py-2 text-right font-medium">Tools</th>
-                  <th className="px-3 py-2 font-medium">Why it is on this list</th>
+                  <th className={TH}>Spend</th>
+                  <th className={`${TH} text-right`}>€/yr</th>
+                  <th className={`${TH} text-right`}>Tools</th>
+                  <th className={TH}>Why</th>
                 </tr>
               </thead>
               <tbody>
                 {money.lines.length === 0 ? (
                   <tr>
-                    <td className="px-3 py-3 text-sm text-muted-foreground" colSpan={4}>
-                      No costed tool falls into any finding.
-                    </td>
+                    <td className="px-3 py-3 text-sm text-muted-foreground" colSpan={4}>No costed tool falls into a finding.</td>
                   </tr>
                 ) : (
                   money.lines.map((l) => (
-                    <tr key={l.label} className="border-b last:border-0 align-top">
+                    <tr key={l.label} className="border-b align-top last:border-0">
                       <td className="px-3 py-2 font-medium">{l.label}</td>
                       <td className="px-3 py-2 text-right font-semibold tabular-nums">{eur(l.amount)}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{l.tools}</td>
@@ -354,35 +291,29 @@ export default async function LandscapePage() {
             </table>
           </Card>
         </div>
-      </section>
+      </Section>
 
-      {/* ── 3. The consolidation's own finding: what is on no register ──── */}
-      <section className="mb-6">
-        <h2 className="mb-1 text-sm font-semibold">Off the register — found in the plants or in a use case</h2>
-        <p className="mb-3 max-w-3xl text-xs text-muted-foreground">
-          This list only exists because the sources were consolidated: a system running in a plant, or a tool a use
-          case is built on, that no application register has heard of. Each row is one of two decisions —{" "}
-          <strong>register it</strong> (name an owner, a lifecycle, a cost) or <strong>retire it</strong>. Control-level
-          equipment is expected here and is weighted down accordingly; an L3 system or a use-case dependency is not.
-        </p>
+      <Section title="Off the register" hint="Found in a plant or a use case, in no register. Register it or retire it.">
         {gaps.length === 0 ? (
           <Card className="p-4 text-sm text-muted-foreground">Everything found is on a register.</Card>
         ) : (
           <Card className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <thead className={THEAD}>
                 <tr>
-                  <th className="px-3 py-2 font-medium">Tool / system</th>
-                  <th className="px-3 py-2 font-medium">Found in</th>
-                  <th className="px-3 py-2 font-medium">Where</th>
-                  <th className="px-3 py-2 text-right font-medium">Risk</th>
-                  <th className="px-3 py-2 font-medium">Owner on record</th>
+                  <th className={TH}>Tool / system</th>
+                  <th className={TH}>Found in</th>
+                  <th className={TH}>Where</th>
+                  <th className={`${TH} text-right`}>Risk</th>
+                  <th className={TH}>Owner</th>
                 </tr>
               </thead>
               <tbody>
                 {gaps.map((t) => (
                   <tr key={`${t.origin}-${t.tool}`} className="border-b last:border-0">
-                    <td className="px-3 py-2 font-medium">{t.tool}</td>
+                    <td className="px-3 py-2">
+                      <Link href={meshHref(t)} className="font-medium hover:underline">{t.tool}</Link>
+                    </td>
                     <td className="px-3 py-2">
                       <Chip tone={ORIGIN_TONE[t.origin]} title={ORIGIN_MEANING[t.origin]}>{ORIGIN_LABEL[t.origin]}</Chip>
                     </td>
@@ -401,36 +332,24 @@ export default async function LandscapePage() {
             </table>
           </Card>
         )}
-      </section>
+      </Section>
 
-      {/* ── 4. What the demand funnel is standing on ────────────────────── */}
-      <section className="mb-6">
-        <h2 className="mb-1 text-sm font-semibold">Use cases and the tools they stand on</h2>
-        <p className="mb-3 max-w-3xl text-xs text-muted-foreground">
-          A demand declares its tools in <code className="rounded bg-muted px-1 py-0.5">## State</code> (
-          <code className="rounded bg-muted px-1 py-0.5">- **Tools:** …</code>, captured at intake); a name that only
-          appears in its prose is shown as <em>mentioned</em> and is a hint, never a claim. This is where a business
-          case meets its dependency: building on a tool marked <code>eliminate</code> is a cost the case has not
-          counted yet.
-        </p>
+      <Section title="Use cases and what they stand on" hint="Declared at intake; a prose match shows as mentioned.">
         {exposure.length === 0 ? (
-          <Card className="p-4 text-sm text-muted-foreground">
-            No demand names a tool yet. The intake asks for them — &ldquo;Tools &amp; systems&rdquo; — and every name
-            given there lands on this register.
-          </Card>
+          <Card className="p-4 text-sm text-muted-foreground">No demand names a tool yet.</Card>
         ) : (
           <Card className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <thead className={THEAD}>
                 <tr>
-                  <th className="px-3 py-2 font-medium">Use case</th>
-                  <th className="px-3 py-2 font-medium">Worst dependency</th>
-                  <th className="px-3 py-2 font-medium">Tools it stands on</th>
+                  <th className={TH}>Use case</th>
+                  <th className={TH}>Worst</th>
+                  <th className={TH}>Tools</th>
                 </tr>
               </thead>
               <tbody>
                 {exposure.map((x) => (
-                  <tr key={x.id} className="border-b last:border-0 align-top">
+                  <tr key={x.id} className="border-b align-top last:border-0">
                     <td className="px-3 py-2 whitespace-nowrap">
                       <Link href={`/uc/${x.id}`} className="font-medium hover:underline">{x.id}</Link>
                       <p className="text-xs text-muted-foreground">{x.title}</p>
@@ -444,12 +363,8 @@ export default async function LandscapePage() {
                           <span key={t.tool} className="inline-flex items-baseline gap-1 rounded border px-1.5 py-0.5">
                             <span className="text-xs">{t.tool}</span>
                             <Chip tone={RISK_TONE[t.risk]}>{t.risk}</Chip>
-                            {t.kind === "mentioned" ? (
-                              <span className="text-[10px] text-muted-foreground">mentioned</span>
-                            ) : null}
-                            {!t.registered ? (
-                              <span className="text-[10px] text-rose-600 dark:text-rose-400">unregistered</span>
-                            ) : null}
+                            {t.kind === "mentioned" ? <span className="text-[10px] text-muted-foreground">mentioned</span> : null}
+                            {!t.registered ? <span className="text-[10px] text-rose-600 dark:text-rose-400">unregistered</span> : null}
                           </span>
                         ))}
                       </span>
@@ -460,36 +375,28 @@ export default async function LandscapePage() {
             </table>
           </Card>
         )}
-      </section>
+      </Section>
 
-      {/* ── 5. Overlaps ─────────────────────────────────────────────────── */}
-      <section className="mb-6">
-        <h2 className="mb-1 text-sm font-semibold">Overlaps — one capability, more than one tool</h2>
-        <p className="mb-3 max-w-3xl text-xs text-muted-foreground">
-          The consolidation case, ordered by the people affected and priced by what the group is actually paying. A
-          tool under <strong>evaluate</strong> is excluded — that is the process working. A tool under{" "}
-          <strong>migrate</strong> is <em>included</em>, because a replacement that never finished is exactly the
-          overlap worth seeing.
-        </p>
+      <Section title="Overlaps" hint="One capability, more than one tool in service.">
         {overlaps.length === 0 ? (
-          <Card className="p-4 text-sm text-muted-foreground">No capability is served by more than one tool.</Card>
+          <Card className="p-4 text-sm text-muted-foreground">No capability is served twice.</Card>
         ) : (
           <Card className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <thead className={THEAD}>
                 <tr>
-                  <th className="px-3 py-2 font-medium">Capability</th>
-                  <th className="px-3 py-2 text-right font-medium">Users</th>
-                  <th className="px-3 py-2 text-right font-medium">€/yr</th>
-                  <th className="px-3 py-2 font-medium">Tools</th>
-                  <th className="px-3 py-2 font-medium">Consolidate onto</th>
+                  <th className={TH}>Capability</th>
+                  <th className={`${TH} text-right`}>Users</th>
+                  <th className={`${TH} text-right`}>€/yr</th>
+                  <th className={TH}>Tools</th>
+                  <th className={TH}>Consolidate onto</th>
                 </tr>
               </thead>
               <tbody>
                 {overlaps.map((r) => {
                   const cost = r.tools.reduce((a, t) => a + (t.annualCost ?? 0), 0);
                   return (
-                    <tr key={r.capability} className="border-b last:border-0 align-top">
+                    <tr key={r.capability} className="border-b align-top last:border-0">
                       <td className="px-3 py-2 whitespace-nowrap font-medium">{r.capability}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{r.users.toLocaleString("en")}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{cost === 0 ? "—" : eur(cost)}</td>
@@ -502,13 +409,9 @@ export default async function LandscapePage() {
                         {r.target ? (
                           <span className="font-medium text-emerald-700 dark:text-emerald-400">{r.target.tool}</span>
                         ) : r.undecided ? (
-                          <span className="text-rose-700 dark:text-rose-400">
-                            nothing marked <code>invest</code> — nobody has picked a winner
-                          </span>
+                          <span className="text-rose-700 dark:text-rose-400">no <code>invest</code> tool — undecided</span>
                         ) : (
-                          <span className="text-amber-700 dark:text-amber-400">
-                            two tools both claim <code>invest</code>
-                          </span>
+                          <span className="text-amber-700 dark:text-amber-400">two claim <code>invest</code></span>
                         )}
                       </td>
                     </tr>
@@ -518,18 +421,12 @@ export default async function LandscapePage() {
             </table>
           </Card>
         )}
-      </section>
+      </Section>
 
-      {/* ── 6. Shadow IT & lifecycle debt ───────────────────────────────── */}
-      <div className="mb-6 grid gap-6 lg:grid-cols-2">
-        <section>
-          <h2 className="mb-1 text-sm font-semibold">Unowned — shadow IT</h2>
-          <p className="mb-3 text-xs text-muted-foreground">
-            In service with no named owner. Owners here are <strong>teams</strong>, never people — this is a gap in
-            accountability, never a finding about a person (constraint&nbsp;#6).
-          </p>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Section title="Unowned" hint="In service, no owning team.">
           {shadow.length === 0 ? (
-            <Card className="p-4 text-sm text-muted-foreground">Every tool in service has both owners named.</Card>
+            <Card className="p-4 text-sm text-muted-foreground">Every tool has both owners.</Card>
           ) : (
             <Card className="p-3">
               <ul className="space-y-2">
@@ -539,27 +436,20 @@ export default async function LandscapePage() {
                       <span className="text-sm font-medium">{u.tool.tool}</span>
                       {u.tool.criticality ? <Chip tone={CRIT_TONE[u.tool.criticality]}>{u.tool.criticality}</Chip> : null}
                       {u.tool.annualCost !== null ? (
-                        <span className="text-xs tabular-nums text-muted-foreground">{eur(u.tool.annualCost)}/yr</span>
+                        <span className="text-xs tabular-nums text-muted-foreground">{eur(u.tool.annualCost)}</span>
                       ) : null}
                     </div>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      No {u.missing.join(" and no ")} owner. {u.tool.notes}
-                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">No {u.missing.join(" and no ")} owner.</p>
                   </li>
                 ))}
               </ul>
             </Card>
           )}
-        </section>
+        </Section>
 
-        <section>
-          <h2 className="mb-1 text-sm font-semibold">Lifecycle debt — decided to go, still load-bearing</h2>
-          <p className="mb-3 text-xs text-muted-foreground">
-            The gap between a decision and reality — usually still there because the successor never covered the case
-            keeping it alive. The cost column is what that gap is billed at each year.
-          </p>
+        <Section title="Lifecycle debt" hint="Decided to go, still load-bearing.">
           {debt.length === 0 ? (
-            <Card className="p-4 text-sm text-muted-foreground">Nothing marked for replacement is still carrying load.</Card>
+            <Card className="p-4 text-sm text-muted-foreground">Nothing marked for replacement carries load.</Card>
           ) : (
             <Card className="p-3">
               <ul className="space-y-2">
@@ -569,7 +459,7 @@ export default async function LandscapePage() {
                       <span className="text-sm font-medium">{d.tool.tool}</span>
                       {d.tool.lifecycle ? <Chip tone={LIFECYCLE_TONE[d.tool.lifecycle]}>{d.tool.lifecycle}</Chip> : null}
                       {d.tool.annualCost !== null ? (
-                        <span className="text-xs tabular-nums text-muted-foreground">{eur(d.tool.annualCost)}/yr</span>
+                        <span className="text-xs tabular-nums text-muted-foreground">{eur(d.tool.annualCost)}</span>
                       ) : null}
                     </div>
                     <p className="mt-0.5 text-xs text-muted-foreground">{d.reason}</p>
@@ -578,27 +468,20 @@ export default async function LandscapePage() {
               </ul>
             </Card>
           )}
-        </section>
+        </Section>
       </div>
 
-      {/* ── 7. The capability spine ─────────────────────────────────────── */}
-      <section className="mb-6">
-        <h2 className="mb-1 text-sm font-semibold">The capability spine</h2>
-        <p className="mb-3 max-w-3xl text-xs text-muted-foreground">
-          Capability is the controlled vocabulary that makes every finding above possible — a capability invented per
-          tool makes each tool unique, every overlap invisible and the register decorative. Integration is the mean
-          across the capability&apos;s tools in service ({TOOL_INTEGRATIONS.join(" → ")}).
-        </p>
+      <Section title="Capabilities" hint="The vocabulary every finding above compares on.">
         <Card className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className={THEAD}>
               <tr>
-                <th className="px-3 py-2 font-medium">Capability</th>
-                <th className="px-3 py-2 text-right font-medium">Tools</th>
-                <th className="px-3 py-2 text-right font-medium">Users</th>
-                <th className="px-3 py-2 text-right font-medium">€/yr</th>
-                <th className="px-3 py-2 font-medium">Scopes</th>
-                <th className="px-3 py-2 font-medium">Strategic tool</th>
+                <th className={TH}>Capability</th>
+                <th className={`${TH} text-right`}>Tools</th>
+                <th className={`${TH} text-right`}>Users</th>
+                <th className={`${TH} text-right`}>€/yr</th>
+                <th className={TH}>Scopes</th>
+                <th className={TH}>Strategic tool</th>
               </tr>
             </thead>
             <tbody>
@@ -625,45 +508,23 @@ export default async function LandscapePage() {
             </tbody>
           </table>
         </Card>
-      </section>
+      </Section>
 
-      {/* ── 8. The OT depth ─────────────────────────────────────────────── */}
-      <section className="mb-6">
-        <h2 className="mb-1 text-sm font-semibold">In the plants — ISA-95 and the UNS backlog</h2>
-        <p className="mb-3 max-w-3xl text-xs text-muted-foreground">
-          The depth beneath the register: what runs at each site, at which ISA-95 level, and how far its data has
-          travelled towards the namespace. These are the funnel&apos;s{" "}
-          <strong>K2.2 Interface-Zugänglichkeit</strong> failures as data — an engagement touching one of them cannot
-          pass the diagnostics gate, and per branch <strong>Z1b</strong> an inaccessible interface &ldquo;zahlt per
-          Compounding auf jeden weiteren Prozess am selben System ein&rdquo;. Higher levels first: a blocked L3
-          historian denies data to the whole plant, a blocked L1 controller to one line.
-        </p>
-
-        <Card className="mb-4 p-4">
-          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <Stat label="Plants" value={String(ot.plants)} hint={`${ot.systems} systems inventoried`} />
-            <Stat label="Mean maturity" value={ot.meanMaturity === null ? "—" : `${ot.meanMaturity}%`} hint="across plants with systems" />
-            <Stat label="Unreadable" value={String(ot.blocked)} hint="systems blocking K2.2" alarm={ot.blocked > 0} />
-            <Stat label="On the namespace" value={`${ot.withNamespace}/${ot.plants}`} hint="plants with a modelled topic tree" />
-            <Stat
-              label="Convention"
-              value={convention.percent === null ? "—" : `${convention.percent}%`}
-              hint={`${convention.published} published · ${convention.agreed} agreed · ${convention.proposed} proposed`}
-            />
-          </dl>
-        </Card>
-
+      <Section
+        title="In the plants"
+        hint={`${ot.systems} systems · ${ot.blocked} unreadable (the funnel's K2.2 knockout) · ${ot.withNamespace}/${ot.plants} on the namespace`}
+      >
         {backlog.length > 0 ? (
           <Card className="mb-4 overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <thead className={THEAD}>
                 <tr>
-                  <th className="px-3 py-2 font-medium">#</th>
-                  <th className="px-3 py-2 font-medium">Plant</th>
-                  <th className="px-3 py-2 font-medium">Level</th>
-                  <th className="px-3 py-2 font-medium">System</th>
-                  <th className="px-3 py-2 font-medium">Vendor</th>
-                  <th className="px-3 py-2 font-medium">Barrier</th>
+                  <th className={TH}>#</th>
+                  <th className={TH}>Plant</th>
+                  <th className={TH}>Level</th>
+                  <th className={TH}>System</th>
+                  <th className={TH}>Vendor</th>
+                  <th className={TH}>Barrier</th>
                 </tr>
               </thead>
               <tbody>
@@ -686,26 +547,20 @@ export default async function LandscapePage() {
             </table>
           </Card>
         ) : (
-          <Card className="mb-4 p-4 text-sm text-muted-foreground">
-            Every inventoried system has a readable interface. Nothing is blocking K2.2.
-          </Card>
+          <Card className="mb-4 p-4 text-sm text-muted-foreground">Every system has a readable interface.</Card>
         )}
 
-        <p className="mb-2 text-xs text-muted-foreground">
-          Maturity by plant and level — the mean integration state ({INTEGRATION_STATES.join(" → ")}); the suffix after
-          the dot is how many systems there have no readable interface. Most-blocked first.
-        </p>
         <Card className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className={THEAD}>
               <tr>
-                <th className="px-3 py-2 font-medium">Plant</th>
-                <th className="px-3 py-2 font-medium">Region</th>
-                <th className="px-3 py-2 font-medium">Role</th>
+                <th className={TH}>Plant</th>
+                <th className={TH}>Region</th>
+                <th className={TH}>Role</th>
                 {ISA_LEVELS.slice().reverse().map((l) => (
                   <th key={l} className="px-2 py-2 text-center font-medium">{l}</th>
                 ))}
-                <th className="px-3 py-2 text-right font-medium">Overall</th>
+                <th className={`${TH} text-right`}>Overall</th>
               </tr>
             </thead>
             <tbody>
@@ -742,24 +597,21 @@ export default async function LandscapePage() {
             </tbody>
           </table>
         </Card>
-      </section>
+      </Section>
 
-      {/* ── 9. The namespace convention ─────────────────────────────────── */}
-      <section className="mb-6">
-        <h2 className="mb-1 text-sm font-semibold">The namespace convention</h2>
-        <p className="mb-3 max-w-3xl text-xs text-muted-foreground">
-          A Unified Namespace is an agreed grammar, not a broker. This is the grammar and how far it has got —{" "}
-          <code className="rounded bg-muted px-1 py-0.5">registry/uns.md</code>.
-        </p>
+      <Section
+        title="Namespace convention"
+        hint={`${convention.percent === null ? "—" : `${convention.percent}% published`} · ${convention.agreed} agreed · ${convention.proposed} proposed`}
+      >
         <Card className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className={THEAD}>
               <tr>
-                <th className="px-3 py-2 font-medium">Level</th>
-                <th className="px-3 py-2 font-medium">Example topic</th>
-                <th className="px-3 py-2 font-medium">Owner</th>
-                <th className="px-3 py-2 font-medium">Standard</th>
-                <th className="px-3 py-2 font-medium">Status</th>
+                <th className={TH}>Level</th>
+                <th className={TH}>Example topic</th>
+                <th className={TH}>Owner</th>
+                <th className={TH}>Standard</th>
+                <th className={TH}>Status</th>
               </tr>
             </thead>
             <tbody>
@@ -787,47 +639,44 @@ export default async function LandscapePage() {
             </tbody>
           </table>
         </Card>
-      </section>
+      </Section>
 
-      {/* ── 10. The register, last ──────────────────────────────────────── */}
-      <section>
-        <h2 className="mb-1 text-sm font-semibold">The register</h2>
-        <p className="mb-3 max-w-3xl text-xs text-muted-foreground">
-          {summary.entries} tools from {summary.registered > 0 ? "the application register" : "no register"},{" "}
-          {summary.installations} plant installations folded into them, {summary.manual} added here by hand and{" "}
-          {summary.fromUseCases} named by a use case alone. Lifecycle:{" "}
-          {LIFECYCLES.map((l) => `${l} — ${LIFECYCLE_MEANING[l].toLowerCase()}`).join(" · ")}
-        </p>
+      <Section
+        title="The register"
+        hint={`${summary.entries} tools · ${summary.installations} plant installations · ${summary.manual} added here · ${summary.fromUseCases} from use cases`}
+      >
         <Card className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className={THEAD}>
               <tr>
-                <th className="px-3 py-2 font-medium">Tool</th>
-                <th className="px-3 py-2 font-medium">Capability</th>
-                <th className="px-3 py-2 font-medium">Source</th>
-                <th className="px-3 py-2 font-medium">Lifecycle</th>
-                <th className="px-3 py-2 font-medium">Integration</th>
-                <th className="px-3 py-2 font-medium">Owners</th>
-                <th className="px-3 py-2 font-medium">Plants</th>
-                <th className="px-3 py-2 text-right font-medium">Users</th>
-                <th className="px-3 py-2 text-right font-medium">€/yr</th>
-                <th className="px-3 py-2 text-right font-medium">Risk</th>
+                <th className={TH}>Tool</th>
+                <th className={TH}>Capability</th>
+                <th className={TH}>Source</th>
+                <th className={TH}>Lifecycle</th>
+                <th className={TH}>Integration</th>
+                <th className={TH}>Owners</th>
+                <th className={TH}>Plants</th>
+                <th className={`${TH} text-right`}>Users</th>
+                <th className={`${TH} text-right`}>€/yr</th>
+                <th className={`${TH} text-right`}>Risk</th>
               </tr>
             </thead>
             <tbody>
               {[...entries]
                 .sort((a, b) => (b.annualCost ?? 0) - (a.annualCost ?? 0) || (b.users ?? 0) - (a.users ?? 0) || a.tool.localeCompare(b.tool))
                 .map((t) => (
-                  <tr key={`${t.origin}-${t.id}-${t.tool}`} className="border-b last:border-0">
+                  <tr key={`${t.origin}-${t.id}-${t.tool}`} id={toolNodeId(t)} className="border-b scroll-mt-20 last:border-0">
                     <td className="px-3 py-2">
-                      <span className="font-medium">{t.tool}</span>
+                      <Link href={meshHref(t)} className="font-medium hover:underline" title="Show this tool in the context mesh">
+                        {t.tool}
+                      </Link>
                       {t.vendor ? <span className="ml-1.5 text-xs text-muted-foreground">{t.vendor}</span> : null}
                       {t.needsAttention ? (
                         <span
                           className="ml-1.5 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300"
                           title={t.issues.join("; ")}
                         >
-                          needs attention
+                          !
                         </span>
                       ) : null}
                     </td>
@@ -836,11 +685,7 @@ export default async function LandscapePage() {
                       <Chip tone={ORIGIN_TONE[t.origin]} title={ORIGIN_MEANING[t.origin]}>{ORIGIN_LABEL[t.origin]}</Chip>
                     </td>
                     <td className="px-3 py-2">
-                      {t.lifecycle ? (
-                        <Chip tone={LIFECYCLE_TONE[t.lifecycle]}>{t.lifecycle}</Chip>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">?</span>
-                      )}
+                      {t.lifecycle ? <Chip tone={LIFECYCLE_TONE[t.lifecycle]}>{t.lifecycle}</Chip> : <span className="text-xs text-muted-foreground">?</span>}
                     </td>
                     <td className="px-3 py-2">
                       <span
@@ -875,18 +720,16 @@ export default async function LandscapePage() {
             </tbody>
           </table>
         </Card>
-      </section>
+      </Section>
 
-      <p className="mt-4 text-xs text-muted-foreground">
-        Sources of record, all markdown in git:{" "}
-        <code className="rounded bg-muted px-1 py-0.5">registry/tools.md</code> (applications),{" "}
+      <p className="text-xs text-muted-foreground">
+        Sources, all markdown in git: <code className="rounded bg-muted px-1 py-0.5">registry/tools.md</code>,{" "}
         <code className="rounded bg-muted px-1 py-0.5">registry/landscape.md</code>,{" "}
-        <code className="rounded bg-muted px-1 py-0.5">registry/uns.md</code> and{" "}
-        <code className="rounded bg-muted px-1 py-0.5">registry/plants.md</code> (the plants),{" "}
-        <code className="rounded bg-muted px-1 py-0.5">landscape/tools.md</code> (added here) and each demand&apos;s{" "}
-        <code className="rounded bg-muted px-1 py-0.5">README.md</code>. An overlap here is a candidate for a{" "}
-        <Link href="/rollout" className="underline hover:text-foreground">rollout decision</Link>. Everything on this
-        page except the add form is derived; it never writes.
+        <code className="rounded bg-muted px-1 py-0.5">registry/uns.md</code>,{" "}
+        <code className="rounded bg-muted px-1 py-0.5">registry/plants.md</code>,{" "}
+        <code className="rounded bg-muted px-1 py-0.5">landscape/tools.md</code>, each demand&apos;s{" "}
+        <code className="rounded bg-muted px-1 py-0.5">README.md</code>. Every tool is a node in the{" "}
+        <Link href="/mesh?kind=application" className="underline hover:text-foreground">context mesh</Link>.
       </p>
     </main>
   );

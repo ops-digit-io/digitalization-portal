@@ -15,6 +15,7 @@
  * | process → champion | engagement owner / champion, matched to the register | free |
  * | demand → champion | the row's requester / sponsor, matched to the register | free |
  * | demand → requirement | the case's artifact list | one dir read, subject only |
+ * | demand → tool | the `- **Tools:**` line, in the scan already being done | free |
  * | anything → authored | the document's `## Related` section | one read, subject only |
  *
  * The one relation that cannot be had cheaply is **authored backlinks**: finding
@@ -31,6 +32,8 @@ import { readDemand, listArtifacts } from "./demands-store.js";
 import { getFunnelRows } from "./funnel/query.js";
 import * as processStore from "./process/store.js";
 import { parseReferences } from "./references.js";
+import { loadRegister, type LoadedRegister } from "./otx/register.js";
+import { declaredTools, resolveToolName, toolNameIndex, toolNodeId } from "./otx/consolidate.js";
 import { repoNameFor } from "./poc/scaffold.js";
 import { STAGES, type Stage } from "./types.js";
 import {
@@ -63,7 +66,7 @@ const norm = (s: string | undefined): string => (s ?? "").trim().toLowerCase();
  * Cheap, complete edges: everything the portal already knows without opening a
  * demand document. Titles come along so the UI renders names rather than ids.
  */
-async function derived(): Promise<{ edges: MeshEdge[]; titles: Map<string, string> }> {
+async function derived(register: LoadedRegister | null): Promise<{ edges: MeshEdge[]; titles: Map<string, string> }> {
   const [{ rows }, engagements, champions] = await Promise.all([
     getFunnelRows(),
     processStore.list().catch(() => []),
@@ -128,6 +131,10 @@ async function derived(): Promise<{ edges: MeshEdge[]; titles: Map<string, strin
     }
   }
 
+  // Tools are nodes too, named as the register names them, so a demand's dependency
+  // renders as "Power BI" rather than as an id.
+  for (const t of register?.entries ?? []) put({ kind: "application", id: toolNodeId(t) }, t.tool);
+
   return { edges, titles };
 }
 
@@ -172,16 +179,37 @@ export interface MeshEdges {
   title: TitleLookup;
 }
 
-async function allAuthoredEdges(): Promise<{ edges: MeshEdge[]; truncated: boolean }> {
+async function allAuthoredEdges(toolIndex: ReadonlyMap<string, string>): Promise<{
+  edges: MeshEdge[];
+  truncated: boolean;
+  titles: Map<string, string>;
+}> {
   const { rows } = await getFunnelRows();
   const scan = rows.slice(0, AUTHORED_SCAN_LIMIT);
+  const titles = new Map<string, string>();
   const found = await Promise.all(
     scan.map(async (r) => {
       const md = await readDemand(r.id).catch(() => undefined);
-      return md ? edgesFrom({ kind: "demand", id: r.id }, parseReferences(md)) : [];
+      if (!md) return [];
+      const subject: MeshRef = { kind: "demand", id: r.id };
+      // The tools this demand declares — derived from the document already open, so
+      // the dependency costs nothing extra. A name no register knows still becomes a
+      // node, titled as the demand wrote it: that is the finding, not a dead end.
+      const tools = declaredTools(md).map((name) => {
+        const id = resolveToolName(toolIndex, name);
+        if (!titles.has(`application:${id.toLowerCase()}`)) titles.set(`application:${id.toLowerCase()}`, name);
+        return {
+          from: subject,
+          to: { kind: "application" as const, id },
+          note: "builds on this tool",
+          source: "derived" as const,
+          relation: "depends-on" as const,
+        };
+      });
+      return [...edgesFrom(subject, parseReferences(md)), ...tools];
     }),
   );
-  return { edges: found.flat(), truncated: rows.length > scan.length };
+  return { edges: found.flat(), truncated: rows.length > scan.length, titles };
 }
 
 const BASE_TTL_MS = 60_000;
@@ -200,7 +228,14 @@ async function baseMeshEdges(now: number): Promise<MeshEdges> {
   if (baseCache && now - baseCache.at < BASE_TTL_MS) return baseCache.value;
   if (baseInflight) return baseInflight;
   baseInflight = (async () => {
-    const [{ edges: d, titles }, authored] = await Promise.all([derived(), allAuthoredEdges()]);
+    // The register is small and both heavy reads below need it: the derived pass to
+    // name the tool nodes, the authored scan to resolve what each demand declares.
+    const register = await loadRegister([]).catch(() => null);
+    const toolIndex = toolNameIndex(register?.entries ?? []);
+    const [{ edges: d, titles }, authored] = await Promise.all([derived(register), allAuthoredEdges(toolIndex)]);
+    // A register name wins over the spelling a demand used; anything the register
+    // does not carry keeps the demand's own words.
+    for (const [k, v] of authored.titles) if (!titles.has(k)) titles.set(k, v);
     const title: TitleLookup = (ref) => titles.get(refKey(ref));
     const value: MeshEdges = { edges: dedupeEdges([...d, ...authored.edges]), titles, truncated: authored.truncated, title };
     baseCache = { at: now, value };

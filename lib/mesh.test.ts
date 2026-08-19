@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { REFERENCE_KINDS } from "./references.js";
 import {
   edgesFrom,
   dedupeEdges,
@@ -222,5 +223,17 @@ describe("relations across the graph", () => {
     const edges: MeshEdge[] = [{ from: uc("A"), to: uc("B"), note: "just a note", source: "derived" }];
     expect(neighbourhood(edges, uc("A")).outbound[0]).not.toHaveProperty("relation");
     expect(neighbourhood(edges, uc("B")).inbound[0]).not.toHaveProperty("relation");
+  });
+});
+
+describe("byKind groups every kind the mesh can name", () => {
+  it("drops nothing — a kind absent from the display order would vanish from every panel", () => {
+    const items = REFERENCE_KINDS.map((k) => ({
+      kind: k.kind,
+      id: `${k.prefix}-1`,
+      note: "",
+      source: "derived" as const,
+    }));
+    expect(byKind(items).map((g) => g.kind).sort()).toEqual(REFERENCE_KINDS.map((k) => k.kind).sort());
   });
 });

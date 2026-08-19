@@ -211,6 +211,11 @@ export interface RiskAssessment {
   factors: RiskFactor[];
 }
 
+/** "1 use case" / "3 use cases" — the factor labels are read, not parsed. */
+function plural(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? "" : "s"}`;
+}
+
 export function riskBand(score: number): RiskBand {
   return score >= 60 ? "critical" : score >= 40 ? "high" : score >= 20 ? "elevated" : "low";
 }
@@ -238,7 +243,7 @@ export function assessRisk(
   if (ctx.origin === "use-case") {
     factors.push({
       key: "unregistered",
-      label: `Named by ${ctx.useCases.length} use case(s) and in no register — nobody owns it, nobody budgeted it.`,
+      label: `Named by ${plural(ctx.useCases.length, "use case")}, in no register`,
       weight: 30,
     });
   } else if (ctx.origin === "plant") {
@@ -252,16 +257,13 @@ export function assessRisk(
     const weight = top >= 3 ? 20 : top === 2 ? 12 : 5;
     factors.push({
       key: "off-register",
-      label:
-        top >= 3
-          ? "Runs in the plants at L3/L4 and appears in no application register — outside licence, lifecycle and security review."
-          : "Runs in the plants and appears in no application register — expected for control-level equipment, listed so nothing is invisible.",
+      label: top >= 3 ? "L3/L4 system, in no application register" : "Plant equipment, in no application register",
       weight,
     });
   } else if (ctx.origin === "manual") {
     factors.push({
       key: "unreviewed",
-      label: "Recorded in the portal, not yet reviewed into the curated register.",
+      label: "Recorded here, not yet curated into the register",
       weight: 10,
     });
   }
@@ -277,7 +279,7 @@ export function assessRisk(
     if (missing.length > 0) {
       factors.push({
         key: "unowned",
-        label: `No ${missing.join(" and no ")} owner — shadow IT: no one is accountable when it fails or renews.`,
+        label: `No ${missing.join(" or ")} owner — shadow IT`,
         weight: weightOf(missing.length === 2 ? 15 : 10),
       });
     }
@@ -286,7 +288,7 @@ export function assessRisk(
   if (isActive(t.lifecycle) && t.integration === "isolated") {
     factors.push({
       key: "island",
-      label: "Isolated — data leaves only by hand, so everything downstream is a person retyping.",
+      label: "Isolated — data leaves by hand only",
       weight: weightOf(10),
     });
   }
@@ -294,7 +296,7 @@ export function assessRisk(
   if (isRetiring(t.lifecycle) && (criticalityRank(t.criticality) >= criticalityRank("important") || (t.users ?? 0) >= 100)) {
     factors.push({
       key: "lifecycle-debt",
-      label: `Marked "${t.lifecycle}" and still load-bearing — a decision nobody executed.`,
+      label: `Marked ${t.lifecycle}, still load-bearing`,
       weight: weightOf(12),
     });
   }
@@ -304,7 +306,7 @@ export function assessRisk(
   if (t.lifecycle === "" && ctx.origin !== "plant") {
     factors.push({
       key: "undecided",
-      label: "No lifecycle decision on record — nobody has said whether this tool has a future.",
+      label: "No lifecycle decision on record",
       weight: 8,
     });
   }
@@ -312,7 +314,7 @@ export function assessRisk(
   if (ctx.overlapping) {
     factors.push({
       key: "overlap",
-      label: `Shares its capability (${t.capability}) with another tool in service — paid for twice.`,
+      label: `Overlaps another tool for ${t.capability}`,
       weight: 8,
     });
   }
@@ -321,7 +323,7 @@ export function assessRisk(
   if (blocked.length > 0) {
     factors.push({
       key: "unreadable",
-      label: `Unreadable at ${blocked.length} plant installation(s) — no interface, so every process on it is stuck at K2.2.`,
+      label: `Unreadable at ${plural(blocked.length, "plant installation")} — K2.2 blocked`,
       weight: Math.min(18, 6 * blocked.length),
     });
   }
@@ -331,7 +333,7 @@ export function assessRisk(
   if (t.annualCost === null && ctx.origin !== "plant" && (isActive(t.lifecycle) || ctx.origin !== "register")) {
     factors.push({
       key: "unbudgeted",
-      label: "No annual cost on record — it is being paid for somewhere nobody is looking.",
+      label: "No annual cost on record",
       weight: 6,
     });
   }
@@ -339,7 +341,7 @@ export function assessRisk(
   if (ctx.useCases.length > 0 && (isRetiring(t.lifecycle) || t.integration === "isolated")) {
     factors.push({
       key: "building-on-sand",
-      label: `${ctx.useCases.length} use case(s) build on a tool that is ${isRetiring(t.lifecycle) ? `marked "${t.lifecycle}"` : "isolated"}.`,
+      label: `${plural(ctx.useCases.length, "use case")} building on ${isRetiring(t.lifecycle) ? `a tool marked ${t.lifecycle}` : "an isolated tool"}`,
       weight: 12,
     });
   }
@@ -557,6 +559,59 @@ function rowFromUseCase(name: string): ToolRow {
     needsAttention: true,
     issues: ["named by a use case, in no register"],
   };
+}
+
+// ---------------------------------------------------------------- addressing
+
+/**
+ * The stable id a tool is addressed by outside this module — in the mesh, in a
+ * `## Related` line, in the URL fragment `/landscape#<id>`.
+ *
+ * The register id when the tool has one (`APP-026`), a slug of its name when it
+ * does not — a plant system and a tool named only by a use case are both real
+ * dependencies and both have to be nameable, or the graph drops exactly the rows
+ * that most need governing.
+ */
+export function toolNodeId(t: { id?: string; tool: string }): string {
+  const id = (t.id ?? "").trim();
+  if (id !== "") return id.toUpperCase();
+  return (
+    t.tool
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || "unnamed"
+  );
+}
+
+/**
+ * Every way a tool can be named → its node id: the id, the full name, and the
+ * bare name of a plant system written as `System (Vendor)`. Used to resolve what a
+ * demand declares against what the register actually holds.
+ */
+export function toolNameIndex(entries: readonly { id: string; tool: string }[]): Map<string, string> {
+  const index = new Map<string, string>();
+  for (const t of entries) {
+    const node = toolNodeId(t);
+    const add = (k: string) => {
+      const key = k.trim().toLowerCase();
+      if (key !== "" && !index.has(key)) index.set(key, node);
+    };
+    add(t.id);
+    add(t.tool);
+    add(t.tool.replace(/\s*\([^)]*\)\s*$/, "")); // "MES (Local vendor)" → "MES"
+  }
+  return index;
+}
+
+/**
+ * The node id a declared name refers to: the tool it names when the register knows
+ * it, otherwise the name's own slug — so a use case naming something nobody has
+ * registered still points at a node, which is what makes the gap visible.
+ */
+export function resolveToolName(index: ReadonlyMap<string, string>, name: string): string {
+  return index.get(name.trim().toLowerCase()) ?? toolNodeId({ tool: name });
 }
 
 // ---------------------------------------------------------------- budget

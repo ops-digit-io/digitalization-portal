@@ -21,7 +21,7 @@
  * `lib/mesh-store.ts`, so the traversal can be tested without a filesystem.
  */
 
-import { RELATION_INVERSE, type Reference, type ReferenceKind, type Relation } from "./references.js";
+import { REFERENCE_KINDS, RELATION_INVERSE, type Reference, type ReferenceKind, type Relation } from "./references.js";
 
 export type EdgeSource = "authored" | "derived";
 
@@ -156,8 +156,13 @@ function titleOf(title: TitleLookup | undefined, ref: MeshRef): { title?: string
  * Kind first (so a page groups cleanly), then id. Deliberately NOT by source:
  * a reader wants all the demands together, not the authored ones above the
  * derived ones.
+ *
+ * DERIVED from the kind registry, never a hand-kept copy of it: this list is also
+ * the filter in `byKind`, so a kind missing from it does not sort late — it
+ * disappears from every panel in the portal without a word. (It did: the first
+ * tool nodes rendered nowhere until this stopped being a literal.)
  */
-const KIND_ORDER: ReferenceKind[] = ["demand", "requirement", "process", "persona", "champion", "skill", "playbook", "repo", "department", "lane", "tool"];
+const KIND_ORDER: ReferenceKind[] = REFERENCE_KINDS.map((k) => k.kind);
 function sortNeighbours(ns: Neighbour[]): Neighbour[] {
   return [...ns].sort(
     (a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || a.id.localeCompare(b.id),

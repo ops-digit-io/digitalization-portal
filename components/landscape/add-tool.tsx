@@ -6,15 +6,13 @@ import { useRouter } from "next/navigation";
 /**
  * Record a tool by hand.
  *
- * The register's whole problem is the tool nobody wrote down, so this form asks
- * for two things and offers the rest: a name and a capability are required
- * (without a capability the tool takes part in no finding), everything else is
- * optional and comes back as a warning on the row. A half-known tool recorded
- * beats a perfect tool nobody records.
+ * Two fields are required — a name, and a capability (without one the tool takes
+ * part in no finding). Everything else is optional and comes back as a warning on
+ * the row: a half-known tool recorded beats a perfect tool nobody records.
  *
- * POSTs to `/api/landscape/tools`, which appends a row to `landscape/tools.md`
- * in git. `router.refresh()` re-renders the server page, so the new tool appears
- * in the consolidated register with its risk already scored.
+ * POSTs to `/api/landscape/tools`, which appends a row to `landscape/tools.md` in
+ * git; `router.refresh()` re-renders the page, so the tool appears in the register
+ * with its risk already scored.
  */
 
 const SCOPES = ["", "global", "regional", "plant", "local"];
@@ -100,9 +98,7 @@ export function AddTool({ capabilities, domains }: { capabilities: string[]; dom
         <div>
           <h3 className="text-sm font-semibold">Record a tool</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            A name and a capability are all that is required — a tool with no capability can be compared with nothing,
-            and every finding here works by comparison. Anything you leave blank comes back as a gap on the row, which
-            is better than the tool not being here at all. Saved as a markdown row in git.
+            Name and capability required; anything left blank shows as a gap on the row.
           </p>
         </div>
         <button onClick={() => setOpen(false)} className="text-sm text-muted-foreground hover:text-foreground">
@@ -117,7 +113,7 @@ export function AddTool({ capabilities, domains }: { capabilities: string[]; dom
         <Field label="Vendor">
           <input value={form.vendor} onChange={set("vendor")} className={inputClass} />
         </Field>
-        <Field label="Capability *" hint="The job it does. Reuse an existing one so overlaps stay visible.">
+        <Field label="Capability *" hint="Reuse an existing one so overlaps stay visible.">
           <input
             list="landscape-capabilities"
             value={form.capability}
@@ -145,7 +141,7 @@ export function AddTool({ capabilities, domains }: { capabilities: string[]; dom
             {HOSTINGS.map((s) => <option key={s} value={s}>{s || "—"}</option>)}
           </select>
         </Field>
-        <Field label="Lifecycle" hint="The decision already taken about it.">
+        <Field label="Lifecycle">
           <select value={form.lifecycle} onChange={set("lifecycle")} className={inputClass}>
             {LIFECYCLES.map((s) => <option key={s} value={s}>{s || "—"}</option>)}
           </select>
@@ -163,13 +159,13 @@ export function AddTool({ capabilities, domains }: { capabilities: string[]; dom
         <Field label="Business owner" hint="A team, never a person.">
           <input value={form.businessOwner} onChange={set("businessOwner")} className={inputClass} />
         </Field>
-        <Field label="IT owner" hint="A team, never a person.">
+        <Field label="IT owner">
           <input value={form.itOwner} onChange={set("itOwner")} className={inputClass} />
         </Field>
         <Field label="Users" hint="Approximate headcount.">
           <input value={form.users} onChange={set("users")} className={inputClass} inputMode="numeric" />
         </Field>
-        <Field label="Annual cost (€)" hint="Licence + hosting + support, per year.">
+        <Field label="Annual cost (€/yr)" hint="Licence + hosting + support.">
           <input value={form.annualCost} onChange={set("annualCost")} className={inputClass} inputMode="numeric" />
         </Field>
         <div className="sm:col-span-2">
@@ -189,7 +185,7 @@ export function AddTool({ capabilities, domains }: { capabilities: string[]; dom
         >
           {busy ? "Recording…" : "Record tool"}
         </button>
-        <span className="text-xs text-muted-foreground">Appends one row to <code>landscape/tools.md</code>.</span>
+        <span className="text-xs text-muted-foreground">One row in <code>landscape/tools.md</code>.</span>
       </div>
     </div>
   );

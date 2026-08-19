@@ -3,6 +3,9 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   assessRisk,
+  toolNodeId,
+  toolNameIndex,
+  resolveToolName,
   budget,
   consolidate,
   declaredTools,
@@ -190,8 +193,12 @@ describe("risk is derived from the register's own facts", () => {
     const keys = r.factors.map((f) => f.key);
     expect(keys).toEqual(expect.arrayContaining(["unowned", "island", "lifecycle-debt", "overlap"]));
     expect(r.band).toBe("critical");
-    // Every factor explains itself — the surface renders these verbatim.
-    for (const f of r.factors) expect(f.label.length).toBeGreaterThan(20);
+    // Every factor explains itself in a phrase short enough to scan in a table —
+    // the surface renders these verbatim, one per line.
+    for (const f of r.factors) {
+      expect(f.label.length).toBeGreaterThan(10);
+      expect(f.label.length).toBeLessThan(60);
+    }
   });
 
   it("scores a healthy, owned, integrated tool at zero", () => {
@@ -237,7 +244,7 @@ describe("risk is derived from the register's own facts", () => {
       useCases: [],
       overlapping: false,
     });
-    expect(r.factors.find((f) => f.key === "unreadable")!.label).toContain("2 plant installation(s)");
+    expect(r.factors.find((f) => f.key === "unreadable")!.label).toContain("2 plant installations");
   });
 
   it("flags a use case built on a tool that is on its way out", () => {
@@ -324,5 +331,39 @@ describe("the consolidated register, over the shipped masters", () => {
     expect(consolidate({ register: [] })).toEqual([]);
     expect(consolidate({ register: parseTools(undefined), systems: parseLandscape("nonsense") })).toEqual([]);
     expect(summariseConsolidated([]).meanRisk).toBeNull();
+  });
+});
+
+describe("addressing a tool from outside the register", () => {
+  it("uses the register id when there is one, a slug when there is not", () => {
+    expect(toolNodeId({ id: "APP-026", tool: "Power BI" })).toBe("APP-026");
+    expect(toolNodeId({ id: "", tool: "UNS broker (HiveMQ)" })).toBe("uns-broker-hivemq");
+    expect(toolNodeId({ id: "", tool: "" })).toBe("unnamed");
+  });
+
+  it("resolves a declared name by id, by full name, and by the name without its vendor", () => {
+    const index = toolNameIndex([
+      { id: "APP-026", tool: "Power BI" },
+      { id: "", tool: "UNS broker (HiveMQ)" },
+    ]);
+    expect(resolveToolName(index, "power bi")).toBe("APP-026");
+    expect(resolveToolName(index, "APP-026")).toBe("APP-026");
+    expect(resolveToolName(index, "UNS broker")).toBe("uns-broker-hivemq");
+  });
+
+  it("gives an unknown name its own node rather than dropping it", () => {
+    // The whole point: a tool no register knows still has to be addressable, or the
+    // gap the consolidation exists to show has nowhere to live.
+    expect(resolveToolName(toolNameIndex([]), "Senseye Predictive Maintenance")).toBe("senseye-predictive-maintenance");
+  });
+
+  it("agrees with the ids consolidate() produces", () => {
+    const entries = consolidate({
+      register: [tool({ id: "APP-026", tool: "Power BI", capability: "BI / analytics", lifecycle: "invest" })],
+      demands: [demand("UC-1", "## State\n\n- **Tools:** Power BI, Miro\n")],
+    });
+    const index = toolNameIndex(entries);
+    expect(resolveToolName(index, "Power BI")).toBe("APP-026");
+    expect(resolveToolName(index, "Miro")).toBe(toolNodeId(entries.find((e) => e.tool === "Miro")!));
   });
 });
