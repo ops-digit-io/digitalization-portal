@@ -23,6 +23,7 @@ const answers: DemandAnswers = {
   affectedProcess: "Coating line, quality.",
   frequencyScale: "2-3 shifts a week.",
   constraints: "PLC exposes temperature tags.",
+  tools: "Critical Manufacturing MES, Power BI",
   plant: "DE-ALD",
   domain: "quality",
   requester: "m.keller@example.com",
@@ -56,6 +57,22 @@ describe("buildDemand", () => {
     expect(p.state.plant).toBe("DE-ALD");
     expect(p.state.domain).toBe("quality");
     expect(p.title).toContain("Predictive scrap alerts");
+  });
+});
+
+describe("the tools a demand declares", () => {
+  it("renders them as a `## State` key the landscape reads", () => {
+    expect(buildDemand(meta, answers)).toContain("- **Tools:** Critical Manufacturing MES, Power BI");
+  });
+
+  it("keeps the demand readable by the use-case parser — an unknown State key is preserved, not an error", () => {
+    const p = parseUseCase(buildDemand(meta, answers));
+    expect(p.needsAttention).toBe(false);
+    expect(p.state.raw["tools"]).toBe("Critical Manufacturing MES, Power BI");
+  });
+
+  it("round-trips through the Markdown tool", () => {
+    expect(parseDemandToAnswers(buildDemand(meta, answers)).tools).toBe("Critical Manufacturing MES, Power BI");
   });
 });
 

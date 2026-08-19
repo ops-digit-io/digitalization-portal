@@ -52,7 +52,7 @@ export const REPO_DEFS: readonly RepoDef[] = [
   { key: "templates", env: "TEMPLATES_REPO", default: "du-templates", purpose: "Artefact templates — the shape of produced documents." },
   { key: "specifications", env: "SPECIFICATIONS_REPO", default: "du-specifications", purpose: "Specification documents surfaced by /docs." },
   { key: "organization", env: "ORGANIZATION_REPO", default: "du-organization-context", purpose: "Department OS — the organization-context layer." },
-  { key: "processes", env: "PROCESS_REPO", default: "du-processes", purpose: "Process diagnoses (engagements)." },
+  { key: "processes", env: "PROCESS_REPO", default: "du-processes", purpose: "Process diagnoses (engagements); also tools added by hand in the landscape." },
   { key: "champions", env: "CHAMPION_REPO", fallbackEnv: ["PROCESS_REPO"], default: "du-processes", purpose: "Digital champions register." },
   { key: "personas", env: "PERSONA_REPO", fallbackEnv: ["PROCESS_REPO"], default: "du-processes", purpose: "Persona library." },
   { key: "templatesConfig", env: "TEMPLATES_CONFIG_REPO", fallbackEnv: ["PROCESS_REPO"], default: "du-processes", purpose: "Custom PoC-template registrations." },

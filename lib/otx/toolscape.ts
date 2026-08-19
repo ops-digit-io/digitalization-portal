@@ -95,6 +95,8 @@ export interface ToolRow {
   itOwner: string;
   users: number | null;
   criticality: Criticality | "";
+  /** Annual run cost in EUR — the budget half of "every tool is a risk or a cost". */
+  annualCost: number | null;
   notes: string;
   needsAttention: boolean;
   issues: string[];
@@ -168,6 +170,15 @@ export function parseTools(md: string | undefined): ToolRow[] {
       const users = rawUsers === "" ? null : Number.isFinite(Number(rawUsers)) ? Number(rawUsers) : null;
       if (users === null && rawUsers !== "") issues.push(`unreadable user count "${r.get("Users")}"`);
 
+      // Budget. A tool nobody has costed is not free — it is unbudgeted, which is
+      // its own finding, so an absent figure is `null` and says so rather than 0.
+      const rawCost = r.get("Annual cost").replace(/[\s,._€]/g, "");
+      const annualCost = rawCost === "" ? null : Number.isFinite(Number(rawCost)) ? Number(rawCost) : null;
+      if (annualCost === null && rawCost !== "") issues.push(`unreadable annual cost "${r.get("Annual cost")}"`);
+      // An ABSENT figure is not a parse issue — it is the "unbudgeted" risk factor
+      // (`lib/otx/consolidate.ts`), where it belongs. `needsAttention` stays what it
+      // has always been: something in the row could not be read.
+
       return {
         id,
         tool,
@@ -182,6 +193,7 @@ export function parseTools(md: string | undefined): ToolRow[] {
         itOwner: r.get("IT owner"),
         users,
         criticality,
+        annualCost,
         notes: r.get("Notes"),
         needsAttention: issues.length > 0,
         issues,
@@ -416,4 +428,148 @@ export function summariseTools(tools: readonly ToolRow[]): ToolscapeSummary {
           ),
     needsAttention: tools.filter((t) => t.needsAttention).length,
   };
+}
+
+// ---------------------------------------------------------------- writing
+
+/**
+ * The register's column contract, in order. ONE definition, used to parse
+ * (`registry/tools.md`'s header), to render a manually added tool back to
+ * markdown, and to tell a form which fields exist — so the three can never
+ * disagree about what a tool row is.
+ */
+export const TOOL_COLUMNS = [
+  "ID", "Tool", "Vendor", "Capability", "Domain", "Scope", "Hosting", "Lifecycle",
+  "Integration", "Business owner", "IT owner", "Users", "Criticality", "Annual cost", "Notes",
+] as const;
+
+/** A blank row — every field empty, nothing invented. */
+export function emptyToolRow(): ToolRow {
+  return {
+    id: "", tool: "", vendor: "", capability: "", domain: "", scope: "", hosting: "",
+    lifecycle: "", integration: "", businessOwner: "", itOwner: "", users: null,
+    criticality: "", annualCost: null, notes: "", needsAttention: false, issues: [],
+  };
+}
+
+/** Table cells must not carry `|` or newlines, or the row would break the table. */
+function cellSafe(v: string): string {
+  return v.replace(/\r?\n/g, " ").replace(/\|/g, "/").trim();
+}
+
+/** One markdown table row, in `TOOL_COLUMNS` order. */
+function toolRowMarkdown(t: ToolRow): string {
+  const v = [
+    t.id, t.tool, t.vendor, t.capability, t.domain, t.scope, t.hosting, t.lifecycle,
+    t.integration, t.businessOwner, t.itOwner,
+    t.users === null ? "" : String(t.users),
+    t.criticality,
+    t.annualCost === null ? "" : String(t.annualCost),
+    t.notes,
+  ].map((x) => cellSafe(String(x ?? "")));
+  return `| ${v.join(" | ")} |`;
+}
+
+/**
+ * Render tools as a markdown table under a heading — the format the portal WRITES
+ * when a tool is added by hand, and the same format `parseTools` reads. The
+ * register stays markdown in git either way (constraint #4): a tool added in the
+ * portal is a diff a human can review, not a database row nobody sees.
+ */
+export function serialiseTools(tools: readonly ToolRow[], intro: string): string {
+  const header = `| ${TOOL_COLUMNS.join(" | ")} |`;
+  const sep = `|${TOOL_COLUMNS.map(() => "---").join("|")}|`;
+  return `${intro.trimEnd()}\n\n${header}\n${sep}\n${tools.map(toolRowMarkdown).join("\n")}\n`;
+}
+
+/** The next free `APP-NNN` id, given every id already taken across all sources. */
+export function nextToolId(existing: readonly string[], prefix = "APP"): string {
+  const re = new RegExp(`^${prefix}-(\\d+)$`, "i");
+  const max = existing.reduce((m, id) => {
+    const n = Number(re.exec(id.trim())?.[1] ?? NaN);
+    return Number.isFinite(n) && n > m ? n : m;
+  }, 0);
+  return `${prefix}-${String(max + 1).padStart(3, "0")}`;
+}
+
+export interface ToolValidation {
+  ok: boolean;
+  errors: string[];
+  /** Readable but questionable — saved anyway, shown next to the row. */
+  warnings: string[];
+  row: ToolRow;
+}
+
+const ONE_OF = <T extends string>(allowed: readonly T[], raw: string): T | "" =>
+  ((allowed as readonly string[]).includes(raw.trim().toLowerCase()) ? (raw.trim().toLowerCase() as T) : "");
+
+/**
+ * Validate and normalise a tool submitted from the portal.
+ *
+ * REFUSES only what makes the row useless: no name, or a capability missing —
+ * without a capability the tool takes part in no finding, which is the one thing
+ * this register exists to produce. Everything else is a WARNING that travels with
+ * the row, because a half-known tool recorded is worth more than a perfect tool
+ * nobody wrote down.
+ */
+export function validateTool(input: Record<string, unknown>, id: string): ToolValidation {
+  const str = (k: string): string => (typeof input[k] === "string" ? (input[k] as string).trim() : "");
+  const num = (k: string): number | null => {
+    const raw = typeof input[k] === "number" ? String(input[k]) : str(k).replace(/[\s,._€]/g, "");
+    if (raw === "") return null;
+    return Number.isFinite(Number(raw)) ? Number(raw) : null;
+  };
+
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  const tool = str("tool");
+  if (tool === "") errors.push("A tool needs a name.");
+  const capability = str("capability");
+  if (capability === "") {
+    errors.push("A tool needs a capability — without one it can be compared with nothing, and every finding here works by comparison.");
+  }
+
+  const scope = ONE_OF(SCOPES, str("scope"));
+  if (scope === "") warnings.push(`Scope is not one of ${SCOPES.join(" · ")} — left blank.`);
+  const hosting = ONE_OF(HOSTINGS, str("hosting"));
+  if (hosting === "") warnings.push(`Hosting is not one of ${HOSTINGS.join(" · ")} — left blank.`);
+  const lifecycle = ONE_OF(LIFECYCLES, str("lifecycle"));
+  if (lifecycle === "") warnings.push(`Lifecycle is not one of ${LIFECYCLES.join(" · ")} — left blank.`);
+  const integration = ONE_OF(TOOL_INTEGRATIONS, str("integration"));
+  if (integration === "") warnings.push(`Integration is not one of ${TOOL_INTEGRATIONS.join(" · ")} — left blank.`);
+  const criticality = ONE_OF(CRITICALITIES, str("criticality"));
+  if (criticality === "") warnings.push(`Criticality is not one of ${CRITICALITIES.join(" · ")} — left blank.`);
+
+  const users = num("users");
+  const annualCost = num("annualCost");
+  if (annualCost === null) warnings.push("No annual cost — the tool will show as unbudgeted.");
+  const businessOwner = str("businessOwner");
+  const itOwner = str("itOwner");
+  if (businessOwner === "" || itOwner === "") warnings.push("An owner is missing — the tool will show as shadow IT.");
+
+  const row: ToolRow = {
+    id: id.trim(),
+    tool,
+    vendor: str("vendor"),
+    capability,
+    domain: str("domain"),
+    scope,
+    hosting,
+    lifecycle,
+    integration,
+    businessOwner,
+    itOwner,
+    users,
+    criticality,
+    annualCost,
+    notes: str("notes"),
+    needsAttention: false,
+    issues: [],
+  };
+  // The row carries its own warnings, exactly as a malformed markdown row does.
+  row.issues = warnings;
+  row.needsAttention = warnings.length > 0;
+
+  return { ok: errors.length === 0, errors, warnings, row };
 }

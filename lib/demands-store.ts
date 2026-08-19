@@ -228,6 +228,25 @@ export function demandRowFromMarkdown(id: string, md: string): RegistryRow {
   };
 }
 
+/**
+ * Every demand as `{ id, title, markdown }` — the raw record, for readers that
+ * need the text rather than the parsed state.
+ *
+ * The tool landscape is the first: a demand names the systems it builds on, and
+ * that reference is what puts a tool on the register (`lib/otx/consolidate.ts`).
+ * Same bounded fan-out as `listDemandRows`; an unreadable case is skipped, never
+ * thrown.
+ */
+export async function listDemandDocs(baseDir = root()): Promise<{ id: string; title: string; markdown: string }[]> {
+  const ids = await listDemandIds(baseDir);
+  const docs = await mapPool(ids, FETCH_CONCURRENCY, async (id) => {
+    const md = await readDemand(id, baseDir).catch(() => undefined);
+    if (md === undefined) return null;
+    return { id, title: demandTitle(parseUseCase(md), id), markdown: md };
+  });
+  return docs.filter((d): d is { id: string; title: string; markdown: string } => d !== null);
+}
+
 export async function listDemandRows(baseDir = root()): Promise<RegistryRow[]> {
   const ids = await listDemandIds(baseDir);
   // Fan out per-case reads with bounded concurrency (was a serial N+1 loop).

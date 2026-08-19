@@ -112,13 +112,10 @@ export function demandPlaybookEdges(demandId: string, stage: Stage | undefined, 
 const TOOL_PIPELINE: readonly [string, string][] = [
   ["org", "process"],
   // The landscape sits beside the process funnel: the funnel diagnoses a process,
-  // the landscape diagnoses the systems it stands on. A K2.2 knockout in the
-  // funnel names a system here, which is why the two feed each other.
-  // The enterprise application portfolio sits ABOVE the OT landscape: a plant
-  // system is one slice of it, and an overlap here is a rollout decision there.
-  ["org", "tool-landscape"],
-  ["tool-landscape", "landscape"],
-  ["tool-landscape", "rollout"],
+  // the landscape diagnoses the tools it stands on. A K2.2 knockout in the funnel
+  // names a system there, which is why the two feed each other. It is ONE register
+  // now — the enterprise portfolio, the plant systems beneath it and the tools a
+  // use case declares — so it is one node here too.
   ["org", "landscape"],
   ["landscape", "process"],
   // A blocked system becomes a wave's blocker; an adopted technology becomes a

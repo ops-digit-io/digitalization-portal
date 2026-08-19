@@ -90,6 +90,8 @@ export interface DemandAnswers {
   affectedProcess: string;
   frequencyScale: string;
   constraints: string;
+  /** Tools & systems the demand touches, comma-separated. Feeds the tool landscape. */
+  tools: string;
   plant: string;
   domain: string;
   requester: string;
@@ -97,7 +99,7 @@ export interface DemandAnswers {
 
 export const EMPTY_ANSWERS: DemandAnswers = {
   title: "", problem: "", currentPain: "", desiredOutcome: "",
-  affectedProcess: "", frequencyScale: "", constraints: "",
+  affectedProcess: "", frequencyScale: "", constraints: "", tools: "",
   plant: "", domain: "", requester: "",
 };
 
@@ -144,10 +146,20 @@ export const INTAKE_FIELDS: readonly DemandField[] = [
     placeholder: "_No frequency/scale captured._",
   },
   {
-    key: "constraints", label: "Systems, data & history", group: GROUP_SCOPE, input: "textarea", section: "Constraints & context", required: false,
-    question: "Any systems, data, or earlier attempts we should know about?",
-    hint: "Tools involved, data that exists, anything already tried.",
+    key: "constraints", label: "Constraints & history", group: GROUP_SCOPE, input: "textarea", section: "Constraints & context", required: false,
+    question: "Any constraints, data, or earlier attempts we should know about?",
+    hint: "Data that exists, what has been tried, what is not allowed. Name the tools themselves in the next field.",
     placeholder: "_None captured._",
+  },
+  {
+    // Free text, comma-separated, deliberately NOT a picker: the tool a demand is
+    // about is often the one no register has heard of, and a picker would make it
+    // unnameable. The landscape matches what it can and lists the rest as tools
+    // named by a use case and registered nowhere (`lib/otx/consolidate.ts`).
+    key: "tools", label: "Tools & systems", group: GROUP_SCOPE, input: "text", section: null, required: false,
+    question: "Which tools or systems does this touch?",
+    hint: "Comma-separated, by name — SAP S/4HANA, Power BI, the line's SCADA. Every one becomes a row on the tool landscape.",
+    placeholder: "",
   },
   {
     key: "plant", label: "Plant", group: GROUP_CLASSIFY, input: "select", options: PLANTS, section: null, required: true,
@@ -218,6 +230,7 @@ export function buildDemand(meta: DemandMeta, answers: DemandAnswers): string {
 - **Status:** active
 - **Plant:** ${stateVal(answers.plant)}
 - **Domain:** ${stateVal(answers.domain)}
+- **Tools:** ${stateVal(answers.tools)}
 - **Created:** ${meta.createdOn}
 - **Intake:** complete
 
@@ -289,6 +302,9 @@ export function parseDemandToAnswers(markdown: string): DemandAnswers {
 
   out.plant = p.state.plant ?? "";
   out.domain = p.state.domain ?? "";
+  // An unknown `## State` key is preserved by the parser, which is why declaring
+  // tools needed no parser change (`docs/BUILD.md`, the markdown parser section).
+  out.tools = (p.state.raw["tools"] ?? "").trim();
 
   const req = markdown.match(/\|\s*Requester\s*\|([^|\n]*)\|/i)?.[1]?.trim() ?? "";
   out.requester = req.includes("<!--") ? "" : req;
