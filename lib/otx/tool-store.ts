@@ -232,3 +232,56 @@ export async function undecideRisk(tool: string, factor: string): Promise<{ ok: 
   await write(RISK_FILE, serialiseRiskAdjustments(rest, RISK_INTRO), `Landscape: undo risk decision on ${tool}`);
   return { ok: true, removed: all.length - rest.length };
 }
+
+export interface RemoveToolResult {
+  ok: boolean;
+  errors: string[];
+  /** What went with it: the row, plus any edits and risk decisions it carried. */
+  removed?: { tool: string; overrides: number; adjustments: number };
+}
+
+/**
+ * Remove a tool that was added HERE.
+ *
+ * Only rows in `landscape/tools.md` can go: a tool in the shipped master or a
+ * system in the plant survey is not the portal's to delete — the way to retire one
+ * of those is a lifecycle decision on the row, which is a fact about the tool
+ * rather than a hole in the record. Anything the removed tool carried (its edits,
+ * its risk decisions) goes with it, so nothing is left pointing at a tool that no
+ * longer exists.
+ */
+export async function removeTool(node: string): Promise<RemoveToolResult> {
+  const key = node.trim().toLowerCase();
+  if (key === "") return { ok: false, errors: ["Which tool?"] };
+
+  const tools = await listManualTools();
+  const gone = tools.find((t) => t.id.trim().toLowerCase() === key || t.tool.trim().toLowerCase() === key);
+  if (!gone) {
+    return {
+      ok: false,
+      errors: ["Only a tool added in the portal can be removed here. Mark the others `eliminate` instead — that is a decision, not a deletion."],
+    };
+  }
+
+  const [overrides, adjustments] = await Promise.all([listOverrides(), listRiskAdjustments()]);
+  const keptOverrides = [...overrides.values()].filter((o) => o.tool.trim().toLowerCase() !== key);
+  const keptAdjustments = adjustments.filter((a) => a.tool.trim().toLowerCase() !== key);
+
+  await write(FILE, serialiseTools(tools.filter((t) => t !== gone), INTRO), `Landscape: remove ${gone.tool}`);
+  if (keptOverrides.length !== overrides.size) {
+    await write(OVERRIDES_FILE, serialiseOverrides(keptOverrides, OVERRIDES_INTRO), `Landscape: drop edits for ${gone.tool}`);
+  }
+  if (keptAdjustments.length !== adjustments.length) {
+    await write(RISK_FILE, serialiseRiskAdjustments(keptAdjustments, RISK_INTRO), `Landscape: drop risk decisions for ${gone.tool}`);
+  }
+
+  return {
+    ok: true,
+    errors: [],
+    removed: {
+      tool: gone.tool,
+      overrides: overrides.size - keptOverrides.length,
+      adjustments: adjustments.length - keptAdjustments.length,
+    },
+  };
+}

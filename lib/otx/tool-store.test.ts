@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import {
   addTool,
   editTool,
+  removeTool,
   decideRisk,
   undecideRisk,
   listManualTools,
@@ -169,5 +170,37 @@ describe("risk decisions", () => {
     expect((await undecideRisk("APP-009", "EOL 2027")).removed).toBe(1);
     expect(await listRiskAdjustments()).toEqual([]);
     expect((await undecideRisk("APP-009", "EOL 2027")).ok).toBe(false);
+  });
+});
+
+describe("removing a tool the portal added", () => {
+  it("takes the row, its edits and its risk decisions with it", async () => {
+    const added = await addTool({ tool: "Miro", capability: "Whiteboarding" });
+    const id = added.tool!.id;
+    await editTool(id, { annualCost: "18000" }, actor);
+    await decideRisk({ tool: id, action: "add", factor: "Trial ends 2027", weight: 10, reason: "Pilot licence" }, actor);
+
+    const res = await removeTool(id);
+    expect(res.ok).toBe(true);
+    expect(res.removed).toEqual({ tool: "Miro", overrides: 1, adjustments: 1 });
+    expect(await listManualTools()).toEqual([]);
+    expect((await listOverrides()).size).toBe(0);
+    expect(await listRiskAdjustments()).toEqual([]);
+  });
+
+  it("finds the row by name as well as by id", async () => {
+    await addTool({ tool: "Miro", capability: "Whiteboarding" });
+    expect((await removeTool("miro")).ok).toBe(true);
+    expect(await listManualTools()).toEqual([]);
+  });
+
+  it("refuses a tool it did not write — those are retired by a lifecycle decision", async () => {
+    const res = await removeTool("APP-999");
+    expect(res.ok).toBe(false);
+    expect(res.errors.join(" ")).toContain("eliminate");
+  });
+
+  it("refuses an empty id", async () => {
+    expect((await removeTool("  ")).ok).toBe(false);
   });
 });

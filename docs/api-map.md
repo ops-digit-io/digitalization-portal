@@ -47,7 +47,7 @@ graph LR
   end
   subgraph landscape["/api/landscape"]
     _api_landscape_risk["/risk<br/><i>GET POST DELETE</i>"]
-    _api_landscape_tools["/tools<br/><i>GET POST PATCH</i>"]
+    _api_landscape_tools["/tools<br/><i>GET POST PATCH DELETE</i>"]
   end
   subgraph mesh["/api/mesh"]
     _api_mesh_graph["/graph<br/><i>GET</i>"]
@@ -143,7 +143,7 @@ graph LR
 | `/api/intake/similar` | GET | `app/api/intake/similar/route.ts` |
 | `/api/intake/turn` | POST | `app/api/intake/turn/route.ts` |
 | `/api/landscape/risk` | GET, POST, DELETE | `app/api/landscape/risk/route.ts` |
-| `/api/landscape/tools` | GET, POST, PATCH | `app/api/landscape/tools/route.ts` |
+| `/api/landscape/tools` | GET, POST, PATCH, DELETE | `app/api/landscape/tools/route.ts` |
 | `/api/mesh/graph` | GET | `app/api/mesh/graph/route.ts` |
 | `/api/mesh` | GET | `app/api/mesh/route.ts` |
 | `/api/model-settings` | GET, POST | `app/api/model-settings/route.ts` |

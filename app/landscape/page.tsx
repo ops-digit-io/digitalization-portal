@@ -29,6 +29,8 @@ import {
 } from "@/lib/otx/consolidate";
 import { AddTool } from "@/components/landscape/add-tool";
 import { RiskDecision, UndoRiskDecision } from "@/components/landscape/risk-decision";
+import { ToolRisk } from "@/components/landscape/tool-risk";
+import { RemoveTool } from "@/components/landscape/remove-tool";
 import {
   Chip,
   Stat,
@@ -343,9 +345,18 @@ export default async function LandscapePage() {
               </thead>
               <tbody>
                 {gaps.map((t) => (
-                  <tr key={`${t.origin}-${t.tool}`} className="border-b last:border-0">
+                  <tr key={`${t.origin}-${t.tool}`} className="border-b align-top last:border-0">
                     <td className="px-3 py-2">
                       <Link href={meshHref(t)} className="font-medium hover:underline">{t.tool}</Link>
+                      {canAdd ? (
+                        <span className="ml-1.5">
+                          <AddTool
+                            capabilities={capabilityNames}
+                            domains={domainNames}
+                            edit={{ node: t.node, label: t.tool, values: editValues(t) }}
+                          />
+                        </span>
+                      ) : null}
                     </td>
                     <td className="px-3 py-2">
                       <Chip tone={ORIGIN_TONE[t.origin]} title={ORIGIN_MEANING[t.origin]}>{ORIGIN_LABEL[t.origin]}</Chip>
@@ -354,7 +365,15 @@ export default async function LandscapePage() {
                       {t.plants.length > 0 ? t.plants.join(", ") : t.useCases.map((u) => u.id).join(", ") || "—"}
                     </td>
                     <td className="px-3 py-2 text-right">
-                      <Chip tone={RISK_TONE[t.risk.band]}>{t.risk.score}</Chip>
+                      <ToolRisk
+                        node={t.node}
+                        label={t.tool}
+                        score={t.risk.score}
+                        tone={RISK_TONE[t.risk.band]}
+                        factors={t.risk.factors}
+                        accepted={t.risk.accepted}
+                        canDecide={canAdd}
+                      />
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
                       {t.itOwner || t.businessOwner || <span className="text-rose-600 dark:text-rose-400">nobody</span>}
@@ -676,7 +695,7 @@ export default async function LandscapePage() {
 
       <Section
         title="The register"
-        hint={`${summary.entries} tools · ${summary.installations} plant installations · ${summary.manual} added here · ${summary.fromUseCases} from use cases · edit any row`}
+        hint={`${summary.entries} tools · ${summary.installations} plant installations · ${summary.manual} added here · ${summary.fromUseCases} from use cases. Edit any row; open a score to decide about its risk.`}
       >
         <Card className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -729,6 +748,11 @@ export default async function LandscapePage() {
                           />
                         </span>
                       ) : null}
+                      {canAdd && t.origin === "manual" ? (
+                        <span className="ml-1.5">
+                          <RemoveTool node={t.node} label={t.tool} />
+                        </span>
+                      ) : null}
                     </td>
                     <td className="px-3 py-2 text-xs">{t.capability || "—"}</td>
                     <td className="px-3 py-2">
@@ -761,9 +785,15 @@ export default async function LandscapePage() {
                     <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{t.users ?? "—"}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{eur(t.annualCost)}</td>
                     <td className="px-3 py-2 text-right">
-                      <Chip tone={RISK_TONE[t.risk.band]} title={t.risk.factors.map((f) => f.label).join(" ")}>
-                        {t.risk.score}
-                      </Chip>
+                      <ToolRisk
+                        node={t.node}
+                        label={t.tool}
+                        score={t.risk.score}
+                        tone={RISK_TONE[t.risk.band]}
+                        factors={t.risk.factors}
+                        accepted={t.risk.accepted}
+                        canDecide={canAdd}
+                      />
                     </td>
                   </tr>
                 ))}

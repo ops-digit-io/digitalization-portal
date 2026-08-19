@@ -3,7 +3,7 @@ import { can } from "@/lib/rbac";
 import { getSession } from "@/lib/auth/current";
 import { readRegistry } from "@/lib/otx/source";
 import { parseTools } from "@/lib/otx/toolscape";
-import { addTool, editTool } from "@/lib/otx/tool-store";
+import { addTool, editTool, removeTool } from "@/lib/otx/tool-store";
 import { budget, summariseConsolidated } from "@/lib/otx/consolidate";
 import { loadRegister } from "@/lib/otx/register";
 
@@ -25,6 +25,10 @@ export const dynamic = "force-dynamic";
  * PATCH works on ANY tool, including rows from files the portal cannot write: the
  * edit is an overlay keyed by the tool's node id, applied over the source at read
  * time. Only the fields posted are changed.
+ *
+ * DELETE removes a tool added here, and only that: a row in the shipped master or
+ * a system in the plant survey is retired by a lifecycle decision on it, which is
+ * a fact about the tool rather than a hole in the record.
  */
 export async function GET() {
   const session = await getSession();
@@ -65,4 +69,16 @@ export async function PATCH(req: Request) {
   if (!res.ok) return NextResponse.json({ error: res.errors.join(" "), errors: res.errors }, { status: 400 });
 
   return NextResponse.json({ override: res.override });
+}
+
+export async function DELETE(req: Request) {
+  const session = await getSession();
+  if (!can(session, "draft")) return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
+
+  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const node = typeof body.tool === "string" ? body.tool : "";
+  const res = await removeTool(node);
+  if (!res.ok) return NextResponse.json({ error: res.errors.join(" "), errors: res.errors }, { status: 400 });
+
+  return NextResponse.json({ removed: res.removed });
 }

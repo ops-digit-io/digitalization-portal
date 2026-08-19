@@ -25,14 +25,17 @@ export function RiskDecision({
   node,
   label,
   factors,
+  /** Skip the "adjust" step — for callers that ARE the risk view already. */
+  defaultOpen = false,
 }: {
   node: string;
   label: string;
   /** The derived factors currently counting on this tool. */
   factors: { key: string; label: string }[];
+  defaultOpen?: boolean;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [action, setAction] = useState<"accept" | "add">(factors.length > 0 ? "accept" : "add");
   const [factor, setFactor] = useState(factors[0]?.key ?? "");
   const [name, setName] = useState("");
@@ -61,7 +64,7 @@ export function RiskDecision({
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       setReason("");
       setName("");
-      setOpen(false);
+      setOpen(defaultOpen);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -80,7 +83,7 @@ export function RiskDecision({
 
   const input = "h-8 rounded-md border bg-background px-2 text-xs";
   return (
-    <div className="mt-1 w-64 rounded-md border bg-card p-2.5">
+    <div className={defaultOpen ? "mt-2 border-t pt-2" : "mt-1 w-64 rounded-md border bg-card p-2.5"}>
       <div className="mb-2 flex gap-1 text-xs">
         {(["accept", "add"] as const).map((a) => (
           <button
@@ -135,9 +138,11 @@ export function RiskDecision({
         >
           {busy ? "Saving…" : "Record"}
         </button>
-        <button onClick={() => setOpen(false)} className="text-xs text-muted-foreground hover:text-foreground">
-          Cancel
-        </button>
+        {defaultOpen ? null : (
+          <button onClick={() => setOpen(false)} className="text-xs text-muted-foreground hover:text-foreground">
+            Cancel
+          </button>
+        )}
       </div>
     </div>
   );
