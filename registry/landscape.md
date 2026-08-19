@@ -7,6 +7,15 @@ travelled towards the Unified Namespace.
 > Illustrative inventory, seeded to exercise the model end to end. Replace with
 > the real per-site survey; the columns are the contract.
 
+This file is the OT half of ONE register: `/landscape` consolidates it with
+`registry/tools.md`, with tools added in the portal (`landscape/tools.md`) and with
+the tools use cases declare. A system that matches a registered tool becomes that
+tool's installation here; a system that matches nothing becomes a row of its own —
+running in a plant, in no application register.
+
+A row with **no vendor and no role** records an ABSENCE ("no historian on site"),
+not a system. It stays a per-plant gap and never becomes a tool.
+
 **`Integration` is ordinal** — `none` → `file-export` → `point-to-point` →
 `broker-published` → `uns-modelled`. Per-plant UNS maturity is *derived* from this
 column (`lib/otx/landscape.ts`), never stored, so it cannot drift from the rows.

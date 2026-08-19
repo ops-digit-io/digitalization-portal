@@ -7,6 +7,7 @@
 - **Status:** parked
 - **Plant:** SK-PUC
 - **Domain:** procurement
+- **Tools:** Coupa, SAP Ariba, Jira
 - **Level:** L1
 - **Heat:** low
 - **Scale potential:** local

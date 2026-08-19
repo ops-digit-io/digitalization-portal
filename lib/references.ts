@@ -48,7 +48,8 @@ export type ReferenceKind =
   | "repo"
   | "department"
   | "lane"
-  | "tool";
+  | "tool"
+  | "application";
 
 /**
  * How two artifacts relate.
@@ -198,8 +199,21 @@ export const REFERENCE_KINDS: readonly ReferenceKindDef[] = [
     // and the node links back to the launchpad.
     kind: "tool",
     prefix: "tool",
-    label: "Tool",
+    label: "Portal tool",
     href: () => `/`,
+  },
+  {
+    // A tool the COMPANY runs — an application, a plant system, anything on the
+    // consolidated register (`/landscape`). Distinct from `tool` above, which is a
+    // page of this portal. Its id is the register id (`APP-001`) when it has one and
+    // a slug of its name when it does not, so a plant system and a tool named only by
+    // a use case are addressable too. A demand may author `app:APP-026` in its
+    // `## Related`; the intake's `- **Tools:**` line derives the same edge.
+    kind: "application",
+    prefix: "app",
+    label: "Tool",
+    bareId: /^APP-\d{3,}$/i,
+    href: (id) => `/landscape#${encodeURIComponent(id)}`,
   },
 ];
 

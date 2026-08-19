@@ -23,6 +23,8 @@ import * as processStore from "./process/store.js";
 import { listDepartments } from "./org/store.js";
 import { listLanes } from "./org/lane-store.js";
 import { ALL_TILES } from "./launchpad.js";
+import { loadRegister } from "./otx/register.js";
+import { declaredTools, resolveToolName, toolNameIndex, toolNodeId, type ToolEntry } from "./otx/consolidate.js";
 import { mapPool } from "./pool.js";
 import { STAGES, type Stage } from "./types.js";
 import type { MeshDocument } from "./mesh-graph.js";
@@ -112,13 +114,10 @@ export function demandPlaybookEdges(demandId: string, stage: Stage | undefined, 
 const TOOL_PIPELINE: readonly [string, string][] = [
   ["org", "process"],
   // The landscape sits beside the process funnel: the funnel diagnoses a process,
-  // the landscape diagnoses the systems it stands on. A K2.2 knockout in the
-  // funnel names a system here, which is why the two feed each other.
-  // The enterprise application portfolio sits ABOVE the OT landscape: a plant
-  // system is one slice of it, and an overlap here is a rollout decision there.
-  ["org", "tool-landscape"],
-  ["tool-landscape", "landscape"],
-  ["tool-landscape", "rollout"],
+  // the landscape diagnoses the tools it stands on. A K2.2 knockout in the funnel
+  // names a system there, which is why the two feed each other. It is ONE register
+  // now — the enterprise portfolio, the plant systems beneath it and the tools a
+  // use case declares — so it is one node here too.
   ["org", "landscape"],
   ["landscape", "process"],
   // A blocked system becomes a wave's blocker; an adopted technology becomes a
@@ -192,6 +191,39 @@ export function ownershipEdges(tool: string, kind: MeshRef["kind"], ids: readonl
   }));
 }
 
+/**
+ * The tools a demand declares, resolved to node ids. A name the register does not
+ * know still resolves — to a node named after itself, which is precisely how a
+ * tool nobody registered becomes a visible dependency instead of staying prose.
+ */
+export function declaredToolRefs(markdown: string, index: ReadonlyMap<string, string>): { id: string; name: string }[] {
+  const seen = new Set<string>();
+  const out: { id: string; name: string }[] = [];
+  for (const name of declaredTools(markdown)) {
+    const id = resolveToolName(index, name);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({ id, name });
+  }
+  return out;
+}
+
+/** The demand→tool edges a demand's declaration implies. */
+export function demandToolEdges(demandId: string, markdown: string, index: ReadonlyMap<string, string>): MeshEdge[] {
+  return declaredToolRefs(markdown, index).map((t) => ({
+    from: { kind: "demand" as const, id: demandId },
+    to: { kind: "application" as const, id: t.id },
+    note: "builds on this tool",
+    source: "derived" as const,
+    relation: "depends-on" as const,
+  }));
+}
+
+/** One node per tool on the consolidated register, named as the register names it. */
+export function applicationDocs(entries: readonly ToolEntry[]): MeshDocument[] {
+  return entries.map((t) => ({ kind: "application" as const, id: toolNodeId(t), title: t.tool || toolNodeId(t) }));
+}
+
 export function repoDocForDemand(d: { id: string; title: string; stage?: Stage }): MeshDocument | null {
   if (!hasScaffoldedRepo(d.stage)) return null;
   const id = repoNameFor(d.id, d.title);
@@ -222,13 +254,16 @@ export async function loadCorpus(opts: CorpusOptions = {}): Promise<{
   docs: MeshDocument[];
   counts: Record<string, number>;
 }> {
-  const [demands, engagements, personas, champions, registry, departments] = await Promise.all([
+  const [demands, engagements, personas, champions, registry, departments, register] = await Promise.all([
     listDemands().catch(() => []),
     processStore.list().catch(() => []),
     listPersonas().catch(() => []),
     listChampions().catch(() => []),
     listRegistry().catch(() => ({ skills: [], playbooks: [], contracts: [] })),
     listDepartments().catch(() => []),
+    // The tools the company runs. Passing no demands keeps this to the registers —
+    // the demand→tool edges are derived below, from the markdown already being read.
+    loadRegister([]).catch(() => null),
   ]);
 
   const wanted = opts.limit ? demands.slice(0, opts.limit) : demands;
@@ -236,6 +271,11 @@ export async function loadCorpus(opts: CorpusOptions = {}): Promise<{
   // Which playbook governs each stage — the bridge that joins the funnel to the
   // library (demand → its stage's playbook → the skills that playbook runs).
   const byStage = stagePlaybooks(registry.playbooks);
+
+  // What a demand declares under `- **Tools:**` resolves against the register, so a
+  // named tool joins the graph as the register knows it rather than as a spelling.
+  const toolIndex = toolNameIndex(register?.entries ?? []);
+  const declaredNames = new Map<string, string>();
 
   // Demands carry their own `## Related`, and their artifacts are derived edges.
   const demandDocs = await mapPool(wanted, READ_CONCURRENCY, async (d): Promise<MeshDocument> => {
@@ -255,7 +295,13 @@ export async function loadCorpus(opts: CorpusOptions = {}): Promise<{
           ]
         : []),
       ...demandPlaybookEdges(d.id, d.stage, byStage),
+      ...(markdown ? demandToolEdges(d.id, markdown, toolIndex) : []),
     ];
+    if (markdown) {
+      // Remember the name so a declared tool the registers have never heard of can
+      // be a node in its own right — the edge to it must not dangle.
+      for (const t of declaredToolRefs(markdown, toolIndex)) if (!declaredNames.has(t.id)) declaredNames.set(t.id, t.name);
+    }
     return {
       kind: "demand",
       id: d.id,
@@ -332,6 +378,15 @@ export async function loadCorpus(opts: CorpusOptions = {}): Promise<{
   // and the ownership edges to the artifacts it manages — so skills/playbooks (managed by
   // the catalog), departments, repos, personas and champions are never orphans, and the
   // whole app reads as one connected overview.
+  // Every tool the company runs is a node: a demand points at the ones it builds on,
+  // and the landscape owns the rest, so nothing on the register is a floating name.
+  const registered = applicationDocs(register?.entries ?? []);
+  const known = new Set(registered.map((a) => a.id));
+  const applicationNodes: MeshDocument[] = [
+    ...registered,
+    ...[...declaredNames].filter(([id]) => !known.has(id)).map(([id, name]) => ({ kind: "application" as const, id, title: name })),
+  ];
+
   const pipeline = toolPipelineEdges();
   const ownership: Record<string, MeshEdge[]> = {
     catalog: [
@@ -340,6 +395,7 @@ export async function loadCorpus(opts: CorpusOptions = {}): Promise<{
     ],
     org: ownershipEdges("org", "department", departmentDocs.map((d) => d.id), "maps this department"),
     poc: ownershipEdges("poc", "repo", repoDocs.map((r) => r.id), "scaffolds this repo"),
+    landscape: ownershipEdges("landscape", "application", applicationNodes.map((a) => a.id), "on the tool register"),
     "persona-library": ownershipEdges("persona-library", "persona", personaDocs.map((p) => p.id), "defines this persona"),
     champions: ownershipEdges("champions", "champion", championDocs.map((c) => c.id), "tracks this champion"),
   };
@@ -359,6 +415,7 @@ export async function loadCorpus(opts: CorpusOptions = {}): Promise<{
     ...repoDocs,
     ...departmentDocs,
     ...laneDocs,
+    ...applicationNodes,
     ...toolDocs,
   ];
   return {
@@ -374,6 +431,7 @@ export async function loadCorpus(opts: CorpusOptions = {}): Promise<{
       repo: repoDocs.length,
       department: departmentDocs.length,
       lane: laneDocs.length,
+      application: applicationNodes.length,
       tool: toolDocs.length,
     },
   };

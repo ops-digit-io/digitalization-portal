@@ -112,3 +112,20 @@ describe("canEditDemand", () => {
     expect(canEditDemand(session("req@example.com", []), md)).toBe(false);
   });
 });
+
+describe("declaring tools on a demand that predates the field", () => {
+  it("inserts the `Tools` State key rather than silently dropping the edit", () => {
+    // Older demands have no `- **Tools:**` line at all. The landscape can only see
+    // a dependency that is written down, so the edit must create the line.
+    const before = advanced().replace(/^- \*\*Tools:\*\*.*$\n/m, "");
+    expect(before).not.toContain("- **Tools:**");
+
+    const res = editDemand(before, { tools: "SAP QM, Power BI" }, { actor: "me@example.com", date: "2026-07-01" });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.markdown).toContain("- **Tools:** SAP QM, Power BI");
+    expect(parseDemandToAnswers(res.markdown).tools).toBe("SAP QM, Power BI");
+    expect(parseUseCase(res.markdown).needsAttention).toBe(false);
+    expect(res.changed).toContain("tools & systems");
+  });
+});

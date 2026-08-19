@@ -7,6 +7,7 @@
 - **Status:** active
 - **Plant:** DE-ALD
 - **Domain:** maintenance
+- **Tools:** AVEVA PI, Ignition, SAP PM, Senseye Predictive Maintenance
 - **Level:** L2
 - **Heat:** medium
 - **Scale potential:** local

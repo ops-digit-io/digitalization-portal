@@ -60,7 +60,8 @@ export const KIND_STYLE: Record<ReferenceKind, { open: string; close: string; co
   repo: { open: "[(", close: ")]", color: "#65a30d", label: "Scaffolded repo" },
   department: { open: "[/", close: "/]", color: "#0d9488", label: "Department" },
   lane: { open: "[\\", close: "\\]", color: "#f59e0b", label: "Lane" },
-  tool: { open: "{", close: "}", color: "#475569", label: "Tool" },
+  tool: { open: "{", close: "}", color: "#475569", label: "Portal tool" },
+  application: { open: "[/", close: "\\]", color: "#e11d48", label: "Tool" },
 };
 
 /**

@@ -14,7 +14,9 @@ import { readRegistry } from "./source.js";
 import { parseLandscape, parsePlants, parseUns, summarise, blockers } from "./landscape.js";
 import { parseTechnology, parseRollout, unadoptedWaves, declined } from "./rollout.js";
 import { parseAiPortfolio, evaluate, refusals } from "./ai-portfolio.js";
-import { parseTools, redundancies, unowned, lifecycleDebt, islands } from "./toolscape.js";
+import { parseTools, redundancies, unowned, lifecycleDebt, islands, TOOL_COLUMNS } from "./toolscape.js";
+import { consolidate, budget, registerGaps, declaredTools } from "./consolidate.js";
+import { listDemandDocs } from "../demands-store.js";
 
 describe("shipped registry masters", () => {
   it("registry/landscape.md parses with no unreadable rows", async () => {
@@ -121,6 +123,58 @@ describe("shipped registry masters", () => {
     expect(unowned(tools).length).toBeGreaterThan(0);
     expect(lifecycleDebt(tools).length).toBeGreaterThan(0);
     expect(islands(tools).length).toBeGreaterThan(0);
+  });
+
+  it("registry/tools.md carries the column contract the writer also emits", async () => {
+    // `serialiseTools` renders a portal-added tool in `TOOL_COLUMNS` order and
+    // `parseTools` reads both files. If the shipped header and that list ever
+    // disagreed, a hand-added tool would silently lose a column.
+    const md = (await readRegistry("tools")) ?? "";
+    const header = md.split("\n").find((l) => l.startsWith("| ID |")) ?? "";
+    expect(header.split("|").map((c) => c.trim()).filter(Boolean)).toEqual([...TOOL_COLUMNS]);
+  });
+
+  it("prices most of the portfolio, and leaves some rows uncosted on purpose", async () => {
+    // Budget is half the point of the register, so most rows carry a figure — and
+    // a few deliberately do not, because "unbudgeted" is itself a finding and an
+    // empty seed would render that section dead.
+    const tools = parseTools(await readRegistry("tools"));
+    const costed = tools.filter((t) => t.annualCost !== null);
+    expect(costed.length).toBeGreaterThan(tools.length / 2);
+    expect(costed.length).toBeLessThan(tools.length);
+  });
+
+  it("consolidates the two masters into one register with both kinds of gap", async () => {
+    // The consolidation is only worth anything if the shipped masters actually
+    // meet: a registered tool that carries plant installations, AND a plant system
+    // that no register knows about. Both, or the surface makes no point.
+    const [tools, systems] = await Promise.all([
+      readRegistry("tools").then(parseTools),
+      readRegistry("landscape").then(parseLandscape),
+    ]);
+    const entries = consolidate({ register: tools, systems });
+    expect(entries.filter((e) => e.origin === "register" && e.installations.length > 0).length).toBeGreaterThan(0);
+    expect(entries.filter((e) => e.origin === "plant").length).toBeGreaterThan(0);
+    expect(registerGaps(entries).length).toBeGreaterThan(0);
+    // Risk and budget are derived over the consolidated list, not the master.
+    expect(budget(entries).total).toBeGreaterThan(0);
+    expect(entries.filter((e) => e.risk.band === "critical" || e.risk.band === "high").length).toBeGreaterThan(0);
+  });
+
+  it("every demand that declares tools names something the register can place", async () => {
+    // A declared tool is a claim about the landscape. Most should land on a known
+    // row; the ones that do not are the finding, so this guards the ratio rather
+    // than demanding a perfect match.
+    const [tools, systems, demands] = await Promise.all([
+      readRegistry("tools").then(parseTools),
+      readRegistry("landscape").then(parseLandscape),
+      listDemandDocs(),
+    ]);
+    const entries = consolidate({ register: tools, systems, demands });
+    const declared = demands.flatMap((d) => declaredTools(d.markdown));
+    if (declared.length === 0) return; // a funnel with no declarations is valid
+    const unplaced = entries.filter((e) => e.origin === "use-case").length;
+    expect(unplaced).toBeLessThan(declared.length / 2);
   });
 
   it("uses a controlled capability vocabulary — every capability serves at least one tool twice or is deliberate", async () => {

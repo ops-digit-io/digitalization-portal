@@ -32,6 +32,7 @@ export const PORTAL_TOOLS: readonly PortalTool[] = [
   { id: "simulate", label: "Business Case Simulation" },
   { id: "funnel", label: "Use-case Funnel" },
   { id: "triage", label: "Triage" },
+  { id: "landscape", label: "Tool & System Landscape" },
   { id: "champions", label: "Digital Champions" },
   { id: "handovers", label: "Handovers" },
   { id: "assistant", label: "Analyst" },

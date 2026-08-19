@@ -18,7 +18,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { loadCorpus, loadCorpusCached, clearCorpusCache, repoDocForDemand, playbookSkillEdges, stagePlaybooks, demandPlaybookEdges, toolPipelineEdges, ownershipEdges } from "./mesh-corpus";
+import { loadCorpus, loadCorpusCached, clearCorpusCache, repoDocForDemand, playbookSkillEdges, stagePlaybooks, demandPlaybookEdges, toolPipelineEdges, ownershipEdges, demandToolEdges, declaredToolRefs, applicationDocs } from "./mesh-corpus";
 import { buildGraph, duplicateClusters, orphans, type MeshDocument } from "./mesh-graph";
 import { ALL_TILES } from "./launchpad";
 
@@ -63,7 +63,7 @@ describe("the markdown corpus reads as a graph", () => {
     const { counts } = await loadCorpus();
     // The keys must exist even at zero, so the graph view can list every kind and a
     // dropped store is a 0, not a silently missing category.
-    for (const kind of ["demand", "requirement", "process", "persona", "champion", "skill", "playbook", "repo", "department", "lane", "tool"]) {
+    for (const kind of ["demand", "requirement", "process", "persona", "champion", "skill", "playbook", "repo", "department", "lane", "application", "tool"]) {
       expect(counts, `counts is missing the "${kind}" kind`).toHaveProperty(kind);
     }
   });
@@ -206,5 +206,57 @@ describe("tools in the graph — the app as a connected overview", () => {
     const loose = orphans(g).map((n) => n.id);
     expect(loose).not.toContain("demand-classification");
     expect(loose).not.toContain("catalog");
+  });
+});
+
+describe("the tools the company runs are in the graph too", () => {
+  const index = new Map([
+    ["power bi", "APP-026"],
+    ["app-026", "APP-026"],
+    ["uns broker", "uns-broker-hivemq"],
+  ]);
+
+  it("resolves a demand's declared tools to register nodes", () => {
+    const refs = declaredToolRefs("## State\n\n- **Tools:** Power BI, UNS broker\n", index);
+    expect(refs.map((r) => r.id)).toEqual(["APP-026", "uns-broker-hivemq"]);
+  });
+
+  it("keeps a name no register knows, so the edge points somewhere real", () => {
+    const refs = declaredToolRefs("- **Tools:** Senseye Predictive Maintenance", index);
+    expect(refs).toEqual([{ id: "senseye-predictive-maintenance", name: "Senseye Predictive Maintenance" }]);
+  });
+
+  it("derives one depends-on edge per tool, never two for the same one", () => {
+    const edges = demandToolEdges("UC-2026-0041", "- **Tools:** Power BI, APP-026, Power BI", index);
+    expect(edges).toHaveLength(1);
+    expect(edges[0]).toMatchObject({
+      from: { kind: "demand", id: "UC-2026-0041" },
+      to: { kind: "application", id: "APP-026" },
+      relation: "depends-on",
+      source: "derived",
+    });
+  });
+
+  it("derives nothing from a demand that declares nothing", () => {
+    expect(demandToolEdges("UC-1", "## Problem\n\nNo tools named here.\n", index)).toEqual([]);
+  });
+
+  it("names each tool node as the register names it", () => {
+    const docs = applicationDocs([
+      { id: "APP-026", tool: "Power BI" },
+      { id: "", tool: "UNS broker (HiveMQ)" },
+    ] as never);
+    expect(docs.map((d) => `${d.id}:${d.title}`)).toEqual(["APP-026:Power BI", "uns-broker-hivemq:UNS broker (HiveMQ)"]);
+    expect(docs.every((d) => d.kind === "application")).toBe(true);
+  });
+
+  it("puts the whole register in the corpus, connected and sound", async () => {
+    const { counts, docs } = await loadCorpus();
+    expect(counts.application).toBeGreaterThan(10);
+    const graph = buildGraph(docs);
+    expect(graph.sound).toBe(true);
+    // The landscape owns every registered tool, so none of them floats.
+    const loose = new Set(orphans(graph).map((n) => `${n.kind}:${n.id}`));
+    expect([...loose].filter((k) => k.startsWith("application:"))).toEqual([]);
   });
 });

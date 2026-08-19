@@ -66,6 +66,7 @@ const KIND_SYMBOL: Record<ReferenceKind, SymbolType> = {
   department: symbolDiamond,
   lane: symbolTriangle,
   tool: symbolStar,
+  application: symbolSquare,
 };
 
 type SimNode = GraphData["nodes"][number] & SimulationNodeDatum;

@@ -13,3 +13,16 @@ same `## State` / `## Gates` structure the parser already reads.
 This directory starts empty — the funnel fills only with demands captured through
 the portal's intake, never with seeded sample data. In a live deployment this
 directory is the `du-demands` repository the portal reads and writes.
+
+## Declaring the tools a demand touches
+
+The intake asks **"Tools & systems"** and renders the answer as one `## State` key:
+
+```
+- **Tools:** SAP S/4HANA, Power BI, Critical Manufacturing MES
+```
+
+`/landscape` reads that line: a name it knows becomes a dependency on that tool, a
+name nothing knows becomes a row marked *named by a use case, in no register*. The
+same names become `depends-on` edges in the context mesh. Optional, and free text
+on purpose — the tool a demand is about is often the one no register has heard of.

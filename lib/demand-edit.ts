@@ -104,6 +104,11 @@ export function editDemand(markdown: string, patch: EditPatch, opts: { actor: st
     } else if (f.key === "domain") {
       md = setStateField(md, "Domain", value);
       changed.push("domain");
+    } else if (f.key === "tools") {
+      // Inserted when absent, so a demand captured before the field existed can
+      // still declare its tools — and appear on the tool landscape.
+      md = setStateField(md, "Tools", value);
+      changed.push("tools & systems");
     } else if (f.key === "requester") {
       md = setPeopleRow(md, "Requester", value);
       changed.push("requester");

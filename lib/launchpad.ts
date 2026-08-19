@@ -69,14 +69,14 @@ export const LAUNCHPAD: TileGroup[] = [
     ],
   },
   {
-    // The standing landscape the demands run on, and what happens to it: the
-    // whole application portfolio, the OT depth beneath it, what gets rolled out,
-    // and what is being scouted. Pre-demand, like the process funnel beside it —
-    // one diagnoses a process, these diagnose what the process stands on.
+    // The standing landscape the demands run on, and what happens to it: ONE
+    // register of every tool — the application portfolio, the OT depth beneath it,
+    // what a use case declares — then what gets rolled out and what is being
+    // scouted. Pre-demand, like the process funnel beside it: one diagnoses a
+    // process, these diagnose what the process stands on.
     category: "Landscape & technology",
     tiles: [
-      { id: "tool-landscape", title: "Tool Landscape", subtitle: "Every application, by capability · overlaps, shadow IT, lifecycle debt", href: "/tool-landscape", icon: I.stack, tone: "violet" },
-      { id: "landscape", title: "System Landscape", subtitle: "Plants × ISA-95 · integration state · the UNS backlog", href: "/landscape", icon: I.factory, tone: "violet" },
+      { id: "landscape", title: "Tool & System Landscape", subtitle: "Every tool in one register · risk, budget, owners · plants × ISA-95", href: "/landscape", icon: I.stack, tone: "violet" },
       { id: "rollout", title: "Rollout", subtitle: "Technology decisions & scaling waves across the plants", href: "/rollout", icon: I.waves, tone: "violet" },
       { id: "ai-framework", title: "AI Framework", subtitle: "Production models on the ladder · control loops & their safety case", href: "/ai-framework", icon: I.loop, tone: "violet" },
       { id: "scout", title: "Technology Scout", subtitle: "Sweep public sources · relevance vs. fit to our own gaps", href: "/scout", icon: I.radar, tone: "info" },
