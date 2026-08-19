@@ -48,6 +48,7 @@ import {
   type ToolRow,
 } from "./toolscape.js";
 import { ISA_LEVELS, isBlocked, type IsaLevel, type SystemRow } from "./landscape.js";
+import type { RiskAdjustment, ToolOverride } from "./adjustments.js";
 
 // ---------------------------------------------------------------- sources
 
@@ -87,6 +88,12 @@ export interface UseCaseRef {
 // ---------------------------------------------------------------- entries
 
 export interface ToolEntry extends ToolRow {
+  /**
+   * The stable id this tool is addressed by — in the mesh, in an override, in the
+   * URL fragment. Computed from the SOURCE row, so renaming a tool through an edit
+   * cannot orphan the edits and the graph edges that point at it.
+   */
+  node: string;
   origin: ToolOrigin;
   /** Every source this tool was found in, in `TOOL_ORIGINS` order. */
   sources: ToolOrigin[];
@@ -97,6 +104,11 @@ export interface ToolEntry extends ToolRow {
   /** Use cases that build on it. */
   useCases: UseCaseRef[];
   risk: RiskAssessment;
+  /** Fields a person edited here, over whatever the source file says. */
+  edited: string[];
+  /** Who last edited it, and when — provenance travels with the row. */
+  editedBy?: string;
+  editedOn?: string;
 }
 
 // ---------------------------------------------------------------- matching
@@ -202,13 +214,28 @@ export interface RiskFactor {
   /** Why this is a risk, in the words a steering committee would use. */
   label: string;
   weight: number;
+  /** True when a person added this factor; the rest are derived. */
+  manual?: boolean;
+}
+
+/** A derived factor a person has accepted: still on the record, no longer counted. */
+export interface AcceptedFactor extends RiskFactor {
+  reason: string;
+  by: string;
+  date: string;
 }
 
 export interface RiskAssessment {
-  /** 0…100. The sum of the factors, capped. */
+  /** 0…100. The sum of the counting factors, capped. */
   score: number;
   band: RiskBand;
   factors: RiskFactor[];
+  /**
+   * Factors somebody accepted. They do NOT count towards the score and they are
+   * NOT deleted: an accepted risk that vanishes from the page is a hidden risk,
+   * so it stays visible with the reason and the name behind it.
+   */
+  accepted: AcceptedFactor[];
 }
 
 /** "1 use case" / "3 use cases" — the factor labels are read, not parsed. */
@@ -233,7 +260,14 @@ export function riskBand(score: number): RiskBand {
  */
 export function assessRisk(
   t: ToolRow,
-  ctx: { origin: ToolOrigin; installations: readonly SystemRow[]; useCases: readonly UseCaseRef[]; overlapping: boolean },
+  ctx: {
+    origin: ToolOrigin;
+    installations: readonly SystemRow[];
+    useCases: readonly UseCaseRef[];
+    overlapping: boolean;
+    /** What a person decided about this tool's risk — accepted, or added. */
+    adjustments?: readonly RiskAdjustment[];
+  },
 ): RiskAssessment {
   const factors: RiskFactor[] = [];
   // 1 (low) … 2 (critical). Nothing is scaled to zero — an unowned tool with an
@@ -346,8 +380,32 @@ export function assessRisk(
     });
   }
 
-  const score = Math.min(100, factors.reduce((a, f) => a + f.weight, 0));
-  return { score, band: riskBand(score), factors: [...factors].sort((a, b) => b.weight - a.weight) };
+  // A person's decisions, applied on top: an accepted factor stops counting but
+  // stays on the record, and a factor the register cannot see can be added with
+  // its own weight. The derivation above is never rewritten — only annotated.
+  const adjustments = ctx.adjustments ?? [];
+  const acceptedBy = new Map(adjustments.filter((a) => a.action === "accept").map((a) => [a.factor.toLowerCase(), a]));
+
+  const counting: RiskFactor[] = [];
+  const accepted: AcceptedFactor[] = [];
+  for (const f of factors) {
+    const a = acceptedBy.get(f.key.toLowerCase());
+    if (a) accepted.push({ ...f, reason: a.reason, by: a.by, date: a.date });
+    else counting.push(f);
+  }
+
+  for (const a of adjustments) {
+    if (a.action !== "add") continue;
+    counting.push({ key: `manual:${a.factor.toLowerCase()}`, label: `${a.factor} — ${a.reason}`, weight: a.weight, manual: true });
+  }
+
+  const score = Math.min(100, counting.reduce((a, f) => a + f.weight, 0));
+  return {
+    score,
+    band: riskBand(score),
+    factors: counting.sort((a, b) => b.weight - a.weight),
+    accepted,
+  };
 }
 
 // ---------------------------------------------------------------- consolidate
@@ -361,6 +419,10 @@ export interface ConsolidateInput {
   systems?: readonly SystemRow[];
   /** Demands, for the tools they declare or mention. */
   demands?: readonly DemandDoc[];
+  /** `landscape/overrides.md` — fields a person edited, by node id. */
+  overrides?: ReadonlyMap<string, ToolOverride>;
+  /** `landscape/risk.md` — risks accepted or added by hand. */
+  adjustments?: readonly RiskAdjustment[];
 }
 
 /**
@@ -372,6 +434,8 @@ export function consolidate(input: ConsolidateInput): ToolEntry[] {
   const manual = input.manual ?? [];
   const systems = input.systems ?? [];
   const demands = input.demands ?? [];
+  const overrides = input.overrides ?? new Map<string, ToolOverride>();
+  const adjustments = input.adjustments ?? [];
 
   // 1. The registered rows — master first, then the manual ones it does not
   //    already carry (a manual row whose name is now in the master is the same
@@ -478,22 +542,38 @@ export function consolidate(input: ConsolidateInput): ToolEntry[] {
   //    that duplicates a registered capability counts as an overlap too.
   const overlapping = new Set(redundancies(base.map((b) => b.row)).flatMap((r) => r.tools.map((t) => t.id || t.tool)));
 
+  const byTool = new Map<string, RiskAdjustment[]>();
+  for (const a of adjustments) {
+    const key = a.tool.trim().toLowerCase();
+    byTool.set(key, [...(byTool.get(key) ?? []), a]);
+  }
+
   return base
     .map((b): ToolEntry => {
       const inst = installations.get(b) ?? [];
       const useCases = (refs.get(b) ?? []).sort((a, c) => a.id.localeCompare(c.id));
+      // A person's edits land BEFORE the derivation, so correcting a lifecycle or a
+      // cost moves the risk and the budget with it — that is the point of editing.
+      const node = toolNodeId(b.row);
+      const edit = overrides.get(node.toLowerCase());
+      const row: ToolRow = edit ? { ...b.row, ...edit.patch } : b.row;
       return {
-        ...b.row,
+        ...row,
+        node,
         origin: b.origin,
         sources: TOOL_ORIGINS.filter((o) => b.sources.has(o)),
         installations: inst,
         plants: [...new Set(inst.map((s) => s.plant).filter((p) => p !== ""))].sort(),
         useCases,
-        risk: assessRisk(b.row, {
+        edited: edit?.fields ?? [],
+        ...(edit?.by ? { editedBy: edit.by } : {}),
+        ...(edit?.date ? { editedOn: edit.date } : {}),
+        risk: assessRisk(row, {
           origin: b.origin,
           installations: inst,
           useCases,
-          overlapping: overlapping.has(b.row.id || b.row.tool),
+          overlapping: overlapping.has(row.id || row.tool),
+          adjustments: byTool.get(node.toLowerCase()) ?? [],
         }),
       };
     })

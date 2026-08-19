@@ -2,7 +2,7 @@
 
 # API map
 
-Every HTTP endpoint the portal exposes: **64 routes**, grouped by area.
+Every HTTP endpoint the portal exposes: **65 routes**, grouped by area.
 Generated from `app/api/**/route.ts`, so it cannot drift from the code.
 
 ```mermaid
@@ -46,7 +46,8 @@ graph LR
     _api_intake_turn["/turn<br/><i>POST</i>"]
   end
   subgraph landscape["/api/landscape"]
-    _api_landscape_tools["/tools<br/><i>GET POST</i>"]
+    _api_landscape_risk["/risk<br/><i>GET POST DELETE</i>"]
+    _api_landscape_tools["/tools<br/><i>GET POST PATCH</i>"]
   end
   subgraph mesh["/api/mesh"]
     _api_mesh_graph["/graph<br/><i>GET</i>"]
@@ -141,7 +142,8 @@ graph LR
 | `/api/intake` | POST | `app/api/intake/route.ts` |
 | `/api/intake/similar` | GET | `app/api/intake/similar/route.ts` |
 | `/api/intake/turn` | POST | `app/api/intake/turn/route.ts` |
-| `/api/landscape/tools` | GET, POST | `app/api/landscape/tools/route.ts` |
+| `/api/landscape/risk` | GET, POST, DELETE | `app/api/landscape/risk/route.ts` |
+| `/api/landscape/tools` | GET, POST, PATCH | `app/api/landscape/tools/route.ts` |
 | `/api/mesh/graph` | GET | `app/api/mesh/graph/route.ts` |
 | `/api/mesh` | GET | `app/api/mesh/route.ts` |
 | `/api/model-settings` | GET, POST | `app/api/model-settings/route.ts` |

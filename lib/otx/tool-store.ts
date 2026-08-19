@@ -1,5 +1,6 @@
 /**
- * Tools added by hand in the portal.
+ * What the portal WRITES about the landscape: tools added by hand, edits to tools
+ * it cannot write at the source, and risk decisions.
  *
  * `registry/tools.md` ships with the app and is read-only at runtime (serverless
  * `process.cwd()` is not writable — see `lib/otx/source.ts`). But a register only
@@ -16,8 +17,15 @@
  * added here shows as `manual` until somebody moves the row into the curated
  * master, at which point the master wins and the duplicate collapses.
  *
- * Adding is APPEND-ONLY on purpose: this file is a capture surface, not an
- * editor. Correcting a row is a git edit, where it is reviewed.
+ * Editing works the same way, one file along: `landscape/overrides.md` holds a
+ * patch per tool (blank cell = unchanged), applied at read time over whatever the
+ * source says — so a cost can be corrected, or a lifecycle decided, without a pull
+ * request against a file that ships with the app. `landscape/risk.md` holds the
+ * risk decisions: a derived factor accepted with a reason, or a risk the register
+ * cannot see, added with its own weight.
+ *
+ * Three small tables rather than one: `parseFirstTable` reads the first table in a
+ * document, so one file cannot hold two.
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -26,9 +34,24 @@ import path from "node:path";
 import { getGitHost, hasGitHubCredentials, type RepoRef } from "../git/index.js";
 import { repoRef } from "../repos.js";
 import { parseTools, serialiseTools, nextToolId, validateTool, type ToolRow } from "./toolscape.js";
+import {
+  mergeOverride,
+  parseOverrides,
+  parseRiskAdjustments,
+  readToolPatch,
+  serialiseOverrides,
+  serialiseRiskAdjustments,
+  validateRiskAdjustment,
+  type RiskAdjustment,
+  type ToolOverride,
+} from "./adjustments.js";
 
 /** Where the portal's own additions live, in the process repo. */
 export const FILE = "landscape/tools.md";
+/** Field edits over any tool, whatever file it came from. */
+export const OVERRIDES_FILE = "landscape/overrides.md";
+/** Risk accepted, and risk the register cannot see. */
+export const RISK_FILE = "landscape/risk.md";
 
 const INTRO = `# Tools added in the portal
 
@@ -36,6 +59,20 @@ Rows captured through \`/landscape\`, in the same columns as
 \`registry/tools.md\` so one parser reads both. Curating a row — correcting it,
 or promoting it into the shipped master — is a normal git edit; the portal only
 appends.
+`;
+
+const OVERRIDES_INTRO = `# Tool edits
+
+One row per tool corrected through \`/landscape\`, keyed by the tool's id (\`APP-001\`)
+or, for a tool with no id, the slug of its name. A BLANK cell means unchanged; an
+em dash means "make this empty". Applied over the source row at read time.
+`;
+
+const RISK_INTRO = `# Risk decisions
+
+\`accept\` — a derived risk factor that is known and accepted: it stops counting and
+stays on the record with its reason. \`add\` — a risk the register cannot derive
+(end of support, an audit finding, a vendor in trouble), with its own weight.
 `;
 
 function live(): boolean {
@@ -51,10 +88,10 @@ function localBase(): string {
   return process.env.LANDSCAPE_DATA_DIR ?? process.env.PROCESS_DATA_DIR ?? path.join(os.tmpdir(), "du-processes");
 }
 
-/** Raw markdown of the added-tools file, or `undefined` when there is none yet. */
-async function read(): Promise<string | undefined> {
-  if (live()) return getGitHost().getFile(repo(), FILE).catch(() => undefined);
-  return readFile(path.join(localBase(), FILE), "utf8").catch(() => undefined);
+/** Raw markdown of one of the landscape files, or `undefined` when absent. */
+async function read(file: string): Promise<string | undefined> {
+  if (live()) return getGitHost().getFile(repo(), file).catch(() => undefined);
+  return readFile(path.join(localBase(), file), "utf8").catch(() => undefined);
 }
 
 /**
@@ -64,16 +101,25 @@ async function read(): Promise<string | undefined> {
  * missing source, not as a 500 on the landscape.
  */
 export async function listManualTools(): Promise<ToolRow[]> {
-  return parseTools(await read());
+  return parseTools(await read(FILE));
 }
 
-async function write(rows: readonly ToolRow[], message: string): Promise<void> {
-  const body = serialiseTools(rows, INTRO);
+/** Every field edit, by tool node id. Same never-throw contract. */
+export async function listOverrides(): Promise<Map<string, ToolOverride>> {
+  return parseOverrides(await read(OVERRIDES_FILE));
+}
+
+/** Every risk decision. Same never-throw contract. */
+export async function listRiskAdjustments(): Promise<RiskAdjustment[]> {
+  return parseRiskAdjustments(await read(RISK_FILE));
+}
+
+async function write(file: string, body: string, message: string): Promise<void> {
   if (live()) {
-    await getGitHost().putFile(repo(), { path: FILE, content: body }, message, "main");
+    await getGitHost().putFile(repo(), { path: file, content: body }, message, "main");
     return;
   }
-  const abs = path.join(localBase(), FILE);
+  const abs = path.join(localBase(), file);
   await mkdir(path.dirname(abs), { recursive: true });
   await writeFile(abs, body);
 }
@@ -102,6 +148,87 @@ export async function addTool(input: Record<string, unknown>, takenIds: readonly
     return { ok: false, errors: [`"${duplicate.tool}" is already recorded as ${duplicate.id}.`], warnings: [] };
   }
 
-  await write([...existing, check.row], `Landscape: record ${check.row.tool}`);
+  await write(FILE, serialiseTools([...existing, check.row], INTRO), `Landscape: record ${check.row.tool}`);
   return { ok: true, errors: [], warnings: check.warnings, tool: check.row };
+}
+
+export interface EditToolResult {
+  ok: boolean;
+  errors: string[];
+  override?: ToolOverride;
+}
+
+/**
+ * Edit a tool's fields. Works on ANY tool, whichever file it came from: the edit
+ * is an overlay keyed by node id, merged onto whatever was recorded before, so a
+ * one-field correction stays a one-field correction.
+ */
+export async function editTool(
+  node: string,
+  input: Record<string, unknown>,
+  actor: { by: string; date: string },
+): Promise<EditToolResult> {
+  const tool = node.trim();
+  if (tool === "") return { ok: false, errors: ["Which tool?"] };
+
+  const { patch, fields } = readToolPatch(input);
+  if (fields.length === 0) return { ok: false, errors: ["Nothing to change."] };
+
+  const existing = await listOverrides();
+  const merged = mergeOverride(existing.get(tool.toLowerCase()), {
+    tool,
+    patch,
+    fields,
+    by: actor.by,
+    date: actor.date,
+  });
+  existing.set(tool.toLowerCase(), merged);
+
+  await write(
+    OVERRIDES_FILE,
+    serialiseOverrides([...existing.values()], OVERRIDES_INTRO),
+    `Landscape: edit ${tool} (${fields.join(", ")})`,
+  );
+  return { ok: true, errors: [], override: merged };
+}
+
+export interface RiskDecisionResult {
+  ok: boolean;
+  errors: string[];
+  adjustment?: RiskAdjustment;
+}
+
+/**
+ * Record a risk decision — accept a derived factor, or add one the register cannot
+ * see. Re-deciding the same factor REPLACES the earlier row rather than stacking:
+ * the register should say what is true now, and git holds what it said before.
+ */
+export async function decideRisk(
+  input: Record<string, unknown>,
+  actor: { by: string; date: string },
+): Promise<RiskDecisionResult> {
+  const check = validateRiskAdjustment(input, actor.by, actor.date);
+  if (!check.ok || !check.adjustment) return { ok: false, errors: check.errors };
+
+  const a = check.adjustment;
+  const rest = (await listRiskAdjustments()).filter(
+    (x) => !(x.tool.toLowerCase() === a.tool.toLowerCase() && x.factor.toLowerCase() === a.factor.toLowerCase()),
+  );
+  await write(
+    RISK_FILE,
+    serialiseRiskAdjustments([...rest, a], RISK_INTRO),
+    `Landscape: ${a.action === "accept" ? "accept" : "add"} risk "${a.factor}" on ${a.tool}`,
+  );
+  return { ok: true, errors: [], adjustment: a };
+}
+
+/** Undo a risk decision — the factor goes back to counting as derived. */
+export async function undecideRisk(tool: string, factor: string): Promise<{ ok: boolean; removed: number }> {
+  const all = await listRiskAdjustments();
+  const rest = all.filter(
+    (x) => !(x.tool.toLowerCase() === tool.trim().toLowerCase() && x.factor.toLowerCase() === factor.trim().toLowerCase()),
+  );
+  if (rest.length === all.length) return { ok: false, removed: 0 };
+  await write(RISK_FILE, serialiseRiskAdjustments(rest, RISK_INTRO), `Landscape: undo risk decision on ${tool}`);
+  return { ok: true, removed: all.length - rest.length };
 }

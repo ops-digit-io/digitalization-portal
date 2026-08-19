@@ -3,7 +3,7 @@ import { can } from "@/lib/rbac";
 import { getSession } from "@/lib/auth/current";
 import { readRegistry } from "@/lib/otx/source";
 import { parseTools } from "@/lib/otx/toolscape";
-import { addTool } from "@/lib/otx/tool-store";
+import { addTool, editTool } from "@/lib/otx/tool-store";
 import { budget, summariseConsolidated } from "@/lib/otx/consolidate";
 import { loadRegister } from "@/lib/otx/register";
 
@@ -18,9 +18,13 @@ export const dynamic = "force-dynamic";
  * its own: a funnel that cannot be read costs the use-case links, not the
  * register, because the register is the answer this endpoint exists to give.
  *
- * POST records a tool by hand. It writes markdown to git (`landscape/tools.md`),
- * never a database row — adding a tool is a reviewable diff like every other
- * artifact here.
+ * POST records a tool by hand and PATCH edits one — both write markdown to git
+ * (`landscape/tools.md`, `landscape/overrides.md`), never a database row, so a
+ * change to the register is a reviewable diff like every other artifact here.
+ *
+ * PATCH works on ANY tool, including rows from files the portal cannot write: the
+ * edit is an overlay keyed by the tool's node id, applied over the source at read
+ * time. Only the fields posted are changed.
  */
 export async function GET() {
   const session = await getSession();
@@ -46,4 +50,19 @@ export async function POST(req: Request) {
   if (!res.ok) return NextResponse.json({ error: res.errors.join(" "), errors: res.errors }, { status: 400 });
 
   return NextResponse.json({ tool: res.tool, warnings: res.warnings }, { status: 201 });
+}
+
+export async function PATCH(req: Request) {
+  const session = await getSession();
+  if (!can(session, "draft")) return NextResponse.json({ error: "missing capability: draft" }, { status: 403 });
+
+  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const node = typeof body.tool === "string" ? body.tool : "";
+  const res = await editTool(node, body, {
+    by: session?.user ?? "unknown",
+    date: new Date().toISOString().slice(0, 10),
+  });
+  if (!res.ok) return NextResponse.json({ error: res.errors.join(" "), errors: res.errors }, { status: 400 });
+
+  return NextResponse.json({ override: res.override });
 }

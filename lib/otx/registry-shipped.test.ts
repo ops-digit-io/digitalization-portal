@@ -14,7 +14,7 @@ import { readRegistry } from "./source.js";
 import { parseLandscape, parsePlants, parseUns, summarise, blockers } from "./landscape.js";
 import { parseTechnology, parseRollout, unadoptedWaves, declined } from "./rollout.js";
 import { parseAiPortfolio, evaluate, refusals } from "./ai-portfolio.js";
-import { parseTools, redundancies, unowned, lifecycleDebt, islands, TOOL_COLUMNS } from "./toolscape.js";
+import { parseTools, TOOL_COLUMNS } from "./toolscape.js";
 import { consolidate, budget, registerGaps, declaredTools } from "./consolidate.js";
 import { listDemandDocs } from "../demands-store.js";
 
@@ -108,21 +108,18 @@ describe("shipped registry masters", () => {
     expect([...new Set(rows.map((r) => r.plant))].filter((p) => !known.has(p))).toEqual([]);
   });
 
-  it("registry/tools.md parses with no unreadable rows", async () => {
-    const tools = parseTools(await readRegistry("tools"));
-    expect(tools.length).toBeGreaterThan(20);
-    expect(tools.filter((t) => t.needsAttention).map((t) => `${t.id}: ${t.issues.join(", ")}`)).toEqual([]);
+  it("registry/tools.md SHIPS EMPTY — no invented application is ever inherited", async () => {
+    // A register seeded with plausible tools reads as fact within a week, and every
+    // finding it produces is then a finding about fiction. The file ships as its
+    // columns and its vocabulary; the rows are the deployment's own.
+    const md = (await readRegistry("tools")) ?? "";
+    expect(md).not.toBe("");
+    expect(parseTools(md)).toEqual([]);
   });
 
-  it("the shipped portfolio demonstrates every finding the surface can make", async () => {
-    // Seeded to exercise all four. If any of these went to zero the page would
-    // render an empty section and stop making its point, which is a regression
-    // in the fixture rather than in the engine — but a regression either way.
+  it("whatever a deployment puts there parses cleanly", async () => {
     const tools = parseTools(await readRegistry("tools"));
-    expect(redundancies(tools).length).toBeGreaterThan(0);
-    expect(unowned(tools).length).toBeGreaterThan(0);
-    expect(lifecycleDebt(tools).length).toBeGreaterThan(0);
-    expect(islands(tools).length).toBeGreaterThan(0);
+    expect(tools.filter((t) => t.needsAttention).map((t) => `${t.id}: ${t.issues.join(", ")}`)).toEqual([]);
   });
 
   it("registry/tools.md carries the column contract the writer also emits", async () => {
@@ -134,31 +131,18 @@ describe("shipped registry masters", () => {
     expect(header.split("|").map((c) => c.trim()).filter(Boolean)).toEqual([...TOOL_COLUMNS]);
   });
 
-  it("prices most of the portfolio, and leaves some rows uncosted on purpose", async () => {
-    // Budget is half the point of the register, so most rows carry a figure — and
-    // a few deliberately do not, because "unbudgeted" is itself a finding and an
-    // empty seed would render that section dead.
-    const tools = parseTools(await readRegistry("tools"));
-    const costed = tools.filter((t) => t.annualCost !== null);
-    expect(costed.length).toBeGreaterThan(tools.length / 2);
-    expect(costed.length).toBeLessThan(tools.length);
-  });
-
-  it("consolidates the two masters into one register with both kinds of gap", async () => {
-    // The consolidation is only worth anything if the shipped masters actually
-    // meet: a registered tool that carries plant installations, AND a plant system
-    // that no register knows about. Both, or the surface makes no point.
+  it("consolidates whatever the masters hold, with an empty application register", async () => {
+    // With no applications recorded yet, every plant system is off-register — which
+    // is the honest state of a fresh deployment and exactly what the page should
+    // say, rather than a portfolio nobody entered.
     const [tools, systems] = await Promise.all([
       readRegistry("tools").then(parseTools),
       readRegistry("landscape").then(parseLandscape),
     ]);
     const entries = consolidate({ register: tools, systems });
-    expect(entries.filter((e) => e.origin === "register" && e.installations.length > 0).length).toBeGreaterThan(0);
-    expect(entries.filter((e) => e.origin === "plant").length).toBeGreaterThan(0);
-    expect(registerGaps(entries).length).toBeGreaterThan(0);
-    // Risk and budget are derived over the consolidated list, not the master.
-    expect(budget(entries).total).toBeGreaterThan(0);
-    expect(entries.filter((e) => e.risk.band === "critical" || e.risk.band === "high").length).toBeGreaterThan(0);
+    expect(entries.every((e) => e.origin !== "register")).toBe(true);
+    expect(registerGaps(entries).length).toBe(entries.length);
+    expect(budget(entries).lines).toEqual([]);
   });
 
   it("every demand that declares tools names something the register can place", async () => {
@@ -177,13 +161,13 @@ describe("shipped registry masters", () => {
     expect(unplaced).toBeLessThan(declared.length / 2);
   });
 
-  it("uses a controlled capability vocabulary — every capability serves at least one tool twice or is deliberate", async () => {
-    // The whole register turns decorative if capabilities are invented per tool,
-    // because then nothing ever overlaps. This does not demand overlap; it demands
-    // that capabilities are SHARED where they should be, caught as a ratio.
+  it("keeps the capability vocabulary shared once a deployment fills the register", async () => {
+    // The register turns decorative if capabilities are invented per tool, because
+    // then nothing ever overlaps. Vacuously true on an empty file, and a real guard
+    // the moment rows exist.
     const tools = parseTools(await readRegistry("tools"));
-    const caps = new Set(tools.map((t) => t.capability));
-    expect(caps.size).toBeLessThan(tools.length);
+    if (tools.length === 0) return;
+    expect(new Set(tools.map((t) => t.capability)).size).toBeLessThan(tools.length);
   });
 
   it("every tool names a domain that exists in the domain taxonomy", async () => {

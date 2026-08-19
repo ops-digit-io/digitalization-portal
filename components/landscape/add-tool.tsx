@@ -40,10 +40,19 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 
 const inputClass = "h-9 rounded-md border bg-background px-2.5 text-sm";
 
-export function AddTool({ capabilities, domains }: { capabilities: string[]; domains: string[] }) {
+export function AddTool({
+  capabilities,
+  domains,
+  /** Present when editing an existing tool: its node id and current values. */
+  edit,
+}: {
+  capabilities: string[];
+  domains: string[];
+  edit?: { node: string; label: string; values: Partial<Form> };
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<Form>(EMPTY);
+  const [form, setForm] = useState<Form>({ ...EMPTY, ...(edit?.values ?? {}) });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -52,19 +61,32 @@ export function AddTool({ capabilities, domains }: { capabilities: string[]; dom
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
   async function submit() {
-    if (busy || form.tool.trim() === "" || form.capability.trim() === "") return;
+    if (busy) return;
+    if (!edit && (form.tool.trim() === "" || form.capability.trim() === "")) return;
     setBusy(true);
     setError(null);
     try {
+      // Editing patches only what changed, so a one-field correction stays one
+      // field in the overlay — and a field left as it was is never rewritten.
+      const body = edit
+        ? {
+            tool: edit.node,
+            ...Object.fromEntries(
+              (Object.keys(form) as (keyof Form)[])
+                .filter((k) => (form[k] ?? "") !== ((edit.values[k] ?? "") as string))
+                .map((k) => [k === "tool" ? "name" : k, form[k]]),
+            ),
+          }
+        : form;
       const res = await fetch("/api/landscape/tools", {
-        method: "POST",
+        method: edit ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(body),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string; warnings?: string[] };
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       setWarnings(data.warnings ?? []);
-      setForm(EMPTY);
+      if (!edit) setForm(EMPTY);
       setOpen(false);
       router.refresh();
     } catch (e) {
@@ -75,7 +97,11 @@ export function AddTool({ capabilities, domains }: { capabilities: string[]; dom
   }
 
   if (!open) {
-    return (
+    return edit ? (
+      <button onClick={() => setOpen(true)} className="text-xs text-muted-foreground hover:text-foreground" title={`Edit ${edit.label}`}>
+        edit
+      </button>
+    ) : (
       <div className="flex flex-col items-end gap-1">
         <button
           onClick={() => setOpen(true)}
@@ -93,12 +119,14 @@ export function AddTool({ capabilities, domains }: { capabilities: string[]; dom
   }
 
   return (
-    <div className="w-full rounded-lg border bg-card p-4">
+    <div className={`rounded-lg border bg-card p-4 ${edit ? "" : "w-full"}`}>
       <div className="mb-3 flex items-baseline justify-between gap-4">
         <div>
-          <h3 className="text-sm font-semibold">Record a tool</h3>
+          <h3 className="text-sm font-semibold">{edit ? `Edit ${edit.label}` : "Record a tool"}</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Name and capability required; anything left blank shows as a gap on the row.
+            {edit
+              ? "Only what you change is written, as an overlay in git over the source row. Risk and budget follow it."
+              : "Name and capability required; anything left blank shows as a gap on the row."}
           </p>
         </div>
         <button onClick={() => setOpen(false)} className="text-sm text-muted-foreground hover:text-foreground">
@@ -107,13 +135,13 @@ export function AddTool({ capabilities, domains }: { capabilities: string[]; dom
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <Field label="Tool *">
+        <Field label={edit ? "Name" : "Tool *"}>
           <input autoFocus value={form.tool} onChange={set("tool")} className={inputClass} placeholder="e.g. Miro" />
         </Field>
         <Field label="Vendor">
           <input value={form.vendor} onChange={set("vendor")} className={inputClass} />
         </Field>
-        <Field label="Capability *" hint="Reuse an existing one so overlaps stay visible.">
+        <Field label={edit ? "Capability" : "Capability *"} hint="Reuse an existing one so overlaps stay visible.">
           <input
             list="landscape-capabilities"
             value={form.capability}
@@ -180,12 +208,14 @@ export function AddTool({ capabilities, domains }: { capabilities: string[]; dom
       <div className="mt-4 flex items-center gap-2">
         <button
           onClick={submit}
-          disabled={busy || form.tool.trim() === "" || form.capability.trim() === ""}
+          disabled={busy || (!edit && (form.tool.trim() === "" || form.capability.trim() === ""))}
           className="h-9 rounded-md border bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
         >
-          {busy ? "Recording…" : "Record tool"}
+          {busy ? "Saving…" : edit ? "Save changes" : "Record tool"}
         </button>
-        <span className="text-xs text-muted-foreground">One row in <code>landscape/tools.md</code>.</span>
+        <span className="text-xs text-muted-foreground">
+          One row in <code>{edit ? "landscape/overrides.md" : "landscape/tools.md"}</code>.
+        </span>
       </div>
     </div>
   );

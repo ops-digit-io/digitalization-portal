@@ -7,7 +7,6 @@
 - **Status:** active
 - **Plant:** ALL
 - **Domain:** procurement
-- **Tools:** SAP Ariba, Microsoft 365, Confluence
 - **Level:** L1
 - **Heat:** high
 - **Scale potential:** global

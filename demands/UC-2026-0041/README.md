@@ -7,7 +7,6 @@
 - **Status:** active
 - **Plant:** DE-ALD
 - **Domain:** quality
-- **Tools:** Critical Manufacturing MES, Power BI, Excel planning workbooks
 - **Level:** L2
 - **Heat:** medium
 - **Scale potential:** multi-plant

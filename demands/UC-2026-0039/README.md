@@ -7,7 +7,6 @@
 - **Status:** active
 - **Plant:** SK-PUC
 - **Domain:** energy
-- **Tools:** Energy monitoring (Aldingen), UNS broker (HiveMQ), Power BI
 - **Level:** L2
 - **Heat:** low
 - **Scale potential:** multi-plant

@@ -33,7 +33,7 @@ import { getFunnelRows } from "./funnel/query.js";
 import * as processStore from "./process/store.js";
 import { parseReferences } from "./references.js";
 import { loadRegister, type LoadedRegister } from "./otx/register.js";
-import { declaredTools, resolveToolName, toolNameIndex, toolNodeId } from "./otx/consolidate.js";
+import { declaredTools, resolveToolName, toolNameIndex } from "./otx/consolidate.js";
 import { repoNameFor } from "./poc/scaffold.js";
 import { STAGES, type Stage } from "./types.js";
 import {
@@ -133,7 +133,7 @@ async function derived(register: LoadedRegister | null): Promise<{ edges: MeshEd
 
   // Tools are nodes too, named as the register names them, so a demand's dependency
   // renders as "Power BI" rather than as an id.
-  for (const t of register?.entries ?? []) put({ kind: "application", id: toolNodeId(t) }, t.tool);
+  for (const t of register?.entries ?? []) put({ kind: "application", id: t.node }, t.tool);
 
   return { edges, titles };
 }

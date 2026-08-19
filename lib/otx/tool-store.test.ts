@@ -2,7 +2,18 @@ import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { addTool, listManualTools, FILE } from "./tool-store.js";
+import {
+  addTool,
+  editTool,
+  decideRisk,
+  undecideRisk,
+  listManualTools,
+  listOverrides,
+  listRiskAdjustments,
+  FILE,
+  OVERRIDES_FILE,
+  RISK_FILE,
+} from "./tool-store.js";
 import { parseTools } from "./toolscape.js";
 
 let dir: string;
@@ -97,5 +108,66 @@ describe("tools added by hand in the portal", () => {
     await mkdir(join(dir, "landscape"), { recursive: true });
     await writeFile(join(dir, FILE), "# not a table at all\n\njust prose\n");
     expect(await listManualTools()).toEqual([]);
+  });
+});
+
+const actor = { by: "me@example.com", date: "2026-08-19" };
+
+describe("editing a tool the portal cannot write at the source", () => {
+  it("records a patch keyed by node id, and reads it back", async () => {
+    const res = await editTool("APP-001", { annualCost: "1450000" }, actor);
+    expect(res.ok).toBe(true);
+
+    const overrides = await listOverrides();
+    expect(overrides.get("app-001")!.patch).toEqual({ annualCost: 1450000 });
+    expect(overrides.get("app-001")!.by).toBe("me@example.com");
+    // Markdown in git, like every other artifact here.
+    expect(await readFile(join(dir, OVERRIDES_FILE), "utf8")).toContain("| APP-001 |");
+  });
+
+  it("merges a second edit rather than replacing the first", async () => {
+    await editTool("APP-001", { annualCost: "1450000" }, actor);
+    await editTool("APP-001", { itOwner: "Corporate IT" }, actor);
+    const o = (await listOverrides()).get("app-001")!;
+    expect(o.patch).toEqual({ annualCost: 1450000, itOwner: "Corporate IT" });
+    expect(o.fields.sort()).toEqual(["Annual cost", "IT owner"]);
+  });
+
+  it("refuses an edit that names no tool or changes nothing", async () => {
+    expect((await editTool("", { annualCost: "1" }, actor)).ok).toBe(false);
+    expect((await editTool("APP-001", {}, actor)).errors[0]).toContain("Nothing to change");
+    expect((await listOverrides()).size).toBe(0);
+  });
+});
+
+describe("risk decisions", () => {
+  it("records an acceptance with its reason and who made it", async () => {
+    const res = await decideRisk({ tool: "APP-009", action: "accept", factor: "island", reason: "Monthly export by design." }, actor);
+    expect(res.ok).toBe(true);
+    const all = await listRiskAdjustments();
+    expect(all).toHaveLength(1);
+    expect(all[0]).toMatchObject({ tool: "APP-009", action: "accept", factor: "island", by: "me@example.com", date: "2026-08-19" });
+    expect(await readFile(join(dir, RISK_FILE), "utf8")).toContain("Monthly export by design.");
+  });
+
+  it("refuses an acceptance with no reason", async () => {
+    const res = await decideRisk({ tool: "APP-009", action: "accept", factor: "island" }, actor);
+    expect(res.ok).toBe(false);
+    expect(await listRiskAdjustments()).toEqual([]);
+  });
+
+  it("replaces an earlier decision about the same factor rather than stacking", async () => {
+    await decideRisk({ tool: "APP-009", action: "accept", factor: "island", reason: "first" }, actor);
+    await decideRisk({ tool: "APP-009", action: "accept", factor: "island", reason: "second" }, actor);
+    const all = await listRiskAdjustments();
+    expect(all).toHaveLength(1);
+    expect(all[0]!.reason).toBe("second");
+  });
+
+  it("takes a decision back, and says when there was none", async () => {
+    await decideRisk({ tool: "APP-009", action: "add", factor: "EOL 2027", weight: 20, reason: "Vendor EOL" }, actor);
+    expect((await undecideRisk("APP-009", "EOL 2027")).removed).toBe(1);
+    expect(await listRiskAdjustments()).toEqual([]);
+    expect((await undecideRisk("APP-009", "EOL 2027")).ok).toBe(false);
   });
 });

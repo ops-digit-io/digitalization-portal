@@ -7,7 +7,6 @@
 - **Status:** active
 - **Plant:** DE-ALD
 - **Domain:** production
-- **Tools:** Ignition, Microsoft 365, Local ticket mailbox (Foshan)
 - **Level:** L1
 - **Heat:** medium
 - **Scale potential:** multi-plant

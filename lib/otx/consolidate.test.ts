@@ -288,7 +288,10 @@ describe("budget — the findings, priced", () => {
 });
 
 describe("the consolidated register, over the shipped masters", () => {
-  it("holds every registered tool, every plant system and every declared tool at once", async () => {
+  it("holds every plant system and every declared tool, with no application register", async () => {
+    // The application register ships EMPTY on purpose, so on a fresh deployment the
+    // consolidation is exactly the plant survey plus whatever the demands name —
+    // and every one of those rows is a register gap, which is the honest answer.
     const base = join(process.cwd());
     const [toolsMd, landscapeMd] = await Promise.all([
       readFile(join(base, "registry/tools.md"), "utf8"),
@@ -296,35 +299,27 @@ describe("the consolidated register, over the shipped masters", () => {
     ]);
     const register = parseTools(toolsMd);
     const systems = parseLandscape(landscapeMd);
+    expect(register).toEqual([]);
+
     const entries = consolidate({
       register,
       systems,
-      demands: [demand("UC-2026-0041", "## State\n\n- **Tools:** Critical Manufacturing MES, Excel planning workbooks\n")],
+      demands: [demand("UC-2026-0041", "## State\n\n- **Tools:** Power BI\n")],
     });
     const summary = summariseConsolidated(entries);
 
-    expect(summary.registered).toBe(register.length);
-    // Every non-absence plant system is either an installation or an entry.
+    // Every non-absence plant system is an installation of exactly one entry.
     const real = systems.filter((s) => !isAbsenceRow(s));
     expect(summary.installations).toBe(real.length);
-    expect(summary.entries).toBeGreaterThan(register.length);
+    expect(summary.registered).toBe(0);
     expect(summary.plants).toBeGreaterThan(5);
+    expect(registerGaps(entries).length).toBe(entries.length);
 
-    // The two sources meet: a registered tool carries its plant installations.
-    const mes = entries.find((e) => e.tool === "Critical Manufacturing MES")!;
-    expect(mes.plants.length).toBeGreaterThan(1);
-    expect(mes.useCases).toHaveLength(1);
-
-    // …and the gaps are ordered worst-first, L3/L4 above control equipment.
-    const gaps = registerGaps(entries);
-    expect(gaps.length).toBeGreaterThan(0);
-    expect(gaps[0]!.risk.score).toBeGreaterThanOrEqual(gaps[gaps.length - 1]!.risk.score);
-
-    // Exposure reads the same link from the use case's side.
-    const exposure = useCaseExposure(entries);
-    expect(exposure[0]!.id).toBe("UC-2026-0041");
-    expect(exposure[0]!.worst).toBe("critical");
-    expect(topRisks(entries, 3)).toHaveLength(3);
+    // A demand naming a tool nothing knows still lands on the register, as a gap.
+    const declared = entries.find((e) => e.tool === "Power BI")!;
+    expect(declared.origin).toBe("use-case");
+    expect(useCaseExposure(entries)[0]!.id).toBe("UC-2026-0041");
+    expect(topRisks(entries, 3).length).toBeGreaterThan(0);
   });
 
   it("never throws on empty or malformed input", () => {
@@ -334,36 +329,82 @@ describe("the consolidated register, over the shipped masters", () => {
   });
 });
 
-describe("addressing a tool from outside the register", () => {
-  it("uses the register id when there is one, a slug when there is not", () => {
-    expect(toolNodeId({ id: "APP-026", tool: "Power BI" })).toBe("APP-026");
-    expect(toolNodeId({ id: "", tool: "UNS broker (HiveMQ)" })).toBe("uns-broker-hivemq");
-    expect(toolNodeId({ id: "", tool: "" })).toBe("unnamed");
-  });
+describe("a person's edits ride over the source row", () => {
+  const register = [tool({ id: "APP-001", tool: "SAP S/4HANA", vendor: "SAP", capability: "ERP", lifecycle: "invest", businessOwner: "Finance", itOwner: "Corporate IT", criticality: "critical", integration: "hub", annualCost: null })];
 
-  it("resolves a declared name by id, by full name, and by the name without its vendor", () => {
-    const index = toolNameIndex([
-      { id: "APP-026", tool: "Power BI" },
-      { id: "", tool: "UNS broker (HiveMQ)" },
-    ]);
-    expect(resolveToolName(index, "power bi")).toBe("APP-026");
-    expect(resolveToolName(index, "APP-026")).toBe("APP-026");
-    expect(resolveToolName(index, "UNS broker")).toBe("uns-broker-hivemq");
-  });
+  it("applies the patch, records which fields, and moves the derivation with it", () => {
+    const before = consolidate({ register })[0]!;
+    expect(before.risk.factors.map((f) => f.key)).toContain("unbudgeted");
 
-  it("gives an unknown name its own node rather than dropping it", () => {
-    // The whole point: a tool no register knows still has to be addressable, or the
-    // gap the consolidation exists to show has nowhere to live.
-    expect(resolveToolName(toolNameIndex([]), "Senseye Predictive Maintenance")).toBe("senseye-predictive-maintenance");
-  });
-
-  it("agrees with the ids consolidate() produces", () => {
     const entries = consolidate({
-      register: [tool({ id: "APP-026", tool: "Power BI", capability: "BI / analytics", lifecycle: "invest" })],
-      demands: [demand("UC-1", "## State\n\n- **Tools:** Power BI, Miro\n")],
+      register,
+      overrides: new Map([["app-001", { tool: "APP-001", patch: { annualCost: 1450000 }, fields: ["Annual cost"], by: "me@example.com", date: "2026-08-19" }]]),
     });
-    const index = toolNameIndex(entries);
-    expect(resolveToolName(index, "Power BI")).toBe("APP-026");
-    expect(resolveToolName(index, "Miro")).toBe(toolNodeId(entries.find((e) => e.tool === "Miro")!));
+    expect(entries[0]!.annualCost).toBe(1450000);
+    expect(entries[0]!.edited).toEqual(["Annual cost"]);
+    expect(entries[0]!.editedBy).toBe("me@example.com");
+    // The correction is what removes the finding — not a switch that hides it.
+    expect(entries[0]!.risk.factors.map((f) => f.key)).not.toContain("unbudgeted");
+    expect(budget(entries).total).toBe(1450000);
+  });
+
+  it("keeps the node id stable when the name is edited, so edits and edges survive", () => {
+    const entries = consolidate({
+      register: [],
+      systems: [system({ system: "UNS broker", vendor: "HiveMQ", level: "L3" })],
+      overrides: new Map([["uns-broker-hivemq", { tool: "uns-broker-hivemq", patch: { tool: "HiveMQ broker" }, fields: ["Name"], by: "me", date: "2026-08-19" }]]),
+    });
+    expect(entries[0]!.tool).toBe("HiveMQ broker");
+    expect(entries[0]!.node).toBe("uns-broker-hivemq");
+  });
+});
+
+describe("risk decisions — accepted, or added by hand", () => {
+  const register = [tool({ id: "APP-009", tool: "Personio", capability: "HRIS", lifecycle: "eliminate", integration: "isolated", businessOwner: "HR Europe", itOwner: "", users: 60, criticality: "standard", annualCost: 21000 })];
+
+  it("an accepted factor stops counting and stays on the record", () => {
+    const before = consolidate({ register })[0]!;
+    const island = before.risk.factors.find((f) => f.key === "island")!;
+
+    const after = consolidate({
+      register,
+      adjustments: [{ tool: "APP-009", action: "accept", factor: "island", weight: 0, reason: "Export is a monthly manual step by design.", by: "hr@example.com", date: "2026-08-19" }],
+    })[0]!;
+
+    expect(after.risk.score).toBe(before.risk.score - island.weight);
+    expect(after.risk.factors.map((f) => f.key)).not.toContain("island");
+    // Not deleted — an accepted risk that vanishes is a hidden risk.
+    expect(after.risk.accepted.map((f) => f.key)).toEqual(["island"]);
+    expect(after.risk.accepted[0]!.reason).toContain("monthly manual step");
+    expect(after.risk.accepted[0]!.by).toBe("hr@example.com");
+  });
+
+  it("a hand-added risk counts, and says it was added", () => {
+    const after = consolidate({
+      register,
+      adjustments: [{ tool: "APP-009", action: "add", factor: "Out of support 2027", weight: 20, reason: "Vendor announced end of life.", by: "it@example.com", date: "2026-08-19" }],
+    })[0]!;
+    const added = after.risk.factors.find((f) => f.manual)!;
+    expect(added.weight).toBe(20);
+    expect(added.label).toContain("Out of support 2027");
+    expect(added.label).toContain("end of life");
+  });
+
+  it("addresses adjustments by node id, so a tool with no register id can be decided about too", () => {
+    const entries = consolidate({
+      register: [],
+      systems: [system({ system: "UNS broker", vendor: "HiveMQ", level: "L3", iface: "none", integration: "none" })],
+      adjustments: [{ tool: "uns-broker-hivemq", action: "accept", factor: "unreadable", weight: 0, reason: "Broker is write-only by design.", by: "ops", date: "2026-08-19" }],
+    });
+    expect(entries[0]!.risk.accepted.map((f) => f.key)).toEqual(["unreadable"]);
+  });
+
+  it("ignores a decision about a factor the tool does not have", () => {
+    const after = consolidate({
+      register,
+      adjustments: [{ tool: "APP-009", action: "accept", factor: "not-a-factor", weight: 0, reason: "x", by: "y", date: "z" }],
+    })[0]!;
+    expect(after.risk.accepted).toEqual([]);
+    expect(after.risk.score).toBe(consolidate({ register })[0]!.risk.score);
   });
 });

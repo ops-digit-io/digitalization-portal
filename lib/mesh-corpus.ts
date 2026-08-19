@@ -220,8 +220,11 @@ export function demandToolEdges(demandId: string, markdown: string, index: Reado
 }
 
 /** One node per tool on the consolidated register, named as the register names it. */
-export function applicationDocs(entries: readonly ToolEntry[]): MeshDocument[] {
-  return entries.map((t) => ({ kind: "application" as const, id: toolNodeId(t), title: t.tool || toolNodeId(t) }));
+export function applicationDocs(entries: readonly Pick<ToolEntry, "node" | "id" | "tool">[]): MeshDocument[] {
+  return entries.map((t) => {
+    const id = t.node || toolNodeId(t);
+    return { kind: "application" as const, id, title: t.tool || id };
+  });
 }
 
 export function repoDocForDemand(d: { id: string; title: string; stage?: Stage }): MeshDocument | null {

@@ -24,11 +24,11 @@ import {
   useCaseExposure,
   topRisks,
   integrationHealth,
-  toolNodeId,
   ORIGIN_MEANING,
   type ToolEntry,
 } from "@/lib/otx/consolidate";
 import { AddTool } from "@/components/landscape/add-tool";
+import { RiskDecision, UndoRiskDecision } from "@/components/landscape/risk-decision";
 import {
   Chip,
   Stat,
@@ -59,8 +59,28 @@ export const dynamic = "force-dynamic";
  */
 
 /** A tool's node in the mesh — the same one the graph and the demand pages use. */
-function meshHref(t: { id: string; tool: string }): string {
-  return `/mesh?focus=${encodeURIComponent(`application:${toolNodeId(t)}`)}`;
+function meshHref(t: ToolEntry): string {
+  return `/mesh?focus=${encodeURIComponent(`application:${t.node}`)}`;
+}
+
+/** The tool's current values, as the edit form's fields. */
+function editValues(t: ToolEntry) {
+  return {
+    tool: t.tool,
+    vendor: t.vendor,
+    capability: t.capability,
+    domain: t.domain,
+    scope: t.scope,
+    hosting: t.hosting,
+    lifecycle: t.lifecycle,
+    integration: t.integration,
+    businessOwner: t.businessOwner,
+    itOwner: t.itOwner,
+    users: t.users === null ? "" : String(t.users),
+    criticality: t.criticality,
+    annualCost: t.annualCost === null ? "" : String(t.annualCost),
+    notes: t.notes,
+  };
 }
 
 function ToolChip({ t }: { t: ToolEntry }) {
@@ -241,9 +261,22 @@ export default async function LandscapePage() {
                         {t.risk.factors.map((f) => (
                           <li key={f.key}>
                             <span className="tabular-nums text-foreground/70">+{f.weight}</span> {f.label}
+                            {f.manual ? <span className="ml-1 text-[10px] uppercase tracking-wide">added</span> : null}
+                            {f.manual ? <> <UndoRiskDecision node={t.node} factor={f.key.replace(/^manual:/, "")} /></> : null}
+                          </li>
+                        ))}
+                        {t.risk.accepted.map((f) => (
+                          <li key={f.key} className="text-muted-foreground/70">
+                            <span className="tabular-nums line-through">+{f.weight}</span>{" "}
+                            <span className="line-through">{f.label}</span>{" "}
+                            <span className="text-[10px] uppercase tracking-wide">accepted</span> — {f.reason}
+                            {f.by ? ` (${f.by}${f.date ? `, ${f.date}` : ""})` : ""} <UndoRiskDecision node={t.node} factor={f.key} />
                           </li>
                         ))}
                       </ul>
+                      {canAdd ? (
+                        <RiskDecision node={t.node} label={t.tool} factors={t.risk.factors.filter((f) => !f.manual).map((f) => ({ key: f.key, label: f.label }))} />
+                      ) : null}
                     </td>
                   </tr>
                 ))}
@@ -643,7 +676,7 @@ export default async function LandscapePage() {
 
       <Section
         title="The register"
-        hint={`${summary.entries} tools · ${summary.installations} plant installations · ${summary.manual} added here · ${summary.fromUseCases} from use cases`}
+        hint={`${summary.entries} tools · ${summary.installations} plant installations · ${summary.manual} added here · ${summary.fromUseCases} from use cases · edit any row`}
       >
         <Card className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -665,7 +698,7 @@ export default async function LandscapePage() {
               {[...entries]
                 .sort((a, b) => (b.annualCost ?? 0) - (a.annualCost ?? 0) || (b.users ?? 0) - (a.users ?? 0) || a.tool.localeCompare(b.tool))
                 .map((t) => (
-                  <tr key={`${t.origin}-${t.id}-${t.tool}`} id={toolNodeId(t)} className="border-b scroll-mt-20 last:border-0">
+                  <tr key={`${t.origin}-${t.id}-${t.tool}`} id={t.node} className="border-b scroll-mt-20 last:border-0">
                     <td className="px-3 py-2">
                       <Link href={meshHref(t)} className="font-medium hover:underline" title="Show this tool in the context mesh">
                         {t.tool}
@@ -677,6 +710,23 @@ export default async function LandscapePage() {
                           title={t.issues.join("; ")}
                         >
                           !
+                        </span>
+                      ) : null}
+                      {t.edited.length > 0 ? (
+                        <span
+                          className="ml-1.5 text-[10px] text-muted-foreground"
+                          title={`Edited here: ${t.edited.join(", ")}${t.editedBy ? ` — ${t.editedBy}${t.editedOn ? `, ${t.editedOn}` : ""}` : ""}`}
+                        >
+                          edited
+                        </span>
+                      ) : null}
+                      {canAdd ? (
+                        <span className="ml-1.5">
+                          <AddTool
+                            capabilities={capabilityNames}
+                            domains={domainNames}
+                            edit={{ node: t.node, label: t.tool, values: editValues(t) }}
+                          />
                         </span>
                       ) : null}
                     </td>

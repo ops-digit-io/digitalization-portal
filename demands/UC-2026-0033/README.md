@@ -7,7 +7,6 @@
 - **Status:** active
 - **Plant:** DE-ALD
 - **Domain:** quality
-- **Tools:** Critical Manufacturing MES, SAP QM, Power BI
 - **Level:** L2
 - **Heat:** low
 - **Scale potential:** multi-plant
