@@ -288,10 +288,10 @@ describe("budget — the findings, priced", () => {
 });
 
 describe("the consolidated register, over the shipped masters", () => {
-  it("holds every plant system and every declared tool, with no application register", async () => {
-    // The application register ships EMPTY on purpose, so on a fresh deployment the
-    // consolidation is exactly the plant survey plus whatever the demands name —
-    // and every one of those rows is a register gap, which is the honest answer.
+  it("is EMPTY on a fresh deployment — the masters ship with no rows at all", async () => {
+    // Nothing invented is inherited: no applications, no plant systems, no tools a
+    // demand names until somebody names one. An empty page is the honest answer;
+    // a seeded portfolio is a page of fiction that reads as fact.
     const base = join(process.cwd());
     const [toolsMd, landscapeMd] = await Promise.all([
       readFile(join(base, "registry/tools.md"), "utf8"),
@@ -300,26 +300,22 @@ describe("the consolidated register, over the shipped masters", () => {
     const register = parseTools(toolsMd);
     const systems = parseLandscape(landscapeMd);
     expect(register).toEqual([]);
+    expect(systems).toEqual([]);
+    expect(consolidate({ register, systems })).toEqual([]);
+    expect(summariseConsolidated([]).meanRisk).toBeNull();
+  });
 
+  it("fills from the first thing recorded — a demand naming a tool nobody registered", async () => {
     const entries = consolidate({
-      register,
-      systems,
+      register: [],
+      systems: [],
       demands: [demand("UC-2026-0041", "## State\n\n- **Tools:** Power BI\n")],
     });
-    const summary = summariseConsolidated(entries);
-
-    // Every non-absence plant system is an installation of exactly one entry.
-    const real = systems.filter((s) => !isAbsenceRow(s));
-    expect(summary.installations).toBe(real.length);
-    expect(summary.registered).toBe(0);
-    expect(summary.plants).toBeGreaterThan(5);
-    expect(registerGaps(entries).length).toBe(entries.length);
-
-    // A demand naming a tool nothing knows still lands on the register, as a gap.
-    const declared = entries.find((e) => e.tool === "Power BI")!;
-    expect(declared.origin).toBe("use-case");
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.origin).toBe("use-case");
+    expect(registerGaps(entries)).toHaveLength(1);
     expect(useCaseExposure(entries)[0]!.id).toBe("UC-2026-0041");
-    expect(topRisks(entries, 3).length).toBeGreaterThan(0);
+    expect(topRisks(entries).length).toBe(1);
   });
 
   it("never throws on empty or malformed input", () => {

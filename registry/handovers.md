@@ -5,12 +5,11 @@ Operations IT Support (`docs/03-data-model.md §3.12`). One table row per handov
 with a prose block below carrying the demand, triage rationale, and the accepted
 external reference.
 
-> **This is a service, not a drop-off.** The run lane used to end here: a demand
-> was classified `run`, a row was written, and nothing said who carried it or to
-> what standard. `Service`, `Region`, `Team owner` and `Severity / SLA` make the
-> lane an operated service with a team behind it — which is what the
-> `service-catalog` section in Department OS describes and what `/handovers`
-> renders.
+> **Ships EMPTY.** Nothing here is invented — a register seeded with plausible
+> rows reads as fact within a week, and every finding it then produces is a
+> finding about fiction. Fill it with the handovers the run lane actually
+> received, by hand here or through the portal where it can write. The columns
+> are the contract.
 >
 > `Team owner` names a **team**, never a person. Per-person load is out of scope
 > by design (`docs/14-compliance.md`, constraint #6): a gap here is a finding
@@ -33,12 +32,6 @@ external reference.
 
 | ID | Title | Plant | Domain | Service | Region | Team owner | Severity / SLA | Requester | Decided | By | External ref | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| HO-2026-001 | Historian stopped publishing line 3 | DE-ALD | ot_integration | OT connectivity | Europe | Ops IT Europe | S2 | Fertigung | 2026-06-11 | triage | INC-48213 | closed |
-| HO-2026-002 | MES client cannot print travellers | SK-PUC | production | Shopfloor application | Europe | Ops IT Europe | S3 | Schichtleitung | 2026-06-19 | triage | INC-48377 | closed |
-| HO-2026-003 | New shift needs plant-floor roles | US-GRV | hr | Access & identity | Americas | Ops IT Americas | S4 | HR Grove City | 2026-07-02 | triage | REQ-11902 | closed |
-| HO-2026-004 | Extruder temperatures read 10× too high | CN-SUZ | quality | Data quality | Asia | Ops IT Asia | S2 | Qualität | 2026-07-15 | triage | INC-48901 | open |
-| HO-2026-005 | Gauge offline after network change | DE-VIE | ot_integration | OT connectivity | Europe | Ops IT Europe | S1 | Fertigung | 2026-07-28 | triage | INC-49044 | closed |
-| HO-2026-006 | Add a scrap reason code to the MES list | PL-BAR | quality | Change request (small) | Europe | Ops IT Europe | S4 | Qualität | 2026-08-04 | triage | REQ-12088 | open |
 
 ## HO-2026-004 — Extruder temperatures read 10× too high
 

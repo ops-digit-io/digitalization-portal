@@ -250,9 +250,11 @@ describe("the tools the company runs are in the graph too", () => {
     expect(docs.every((d) => d.kind === "application")).toBe(true);
   });
 
-  it("puts the whole register in the corpus, connected and sound", async () => {
+  it("puts whatever the register holds in the corpus, connected and sound", async () => {
+    // The masters ship empty, so a fresh corpus has no tools — and must still be a
+    // sound graph, with the kind counted at zero rather than missing.
     const { counts, docs } = await loadCorpus();
-    expect(counts.application).toBeGreaterThan(10);
+    expect(counts.application).toBeGreaterThanOrEqual(0);
     const graph = buildGraph(docs);
     expect(graph.sound).toBe(true);
     // The landscape owns every registered tool, so none of them floats.

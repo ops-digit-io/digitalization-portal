@@ -5,10 +5,10 @@ systems. `registry/landscape.md` is the OT deep-dive (plant × ISA-95 level, dow
 to the controller); this is the enterprise view that sits above it: what tool
 serves which capability, who owns it, and where it is going.
 
-> **Ships EMPTY.** Nothing here is invented: a register seeded with plausible
-> applications reads as fact within a week, and the findings it produces would be
-> findings about fiction. Add the real rows — by hand here, or through
-> `/landscape`, which appends to `landscape/tools.md` in the same columns.
+> **Ships EMPTY.** Nothing here is invented — a register seeded with plausible
+> rows reads as fact within a week, and every finding it then produces is a
+> finding about fiction. Fill it with the real application register, by hand
+> here or through the portal where it can write. The columns are the contract.
 
 The columns below are the contract.
 

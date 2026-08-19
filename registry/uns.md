@@ -1,5 +1,11 @@
 # Unified Namespace — the topic convention
 
+> **Ships EMPTY.** Nothing here is invented — a register seeded with plausible
+> rows reads as fact within a week, and every finding it then produces is a
+> finding about fiction. Fill it with the agreed namespace convention: one row
+> per segment, by hand here or through the portal where it can write. The
+> columns are the contract.
+
 The **to-be** half of the IT/OT integration roadmap. `registry/landscape.md` says
 where each system stands today; this file says what it is moving towards.
 
@@ -27,12 +33,3 @@ carries the payload spec and the waiver path.
 
 | Level | Segment | Example topic | Owner | Standard ref | Status |
 |---|---|---|---|---|---|
-| enterprise | `rehau` | `rehau` | IT/OT Architecture | STD-UNS-01 | published |
-| site | `<site>` | `rehau/ald` | IT/OT Architecture | STD-UNS-01 | published |
-| area | `<area>` | `rehau/ald/extrusion` | Ops IT Europe | STD-UNS-02 | published |
-| line | `<line>` | `rehau/ald/extrusion/l3` | Ops IT Europe | STD-UNS-02 | published |
-| cell | `<cell>` | `rehau/ald/fabrication/w2/weld-1` | Ops IT Europe | STD-UNS-03 | agreed |
-| asset | `<asset>` | `rehau/ald/extrusion/l3/gauge` | Ops IT Europe | STD-UNS-03 | agreed |
-| signal | `<signal>` | `rehau/ald/extrusion/l3/gauge/wall-thickness` | IT/OT Architecture | STD-UNS-04 | proposed |
-| signal | `<signal>` (state) | `rehau/ald/extrusion/l3/state` | IT/OT Architecture | STD-UNS-04 | proposed |
-| signal | `<signal>` (order ctx) | `rehau/ald/extrusion/l3/order` | IT/OT Architecture | STD-UNS-05 | proposed |

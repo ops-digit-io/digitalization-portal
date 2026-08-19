@@ -468,7 +468,7 @@ Anlage führen — mit Sicherheitsnachweis.
 | Lücke | Wirkung | Erste Gegenmaßnahme |
 |---|---|---|
 | Kein durchgängiges Application-Ownership | Anwendungen ohne benanntes Team tauchen erst auf, wenn sie ausfallen | \\\`registry/tools.md\\\` mit Business- und IT-Owner je Zeile; \\\`/landscape\\\` meldet jede Lücke |
-| Fähigkeiten doppelt belegt | Elf Fähigkeiten werden von mehr als einem Tool bedient; niemand entscheidet | Je Fähigkeit genau ein \\\`invest\\\`-Tool benennen; Doppelung wird zur Rollout-Entscheidung |
+| Fähigkeiten doppelt belegt | Dieselbe Fähigkeit wird von mehreren Tools bedient; niemand entscheidet | Je Fähigkeit genau ein \\\`invest\\\`-Tool benennen; Doppelung wird zur Rollout-Entscheidung |
 | Beschlüsse ohne Vollzug | Als \\\`eliminate\\\` markierte Tools tragen weiter kritische Last | Lifecycle-Schuld je Quartal durchgehen; wer nicht abschalten kann, benennt den Fall, der es verhindert |
 | OT-Datenzugang | K2.2/K5.1 blockieren Optimierung in mehreren Werken | UNS-Rückstand nach freigegebenen Prozessen priorisieren |
 | Regionale Autonomie vs. Standard | Regionen lösen dieselbe Aufgabe lokal | Standard vor Skalierung; Waiver dokumentiert statt geduldet |

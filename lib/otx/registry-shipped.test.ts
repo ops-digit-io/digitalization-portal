@@ -1,173 +1,112 @@
 /**
- * The registry masters that SHIP with the app are well-formed.
+ * The registry masters that ship with the app.
  *
- * `lib/otx/landscape.ts` never throws — a bad row is kept and marked. That is the
- * right behaviour at runtime and exactly why it needs a second guard here: without
- * one, a mistyped hand edit degrades quietly to a "needs attention" badge nobody
- * looks at. This test says the shipped data has no such rows, so the badge means
- * something when it does appear.
+ * They ship EMPTY — every one of them is a column contract and a vocabulary, with
+ * no rows. A register seeded with plausible plants, systems, technologies or
+ * applications reads as fact within a week, and every finding the portal then
+ * produces is a finding about fiction. So this file guards two things:
+ *
+ *   1. the files stay empty, so nothing invented is ever inherited;
+ *   2. the CONTRACT holds — each header carries exactly the columns its parser
+ *      reads, because a renamed column silently empties a field rather than
+ *      failing, and referential and invariant checks across the masters still
+ *      pass. Those checks are vacuous today and become real the moment a
+ *      deployment fills a file in, which is exactly when they are needed.
+ *
+ * The behaviour of the engines is tested against fixtures in their own files
+ * (`landscape.test.ts`, `rollout.test.ts`, `toolscape.test.ts`,
+ * `consolidate.test.ts`) — not against shipped data.
  */
 
 import { describe, it, expect } from "vitest";
 import { readFile } from "node:fs/promises";
-import { readRegistry } from "./source.js";
-import { parseLandscape, parsePlants, parseUns, summarise, blockers } from "./landscape.js";
-import { parseTechnology, parseRollout, unadoptedWaves, declined } from "./rollout.js";
+import { readRegistry, type RegistryFile } from "./source.js";
+import { parseLandscape, parsePlants, parseUns } from "./landscape.js";
+import { parseTechnology, parseRollout, unadoptedWaves } from "./rollout.js";
 import { parseAiPortfolio, evaluate, refusals } from "./ai-portfolio.js";
 import { parseTools, TOOL_COLUMNS } from "./toolscape.js";
-import { consolidate, budget, registerGaps, declaredTools } from "./consolidate.js";
+import { consolidate, registerGaps, declaredTools } from "./consolidate.js";
 import { listDemandDocs } from "../demands-store.js";
 
-describe("shipped registry masters", () => {
-  it("registry/landscape.md parses with no unreadable rows", async () => {
-    const systems = parseLandscape(await readRegistry("landscape"));
-    expect(systems.length).toBeGreaterThan(40);
-    expect(systems.filter((s) => s.needsAttention).map((s) => `${s.plant}/${s.system}: ${s.issues.join(", ")}`)).toEqual([]);
-  });
+/** The columns each master's parser reads. Renaming one silently empties a field. */
+const COLUMNS: Record<Exclude<RegistryFile, "tools">, string[]> = {
+  landscape: ["Plant", "ISA-95", "System", "Vendor", "Role", "Integration", "Interface", "UNS topic root", "Data owner", "Freshness", "Barrier"],
+  plants: ["Code", "Name", "Country", "Region", "Site role", "Ops IT owner", "Notes"],
+  uns: ["Level", "Segment", "Example topic", "Owner", "Standard ref", "Status"],
+  technology: ["ID", "Technology", "Layer", "Status", "Trialled at", "Evidence", "Decision", "Decided on", "Decided by", "Supersedes"],
+  rollout: ["Wave", "Capability", "Technology", "Plant", "State", "Gate", "Owner", "Start", "Live", "Blocker"],
+  "ai-portfolio": ["ID", "Use case", "Plant", "Domain", "Model class", "Stage", "Authority", "Control surface", "Envelope", "Fallback", "Abort condition", "Human owner", "Demand"],
+  handovers: ["ID", "Title", "Plant", "Domain", "Service", "Region", "Team owner", "Severity / SLA", "Requester", "Decided", "By", "External ref", "Status"],
+};
 
-  it("registry/plants.md parses with no unreadable rows", async () => {
-    const plants = parsePlants(await readRegistry("plants"));
-    expect(plants.length).toBeGreaterThan(10);
-    expect(plants.filter((p) => p.needsAttention).map((p) => `${p.code}: ${p.issues.join(", ")}`)).toEqual([]);
-  });
+/** The header row of a master's one table, as a list of column names. */
+function header(md: string | undefined): string[] {
+  const line = (md ?? "").split("\n").find((l) => l.trim().startsWith("|") && !/^\|[-:| ]+\|$/.test(l.trim())) ?? "";
+  return line.split("|").map((c) => c.trim()).filter((c) => c !== "");
+}
 
-  it("registry/uns.md parses with no unreadable rows", async () => {
-    const uns = parseUns(await readRegistry("uns"));
-    expect(uns.length).toBeGreaterThan(5);
-    expect(uns.filter((u) => u.needsAttention).map((u) => `${u.level}: ${u.issues.join(", ")}`)).toEqual([]);
-  });
+/** Data rows — everything after the header and separator. */
+function dataRows(md: string | undefined): string[] {
+  const lines = (md ?? "").split("\n").filter((l) => l.trim().startsWith("|"));
+  return lines.slice(2);
+}
 
-  it("every system names a plant that exists in the plant master", async () => {
-    const [systems, plants] = await Promise.all([
-      readRegistry("landscape").then(parseLandscape),
-      readRegistry("plants").then(parsePlants),
-    ]);
-    const known = new Set(plants.map((p) => p.code));
-    expect([...new Set(systems.map((s) => s.plant))].filter((p) => !known.has(p))).toEqual([]);
-  });
+describe("every shipped master is an empty contract", () => {
+  const files = [...(Object.keys(COLUMNS) as RegistryFile[]), "tools" as const];
 
-  it("has a real backlog to show — the surface would be pointless without one", async () => {
-    const systems = parseLandscape(await readRegistry("landscape"));
-    const s = summarise(systems);
-    expect(s.blocked).toBeGreaterThan(0);
-    // The worst blocker is at L3 or above: a blocked historian or MES denies data
-    // to the whole plant, which is the ordering the backlog exists to express.
-    expect(["L3", "L4"]).toContain(blockers(systems)[0]?.level);
-  });
+  for (const name of files) {
+    it(`registry/${name}.md ships with its columns and no rows`, async () => {
+      const md = await readRegistry(name);
+      expect(md, `registry/${name}.md is missing`).toBeDefined();
+      expect(dataRows(md), `registry/${name}.md ships ${dataRows(md).length} seeded row(s)`).toEqual([]);
+    });
 
-  it("registry/technology.md and registry/rollout.md parse with no unreadable rows", async () => {
-    const [tech, waves] = await Promise.all([
-      readRegistry("technology").then(parseTechnology),
-      readRegistry("rollout").then(parseRollout),
-    ]);
-    expect(tech.filter((t) => t.needsAttention).map((t) => `${t.id}: ${t.issues.join(", ")}`)).toEqual([]);
-    expect(waves.filter((w) => w.needsAttention).map((w) => `${w.wave}/${w.plant}: ${w.issues.join(", ")}`)).toEqual([]);
-  });
+    it(`registry/${name}.md carries exactly the columns its parser reads`, async () => {
+      const expected = name === "tools" ? [...TOOL_COLUMNS] : COLUMNS[name as Exclude<RegistryFile, "tools">];
+      expect(header(await readRegistry(name))).toEqual(expected);
+    });
+  }
 
-  it("the shipped plan does not break the invariant — no wave scales an unadopted technology", async () => {
-    const [tech, waves] = await Promise.all([
-      readRegistry("technology").then(parseTechnology),
-      readRegistry("rollout").then(parseRollout),
-    ]);
-    expect(unadoptedWaves(waves, tech).map((v) => `${v.wave.wave}/${v.wave.plant}: ${v.reason}`)).toEqual([]);
-  });
-
-  it("records technologies that were declined, not only ones that were adopted", async () => {
-    const tech = parseTechnology(await readRegistry("technology"));
-    // A register with no `hold`/`retire` rows cannot evidence deciding what stays
-    // OUT, which is half of what the responsibility actually is.
-    expect(declined(tech).length).toBeGreaterThan(0);
-  });
-
-  it("registry/ai-portfolio.md parses, and every refusal is one the register means", async () => {
-    const rows = parseAiPortfolio(await readRegistry("ai-portfolio"));
-    expect(rows.length).toBeGreaterThan(5);
-    expect(rows.filter((r) => r.needsAttention).map((r) => `${r.id}: ${r.issues.join(", ")}`)).toEqual([]);
-
-    // The portfolio is seeded to demonstrate BOTH outcomes: a control loop with a
-    // written safety case that is permitted, and one without that is refused. If
-    // either disappeared the surface would stop making its point.
-    const v = evaluate(rows);
-    expect(refusals(v).length).toBeGreaterThan(0);
-    expect(v.filter((x) => x.physical && x.ok).length).toBeGreaterThan(0);
-  });
-
-  it("every refused row is refused for a missing safety case, not a typo", async () => {
-    const rows = parseAiPortfolio(await readRegistry("ai-portfolio"));
-    for (const r of refusals(evaluate(rows))) {
-      expect(r.reason).toMatch(/envelope|fallback|abort condition/i);
+  it("says out loud that it ships empty, so nobody fills it with a demo", async () => {
+    for (const name of files) {
+      expect((await readRegistry(name)) ?? "", `registry/${name}.md`).toContain("Ships EMPTY");
     }
   });
+});
 
-  it("every AI row points at a plant that exists in the plant master", async () => {
-    const [rows, plants] = await Promise.all([
+describe("whatever a deployment records parses cleanly", () => {
+  // Vacuous while the files are empty, and the real guard the moment they are not:
+  // every parser keeps a bad row and marks it rather than throwing, so without this
+  // a mistyped hand edit degrades to a badge nobody looks at.
+  it("no unreadable row in any master", async () => {
+    const [systems, plants, uns, tech, waves, ai, tools] = await Promise.all([
+      readRegistry("landscape").then(parseLandscape),
+      readRegistry("plants").then(parsePlants),
+      readRegistry("uns").then(parseUns),
+      readRegistry("technology").then(parseTechnology),
+      readRegistry("rollout").then(parseRollout),
+      readRegistry("ai-portfolio").then(parseAiPortfolio),
+      readRegistry("tools").then(parseTools),
+    ]);
+    expect(systems.filter((s) => s.needsAttention).map((s) => `landscape ${s.plant}/${s.system}: ${s.issues.join(", ")}`)).toEqual([]);
+    expect(plants.filter((p) => p.needsAttention).map((p) => `plants ${p.code}: ${p.issues.join(", ")}`)).toEqual([]);
+    expect(uns.filter((u) => u.needsAttention).map((u) => `uns ${u.level}: ${u.issues.join(", ")}`)).toEqual([]);
+    expect(tech.filter((t) => t.needsAttention).map((t) => `technology ${t.id}: ${t.issues.join(", ")}`)).toEqual([]);
+    expect(waves.filter((w) => w.needsAttention).map((w) => `rollout ${w.wave}/${w.plant}: ${w.issues.join(", ")}`)).toEqual([]);
+    expect(ai.filter((r) => r.needsAttention).map((r) => `ai ${r.id}: ${r.issues.join(", ")}`)).toEqual([]);
+    expect(tools.filter((t) => t.needsAttention).map((t) => `tools ${t.id}: ${t.issues.join(", ")}`)).toEqual([]);
+  });
+
+  it("every plant code used anywhere exists in the plant master", async () => {
+    const [systems, waves, ai, plants] = await Promise.all([
+      readRegistry("landscape").then(parseLandscape),
+      readRegistry("rollout").then(parseRollout),
       readRegistry("ai-portfolio").then(parseAiPortfolio),
       readRegistry("plants").then(parsePlants),
     ]);
     const known = new Set(plants.map((p) => p.code));
-    expect([...new Set(rows.map((r) => r.plant))].filter((p) => !known.has(p))).toEqual([]);
-  });
-
-  it("registry/tools.md SHIPS EMPTY — no invented application is ever inherited", async () => {
-    // A register seeded with plausible tools reads as fact within a week, and every
-    // finding it produces is then a finding about fiction. The file ships as its
-    // columns and its vocabulary; the rows are the deployment's own.
-    const md = (await readRegistry("tools")) ?? "";
-    expect(md).not.toBe("");
-    expect(parseTools(md)).toEqual([]);
-  });
-
-  it("whatever a deployment puts there parses cleanly", async () => {
-    const tools = parseTools(await readRegistry("tools"));
-    expect(tools.filter((t) => t.needsAttention).map((t) => `${t.id}: ${t.issues.join(", ")}`)).toEqual([]);
-  });
-
-  it("registry/tools.md carries the column contract the writer also emits", async () => {
-    // `serialiseTools` renders a portal-added tool in `TOOL_COLUMNS` order and
-    // `parseTools` reads both files. If the shipped header and that list ever
-    // disagreed, a hand-added tool would silently lose a column.
-    const md = (await readRegistry("tools")) ?? "";
-    const header = md.split("\n").find((l) => l.startsWith("| ID |")) ?? "";
-    expect(header.split("|").map((c) => c.trim()).filter(Boolean)).toEqual([...TOOL_COLUMNS]);
-  });
-
-  it("consolidates whatever the masters hold, with an empty application register", async () => {
-    // With no applications recorded yet, every plant system is off-register — which
-    // is the honest state of a fresh deployment and exactly what the page should
-    // say, rather than a portfolio nobody entered.
-    const [tools, systems] = await Promise.all([
-      readRegistry("tools").then(parseTools),
-      readRegistry("landscape").then(parseLandscape),
-    ]);
-    const entries = consolidate({ register: tools, systems });
-    expect(entries.every((e) => e.origin !== "register")).toBe(true);
-    expect(registerGaps(entries).length).toBe(entries.length);
-    expect(budget(entries).lines).toEqual([]);
-  });
-
-  it("every demand that declares tools names something the register can place", async () => {
-    // A declared tool is a claim about the landscape. Most should land on a known
-    // row; the ones that do not are the finding, so this guards the ratio rather
-    // than demanding a perfect match.
-    const [tools, systems, demands] = await Promise.all([
-      readRegistry("tools").then(parseTools),
-      readRegistry("landscape").then(parseLandscape),
-      listDemandDocs(),
-    ]);
-    const entries = consolidate({ register: tools, systems, demands });
-    const declared = demands.flatMap((d) => declaredTools(d.markdown));
-    if (declared.length === 0) return; // a funnel with no declarations is valid
-    const unplaced = entries.filter((e) => e.origin === "use-case").length;
-    expect(unplaced).toBeLessThan(declared.length / 2);
-  });
-
-  it("keeps the capability vocabulary shared once a deployment fills the register", async () => {
-    // The register turns decorative if capabilities are invented per tool, because
-    // then nothing ever overlaps. Vacuously true on an empty file, and a real guard
-    // the moment rows exist.
-    const tools = parseTools(await readRegistry("tools"));
-    if (tools.length === 0) return;
-    expect(new Set(tools.map((t) => t.capability)).size).toBeLessThan(tools.length);
+    const used = [...systems.map((s) => s.plant), ...waves.map((w) => w.plant), ...ai.map((r) => r.plant)];
+    expect([...new Set(used)].filter((p) => p !== "" && !known.has(p))).toEqual([]);
   });
 
   it("every tool names a domain that exists in the domain taxonomy", async () => {
@@ -176,15 +115,44 @@ describe("shipped registry masters", () => {
       readFile(new URL("../../registry/domains.md", import.meta.url), "utf8"),
     ]);
     const known = new Set([...domainsMd.matchAll(/^\| ([a-z_]+) \|/gm)].map((m) => m[1]));
+    expect(known.size, "the domain taxonomy is a vocabulary and must NOT ship empty").toBeGreaterThan(5);
     expect([...new Set(tools.map((t) => t.domain))].filter((d) => d !== "" && !known.has(d))).toEqual([]);
   });
 
-  it("every wave names a plant that exists in the plant master", async () => {
-    const [waves, plants] = await Promise.all([
+  it("no wave scales a technology nobody adopted", async () => {
+    const [tech, waves] = await Promise.all([
+      readRegistry("technology").then(parseTechnology),
       readRegistry("rollout").then(parseRollout),
-      readRegistry("plants").then(parsePlants),
     ]);
-    const known = new Set(plants.map((p) => p.code));
-    expect([...new Set(waves.map((w) => w.plant))].filter((p) => !known.has(p))).toEqual([]);
+    expect(unadoptedWaves(waves, tech).map((v) => `${v.wave.wave}/${v.wave.plant}: ${v.reason}`)).toEqual([]);
+  });
+
+  it("every refused AI row is refused for a missing safety case, not a typo", async () => {
+    const rows = parseAiPortfolio(await readRegistry("ai-portfolio"));
+    for (const r of refusals(evaluate(rows))) {
+      expect(r.reason).toMatch(/envelope|fallback|abort condition/i);
+    }
+  });
+});
+
+describe("the consolidated register over empty masters", () => {
+  it("is empty, and says so rather than inventing a portfolio", async () => {
+    const [tools, systems] = await Promise.all([
+      readRegistry("tools").then(parseTools),
+      readRegistry("landscape").then(parseLandscape),
+    ]);
+    expect(consolidate({ register: tools, systems })).toEqual([]);
+  });
+
+  it("fills only from what a demand declares — and every such tool is a register gap", async () => {
+    const [tools, systems, demands] = await Promise.all([
+      readRegistry("tools").then(parseTools),
+      readRegistry("landscape").then(parseLandscape),
+      listDemandDocs(),
+    ]);
+    const entries = consolidate({ register: tools, systems, demands });
+    const declared = new Set(demands.flatMap((d) => declaredTools(d.markdown)).map((n) => n.toLowerCase()));
+    expect(entries.length).toBe(declared.size);
+    expect(registerGaps(entries).length).toBe(entries.length);
   });
 });
