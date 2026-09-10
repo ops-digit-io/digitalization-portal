@@ -82,6 +82,12 @@ Follow `docs/15-roadmap.md`. Summary:
 foundation. Do not build agent capability before M5 — you would be debugging two
 systems at once.
 
+The portal has since grown past this table (Department OS, the landscape
+register, the context mesh, ten locales). What comes next is planned in
+[`ROADMAP-next.md`](./ROADMAP-next.md) as the **N-series** — ten milestones that
+add no new model capability — plus the AI series named in its §N-out. The M
+numbers above are not reused.
+
 ## The markdown parser
 
 The most load-bearing piece of code. `lib/parse.ts`.
