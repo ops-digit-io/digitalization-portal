@@ -5,9 +5,32 @@
  * to a dedicated portal tool. Tiles are pure entry points — no metrics rendered.
  * Adding a tile is one entry. Titles/subtitles here are the English defaults;
  * translations live in `lib/i18n.ts` keyed by `tile.<id>.title|subtitle`.
+ *
+ * Every tile declares the CAPABILITY its tool needs (N8), so the launchpad can be
+ * shaped by what a session may actually do. Two rules govern that shaping:
+ *
+ *   1. A tool a session cannot use is shown MUTED, never hidden. A portal that
+ *      silently omits things teaches people it is incomplete, and a requester who
+ *      cannot find the tool a colleague mentioned assumes the portal is broken
+ *      rather than that it is scoped.
+ *   2. The shaping is by CAPABILITY, never by usage. No tile order, grouping or
+ *      emphasis is derived from who clicked what (constraint #6).
+ *
+ * The declaration is a routing hint, not the enforcement: every route still calls
+ * `can()` itself. Where a tool's pages carry no guard of their own, the capability
+ * named here is the one its WORK needs — the thing you go there to do.
  */
 
+import type { Capability } from "./rbac.js";
+
 export type Tone = "info" | "ok" | "violet" | "warn" | "slate";
+
+/** A tool that is drafted but not built, and the milestone that plans it
+ *  (`docs/ROADMAP-next.md`). Rendered muted, with the milestone shown — "soon"
+ *  with no date and no plan behind it is a promise, not information. */
+export interface Planned {
+  milestone: string;
+}
 
 export interface Tile {
   id: string;
@@ -17,13 +40,44 @@ export interface Tile {
   /** 24×24 stroke icon path(s). */
   icon: string;
   tone: Tone;
-  /** Drafted tool, not yet built — rendered muted with a "soon" marker. */
-  disabled?: boolean;
+  /** The capability this tool's work needs. Required: a new tile cannot be added
+   *  without deciding who it is for. */
+  capability: Capability;
+  /** Set when the tool is planned rather than built. */
+  planned?: Planned;
 }
 
 export interface TileGroup {
   category: string;
   tiles: Tile[];
+}
+
+/** A tile as the launchpad renders it: the tile, plus whether this session may use it. */
+export interface ResolvedTile {
+  tile: Tile;
+  /** True when the session lacks the tile's capability — muted, not hidden. */
+  locked: boolean;
+}
+
+export interface ResolvedGroup {
+  category: string;
+  tiles: ResolvedTile[];
+}
+
+/**
+ * The launchpad for one session, as a predicate over capabilities.
+ *
+ * Takes `allowed` rather than a `Session` so it is pure and testable without an
+ * auth context, the way the rest of the lib is. Nothing is dropped: order and
+ * grouping are identical for everybody, and only the `locked` flag differs. A
+ * planned tile is not locked — it is unbuilt, which is a different fact, and a
+ * tile can be both.
+ */
+export function launchpadFor(allowed: (capability: Capability) => boolean): ResolvedGroup[] {
+  return LAUNCHPAD.map((group) => ({
+    category: group.category,
+    tiles: group.tiles.map((tile) => ({ tile, locked: !allowed(tile.capability) })),
+  }));
 }
 
 // Minimal stroke-icon paths (fill:none, stroke:currentColor).
@@ -64,8 +118,8 @@ export const LAUNCHPAD: TileGroup[] = [
     // smallest shippable increment, and let the evidenced result become a demand.
     category: "Diagnose (pre-funnel)",
     tiles: [
-      { id: "org", title: "Department OS", subtitle: "The org behind the demands — mandate, decision rights, metrics", href: "/org", icon: I.org, tone: "violet" },
-      { id: "process", title: "Process Funnel", subtitle: "Diagnose & score a process before intake", href: "/process", icon: I.route, tone: "violet" },
+      { id: "org", title: "Department OS", subtitle: "The org behind the demands — mandate, decision rights, metrics", href: "/org", icon: I.org, tone: "violet", capability: "draft" },
+      { id: "process", title: "Process Funnel", subtitle: "Diagnose & score a process before intake", href: "/process", icon: I.route, tone: "violet", capability: "view_board" },
     ],
   },
   {
@@ -76,64 +130,64 @@ export const LAUNCHPAD: TileGroup[] = [
     // process, these diagnose what the process stands on.
     category: "Landscape & technology",
     tiles: [
-      { id: "landscape", title: "Tool & System Landscape", subtitle: "Every tool in one register · risk, budget, owners · plants × ISA-95", href: "/landscape", icon: I.stack, tone: "violet" },
-      { id: "rollout", title: "Rollout", subtitle: "Technology decisions & scaling waves across the plants", href: "/rollout", icon: I.waves, tone: "violet" },
-      { id: "ai-framework", title: "AI Framework", subtitle: "Production models on the ladder · control loops & their safety case", href: "/ai-framework", icon: I.loop, tone: "violet" },
-      { id: "scout", title: "Technology Scout", subtitle: "Sweep public sources · relevance vs. fit to our own gaps", href: "/scout", icon: I.radar, tone: "info" },
+      { id: "landscape", title: "Tool & System Landscape", subtitle: "Every tool in one register · risk, budget, owners · plants × ISA-95", href: "/landscape", icon: I.stack, tone: "violet", capability: "view_board" },
+      { id: "rollout", title: "Rollout", subtitle: "Technology decisions & scaling waves across the plants", href: "/rollout", icon: I.waves, tone: "violet", capability: "view_board" },
+      { id: "ai-framework", title: "AI Framework", subtitle: "Production models on the ladder · control loops & their safety case", href: "/ai-framework", icon: I.loop, tone: "violet", capability: "view_board" },
+      { id: "scout", title: "Technology Scout", subtitle: "Sweep public sources · relevance vs. fit to our own gaps", href: "/scout", icon: I.radar, tone: "info", capability: "view_board" },
     ],
   },
   {
     category: "Demand & intake",
     tiles: [
-      { id: "intake", title: "Intake", subtitle: "Capture a demand — chat, form or markdown", href: "/intake", icon: I.spark, tone: "info" },
-      { id: "demands", title: "Demands", subtitle: "Every demand taken in", href: "/demands", icon: I.chat, tone: "info" },
-      { id: "board", title: "Portfolio Board", subtitle: "All demand by stage", href: "/board", icon: I.grid, tone: "info" },
-      { id: "attention", title: "Needs Attention", subtitle: "Unreadable or stalled", href: "/attention", icon: I.alert, tone: "warn" },
+      { id: "intake", title: "Intake", subtitle: "Capture a demand — chat, form or markdown", href: "/intake", icon: I.spark, tone: "info", capability: "draft" },
+      { id: "demands", title: "Demands", subtitle: "Every demand taken in", href: "/demands", icon: I.chat, tone: "info", capability: "view_board" },
+      { id: "board", title: "Portfolio Board", subtitle: "All demand by stage", href: "/board", icon: I.grid, tone: "info", capability: "view_board" },
+      { id: "attention", title: "Needs Attention", subtitle: "Unreadable or stalled", href: "/attention", icon: I.alert, tone: "warn", capability: "view_board" },
     ],
   },
   {
     category: "Analyse & value",
     tiles: [
-      { id: "analyst", title: "Analyst", subtitle: "Simulate, size, scaffold", href: "/assistant", icon: I.chat, tone: "ok" },
-      { id: "requirements", title: "Requirements", subtitle: "Epics & stories from intake", href: "/requirements", icon: I.book, tone: "ok" },
-      { id: "personas", title: "Persona Analyst", subtitle: "Requestor profiles & cohorts", href: "/personas", icon: I.users, tone: "ok" },
-      { id: "persona-library", title: "Persona Library", subtitle: "The vocabulary requirements cite", href: "/personas/library", icon: I.book, tone: "ok" },
-      { id: "analysis", title: "Implementation Analysis", subtitle: "Workload vs. value", href: "/analysis", icon: I.chart, tone: "ok" },
-      { id: "value", title: "Value Cockpit", subtitle: "Pipeline · committed · realized", href: "/value", icon: I.euro, tone: "ok" },
-      { id: "simulate", title: "Business Case Simulation", subtitle: "P10 / P50 / P90 bands", href: "/simulate", icon: I.bolt, tone: "ok" },
-      { id: "review", title: "Value Review", subtitle: "Variance vs. business case", href: "/analysis", icon: I.gauge, tone: "ok" },
+      { id: "analyst", title: "Analyst", subtitle: "Simulate, size, scaffold", href: "/assistant", icon: I.chat, tone: "ok", capability: "view_board" },
+      { id: "requirements", title: "Requirements", subtitle: "Epics & stories from intake", href: "/requirements", icon: I.book, tone: "ok", capability: "draft" },
+      { id: "personas", title: "Persona Analyst", subtitle: "Requestor profiles & cohorts", href: "/personas", icon: I.users, tone: "ok", capability: "view_board" },
+      { id: "persona-library", title: "Persona Library", subtitle: "The vocabulary requirements cite", href: "/personas/library", icon: I.book, tone: "ok", capability: "view_board" },
+      { id: "analysis", title: "Implementation Analysis", subtitle: "Workload vs. value", href: "/analysis", icon: I.chart, tone: "ok", capability: "view_board" },
+      { id: "value", title: "Value Cockpit", subtitle: "Pipeline · committed · realized", href: "/value", icon: I.euro, tone: "ok", capability: "view_all" },
+      { id: "simulate", title: "Business Case Simulation", subtitle: "P10 / P50 / P90 bands", href: "/simulate", icon: I.bolt, tone: "ok", capability: "view_board" },
+      { id: "review", title: "Value Review", subtitle: "Variance vs. business case", href: "/analysis", icon: I.gauge, tone: "ok", capability: "view_board" },
     ],
   },
   {
     category: "Portfolio & steering",
     tiles: [
-      { id: "funnel", title: "Use-case Funnel", subtitle: "Stage flow, kill rate by gate", href: "/funnel", icon: I.chart, tone: "info" },
-      { id: "triage", title: "Triage", subtitle: "Classify & assign lanes", href: "/triage", icon: I.route, tone: "info" },
-      { id: "backlog", title: "Backlog", subtitle: "Prioritize (S2)", href: "/backlog", icon: I.sort, tone: "slate" },
-      { id: "roadmap", title: "Roadmap", subtitle: "Milestones & gates", href: "/roadmap", icon: I.map, tone: "slate" },
-      { id: "champions", title: "Digital Champions", subtitle: "Network coverage & gaps", href: "/champions", icon: I.users, tone: "info" },
+      { id: "funnel", title: "Use-case Funnel", subtitle: "Stage flow, kill rate by gate", href: "/funnel", icon: I.chart, tone: "info", capability: "view_board" },
+      { id: "triage", title: "Triage", subtitle: "Classify & assign lanes", href: "/triage", icon: I.route, tone: "info", capability: "assign_lane" },
+      { id: "backlog", title: "Backlog", subtitle: "Prioritize (S2)", href: "/backlog", icon: I.sort, tone: "slate", capability: "reprioritize" },
+      { id: "roadmap", title: "Roadmap", subtitle: "Milestones & gates", href: "/roadmap", icon: I.map, tone: "slate", capability: "view_board" },
+      { id: "champions", title: "Digital Champions", subtitle: "Network coverage & gaps", href: "/champions", icon: I.users, tone: "info", capability: "view_board" },
     ],
   },
   {
     category: "Build & deliver",
     tiles: [
-      { id: "poc", title: "Agentic PoC Builder", subtitle: "Repo · spec · artifact", href: "/build", icon: I.wrench, tone: "violet" },
-      { id: "handovers", title: "Handovers", subtitle: "Run-lane & G7 records", href: "/handovers", icon: I.swap, tone: "violet" },
+      { id: "poc", title: "Agentic PoC Builder", subtitle: "Repo · spec · artifact", href: "/build", icon: I.wrench, tone: "violet", capability: "create_uc" },
+      { id: "handovers", title: "Handovers", subtitle: "Run-lane & G7 records", href: "/handovers", icon: I.swap, tone: "violet", capability: "accept_handover" },
     ],
   },
   {
     category: "Govern & operate",
     tiles: [
-      { id: "docs", title: "Specification", subtitle: "Governance & data model", href: "/docs", icon: I.book, tone: "slate" },
-      { id: "catalog", title: "Skills & Playbooks", subtitle: "Agent capabilities", href: "/catalog", icon: I.copy, tone: "info" },
-      { id: "categories", title: "Categories", subtitle: "Manage plants & domains (admin)", href: "/admin/categories", icon: I.cog, tone: "slate" },
-      { id: "poc-templates", title: "PoC Templates", subtitle: "Check & manage template repos (admin)", href: "/admin/templates", icon: I.copy, tone: "slate" },
-      { id: "skill-library", title: "Skill Library", subtitle: "Import reference skills (agentskills.io)", href: "/skill-library", icon: I.download, tone: "info" },
-      { id: "traces", title: "Agent Traces", subtitle: "Replayable AI runs", href: "/assistant", icon: I.gauge, tone: "slate", disabled: true },
-      { id: "digest", title: "Review Digest", subtitle: "Due dates & staleness", href: "/digest", icon: I.bell, tone: "slate" },
-      { id: "mesh", title: "Context Mesh", subtitle: "How every artifact relates", href: "/mesh", icon: I.mesh, tone: "info" },
-      { id: "usage", title: "Usage & Cost", subtitle: "AI spend and portal use by tool (admin)", href: "/admin/usage", icon: I.gauge, tone: "info" },
-      { id: "settings", title: "Configuration", subtitle: "Integrations & status", href: "/settings", icon: I.shield, tone: "info" },
+      { id: "docs", title: "Specification", subtitle: "Governance & data model", href: "/docs", icon: I.book, tone: "slate", capability: "view_board" },
+      { id: "catalog", title: "Skills & Playbooks", subtitle: "Agent capabilities", href: "/catalog", icon: I.copy, tone: "info", capability: "view_board" },
+      { id: "categories", title: "Categories", subtitle: "Manage plants & domains (admin)", href: "/admin/categories", icon: I.cog, tone: "slate", capability: "all" },
+      { id: "poc-templates", title: "PoC Templates", subtitle: "Check & manage template repos (admin)", href: "/admin/templates", icon: I.copy, tone: "slate", capability: "all" },
+      { id: "skill-library", title: "Skill Library", subtitle: "Import reference skills (agentskills.io)", href: "/skill-library", icon: I.download, tone: "info", capability: "edit_registry" },
+      { id: "traces", title: "Agent Traces", subtitle: "Replayable AI runs", href: "/assistant", icon: I.gauge, tone: "slate", capability: "all", planned: { milestone: "N1" } },
+      { id: "digest", title: "Review Digest", subtitle: "Due dates & staleness", href: "/digest", icon: I.bell, tone: "slate", capability: "view_board" },
+      { id: "mesh", title: "Context Mesh", subtitle: "How every artifact relates", href: "/mesh", icon: I.mesh, tone: "info", capability: "view_board" },
+      { id: "usage", title: "Usage & Cost", subtitle: "AI spend and portal use by tool (admin)", href: "/admin/usage", icon: I.gauge, tone: "info", capability: "all" },
+      { id: "settings", title: "Configuration", subtitle: "Integrations & status", href: "/settings", icon: I.shield, tone: "info", capability: "all" },
     ],
   },
 ];

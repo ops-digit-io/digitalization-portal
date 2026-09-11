@@ -228,6 +228,8 @@ const EN: Strings = {
   "theme.toggle": "Toggle theme",
   "lang.label": "Language",
   "tile.soon": "soon",
+  "tile.locked": "no access",
+  "tile.planned": "Planned — not built yet.",
 
   "cat.Diagnose (pre-funnel)": "Diagnose (pre-funnel)",
   "cat.Demand & intake": "Demand & intake",
@@ -503,6 +505,8 @@ const DE: Strings = {
   "theme.toggle": "Design umschalten",
   "lang.label": "Sprache",
   "tile.soon": "bald",
+  "tile.locked": "kein Zugriff",
+  "tile.planned": "Geplant — noch nicht gebaut.",
 
   "cat.Diagnose (pre-funnel)": "Diagnose (vor dem Funnel)",
   "cat.Demand & intake": "Bedarf & Erfassung",
@@ -778,6 +782,8 @@ const ZH: Strings = {
   "theme.toggle": "切换主题",
   "lang.label": "语言",
   "tile.soon": "即将推出",
+  "tile.locked": "无权限",
+  "tile.planned": "已列入计划 — 尚未构建。",
 
   "cat.Diagnose (pre-funnel)": "诊断（漏斗前）",
   "cat.Demand & intake": "需求与录入",
@@ -1053,6 +1059,8 @@ const FR: Strings = {
   "theme.toggle": "Changer de thème",
   "lang.label": "Langue",
   "tile.soon": "bientôt",
+  "tile.locked": "aucun accès",
+  "tile.planned": "Prévu — pas encore développé.",
 
   "cat.Diagnose (pre-funnel)": "Diagnostic (avant l'entonnoir)",
   "cat.Demand & intake": "Demande et saisie",
@@ -1328,6 +1336,8 @@ const ES: Strings = {
   "theme.toggle": "Cambiar tema",
   "lang.label": "Idioma",
   "tile.soon": "pronto",
+  "tile.locked": "sin acceso",
+  "tile.planned": "Planificado: aún no desarrollado.",
 
   "cat.Diagnose (pre-funnel)": "Diagnóstico (pre-embudo)",
   "cat.Demand & intake": "Demanda y captación",
@@ -1603,6 +1613,8 @@ const SR: Strings = {
   "theme.toggle": "Промени тему",
   "lang.label": "Језик",
   "tile.soon": "ускоро",
+  "tile.locked": "нема приступа",
+  "tile.planned": "Планирано — још није направљено.",
 
   "cat.Diagnose (pre-funnel)": "Дијагноза (пре левка)",
   "cat.Demand & intake": "Потребе и пријем",
@@ -1878,6 +1890,8 @@ const HU: Strings = {
   "theme.toggle": "Téma váltása",
   "lang.label": "Nyelv",
   "tile.soon": "hamarosan",
+  "tile.locked": "nincs hozzáférés",
+  "tile.planned": "Tervezett — még nincs elkészítve.",
 
   "cat.Diagnose (pre-funnel)": "Diagnózis (tölcsér előtt)",
   "cat.Demand & intake": "Igény és felvétel",
@@ -2153,6 +2167,8 @@ const RO: Strings = {
   "theme.toggle": "Comută tema",
   "lang.label": "Limbă",
   "tile.soon": "în curând",
+  "tile.locked": "fără acces",
+  "tile.planned": "Planificat — încă nerealizat.",
 
   "cat.Diagnose (pre-funnel)": "Diagnostic (pre-pâlnie)",
   "cat.Demand & intake": "Cerere și preluare",
@@ -2428,6 +2444,8 @@ const PT: Strings = {
   "theme.toggle": "Alternar tema",
   "lang.label": "Idioma",
   "tile.soon": "em breve",
+  "tile.locked": "sem acesso",
+  "tile.planned": "Planeado — ainda não construído.",
 
   "cat.Diagnose (pre-funnel)": "Diagnóstico (pré-funil)",
   "cat.Demand & intake": "Procura e captação",
@@ -2703,6 +2721,8 @@ const SK: Strings = {
   "theme.toggle": "Prepnúť tému",
   "lang.label": "Jazyk",
   "tile.soon": "čoskoro",
+  "tile.locked": "žiadny prístup",
+  "tile.planned": "Plánované — zatiaľ nevytvorené.",
 
   "cat.Diagnose (pre-funnel)": "Diagnostika (pred lievikom)",
   "cat.Demand & intake": "Dopyt a príjem",

@@ -40,7 +40,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   function go(index: number) {
     const r = results[index];
-    if (!r || r.tile.disabled) return;
+    if (!r || r.tile.planned) return;
     onClose();
     router.push(r.tile.href);
   }
@@ -79,16 +79,16 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
               <button
                 onMouseEnter={() => setActive(i)}
                 onClick={() => go(i)}
-                disabled={r.tile.disabled}
+                disabled={Boolean(r.tile.planned)}
                 className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left ${
                   i === active ? "bg-accent" : ""
-                } ${r.tile.disabled ? "opacity-50" : ""}`}
+                } ${r.tile.planned ? "opacity-50" : ""}`}
               >
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{r.title}</span>
                   <span className="block truncate text-xs text-muted-foreground">{r.subtitle}</span>
                 </span>
-                {r.tile.disabled && (
+                {r.tile.planned && (
                   <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{t("tile.soon", "soon")}</span>
                 )}
               </button>
