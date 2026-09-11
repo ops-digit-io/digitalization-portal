@@ -40,18 +40,18 @@ no KV, no email, no webhook and no model key, each milestone still renders and
 Size is relative, not a schedule: **S** = one contained pull request; **M** =
 two or three; **L** = a new store plus a surface plus its tests.
 
-| N | Deliverable | Size | Depends on |
-|---|---|---|---|
-| N1 | Agent run traces, persisted, at `/admin/traces` | M | — |
-| N2 | Approval inbox — the `execute-with-approval` rung becomes operable | L | N1 |
-| N3 | Portal-wide record search behind ⌘K | M | — |
-| N4 | Channel layer — outbound beyond email (Teams / Slack / webhook) | S | — |
-| N5 | Inbound intake channel — a demand can arrive by mail | L | N4 |
-| N6 | Proactive nudges — gate-readiness and landscape drift in the digest | M | N4 |
-| N7 | Forum mode — the decision agenda that ends in merged PRs | M | N6 |
-| N8 | Role-shaped launchpad and an honest tile lifecycle | S | N3 |
-| N9 | Spend controls — per-feature caps on the meter that already counts | M | — |
-| N10 | Standing jobs — weekly change brief, scheduled sweep with a delta | M | N4, N9 |
+| N | Deliverable | Size | Depends on | Status |
+|---|---|---|---|---|
+| N1 | Agent run traces, persisted, at `/admin/traces` | M | — | planned |
+| N2 | Approval inbox — the `execute-with-approval` rung becomes operable | L | N1 | planned |
+| N3 | Portal-wide record search behind ⌘K | M | — | planned |
+| N4 | Channel layer — outbound beyond email (Teams / Slack / webhook) | S | — | **built** |
+| N5 | Inbound intake channel — a demand can arrive by mail | L | N4 | planned |
+| N6 | Proactive nudges — gate-readiness and landscape drift in the digest | M | N4 | planned |
+| N7 | Forum mode — the decision agenda that ends in merged PRs | M | N6 | planned |
+| N8 | Role-shaped launchpad and an honest tile lifecycle | S | — | **built** |
+| N9 | Spend controls — per-feature caps on the meter that already counts | M | — | planned |
+| N10 | Standing jobs — weekly change brief, scheduled sweep with a delta | M | N4, N9 | planned |
 
 **Phase 1 — the governance backbone (N1, N2).** The ladder is the framework's
 stated payoff and the portal cannot climb it. Everything else is easier once a
@@ -181,7 +181,7 @@ index answers within the same request rather than erroring.
 
 ---
 
-## N4 — The channel layer
+## N4 — The channel layer — BUILT
 
 **Why now.** `lib/notify/index.ts` is a clean `Notifier` interface with exactly
 one implementation, an HTTP email API. Manufacturing organisations do not read
@@ -206,6 +206,18 @@ email at the line, and the weekly digest is the portal's only outbound voice.
 emails; with neither configured the digest page still works and the cron returns
 `notified.sent: 0` without failing. A 500 from one channel does not stop the
 other.
+
+**As built.** `getNotifiers()` returns every configured channel and
+`sendDigestEverywhere()` runs them in order, each absorbing its own failure. The
+webhook's payload shape is detected from the URL (`hooks.slack.com` → Slack's
+`{text}`; `logic.azure.com` / `webhook.office.com` → an Adaptive Card in a Teams
+Workflows envelope), overridable with `DIGEST_WEBHOOK_FORMAT` when a gateway
+hides the provider. One decision worth recording beyond the plan: **a shared
+channel receives the team digest only.** Per-person nudges are not posted to a
+room — "Jane has four demands needing review" is a statement about a person in
+front of an audience, and `MAP.md §4`'s rule is that a finding is about the
+organisation's work. The nudge goes by email to the one person who can act on
+it. The result never echoes the webhook URL, which carries the secret.
 
 ---
 
@@ -314,7 +326,7 @@ names every decision and its PR.
 
 ---
 
-## N8 — Role-shaped launchpad
+## N8 — Role-shaped launchpad — BUILT
 
 **Why now.** `lib/launchpad.ts` is at thirty-five tiles across eight
 categories, rendered identically for every session. A requester meets the same
@@ -338,6 +350,18 @@ copy, all ten locales — the coverage guard will insist).
 tiles among its actionable ones. A test asserts every tile declares a
 capability, so a new tile cannot be added without deciding who it is for. The
 i18n coverage guard passes.
+
+**As built.** `capability` is a REQUIRED field on `Tile`, so TypeScript refuses a
+tile nobody has decided the audience for, and `lib/launchpad.test.ts` refuses one
+whose capability is not real — plus asserts no tile is unreachable by every
+shipped role, which catches a wrong capability as well as a missing one.
+`launchpadFor(allowed)` takes a predicate rather than a session, so the shaping is
+pure and tested without an auth context; `app/page.tsx` became a server component
+so `can()` runs server-side and no capability list is shipped to the browser.
+`disabled: true` gave way to `planned: { milestone }`, so a muted tile names the
+milestone that plans it instead of saying "soon". Locked and planned are rendered
+as the different facts they are. The demo session holds `admin`, so the demo
+looks exactly as it did.
 
 ---
 

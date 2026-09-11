@@ -35,17 +35,33 @@ function Icon({ path, color }: { path: string; color: string }) {
  * subtitle, and a chevron affordance. No metrics: tiles route to tools, they
  * don't report numbers. `title`/`subtitle` may be passed translated; otherwise
  * the tile's English defaults are used. Whole tile is a link.
+ *
+ * Three states, and the two muted ones say different things (N8):
+ *   built + permitted  a link.
+ *   planned            not built yet; shows the milestone that plans it.
+ *   locked             built, but this session lacks the capability. Shown, not
+ *                      hidden — see the note in `lib/launchpad.ts`.
+ * A planned tile that is also locked reads as planned: unbuilt is the more
+ * useful fact, and access to a tool nobody can open yet is moot.
  */
 export function LaunchTile({
   tile,
   title,
   subtitle,
+  locked = false,
   soonLabel = "soon",
+  lockedLabel = "no access",
+  plannedLabel,
 }: {
   tile: Tile;
   title?: string;
   subtitle?: string;
+  /** The session lacks `tile.capability`. */
+  locked?: boolean;
   soonLabel?: string;
+  lockedLabel?: string;
+  /** Sentence shown on a planned tile, e.g. "Planned — not built yet." */
+  plannedLabel?: string;
 }) {
   const color = `hsl(var(${TONE_VAR[tile.tone]}))`;
   const tint = `hsl(var(${TONE_VAR[tile.tone]}) / 0.12)`;
@@ -58,7 +74,7 @@ export function LaunchTile({
       <div className="mt-auto">
         <div className="flex items-center gap-1 font-medium leading-tight">
           {title ?? tile.title}
-          {!tile.disabled && (
+          {!tile.planned && !locked && (
             <span className="translate-x-0 text-muted-foreground opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" aria-hidden>
               →
             </span>
@@ -71,11 +87,28 @@ export function LaunchTile({
 
   const base = "group flex h-36 flex-col rounded-xl border bg-card p-4 transition-shadow";
 
-  if (tile.disabled) {
+  if (tile.planned) {
     return (
-      <div className={cn(base, "relative opacity-55")} aria-disabled>
+      <div className={cn(base, "relative opacity-55")} aria-disabled title={plannedLabel}>
         {inner}
-        <span className="absolute right-3 top-3 text-[10px] uppercase tracking-wide text-muted-foreground">{soonLabel}</span>
+        <span className="absolute right-3 top-3 flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+          {soonLabel}
+          <span className="rounded border px-1 font-mono not-italic">{tile.planned.milestone}</span>
+        </span>
+      </div>
+    );
+  }
+
+  if (locked) {
+    return (
+      <div className={cn(base, "relative opacity-55")} aria-disabled title={lockedLabel}>
+        {inner}
+        <span className="absolute right-3 top-3 flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <path d="M6 11h12v9H6z M9 11V8a3 3 0 0 1 6 0v3" />
+          </svg>
+          {lockedLabel}
+        </span>
       </div>
     );
   }

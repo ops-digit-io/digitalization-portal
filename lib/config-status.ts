@@ -11,6 +11,7 @@
 
 import { describeProvider, PROVIDERS, providerAvailable, modelFor, type ProviderStatus } from "./agent/provider.js";
 import { repoName } from "./repos.js";
+import { webhookFormat } from "./notify/index.js";
 
 export type Level = "required" | "recommended" | "optional";
 
@@ -208,6 +209,17 @@ export function describeConfig(env: Record<string, string | undefined> = process
           envVars: ["EMAIL_API_KEY", "EMAIL_FROM", "DIGEST_TEAM_EMAIL"],
           level: "optional",
           note: "Optional: weekly review/staleness digest by email. Without it, the /digest page still works.",
+        },
+        {
+          key: "webhook-channel",
+          label: "Chat channel (Teams / Slack)",
+          configured: has(env.DIGEST_WEBHOOK_URL),
+          detail: has(env.DIGEST_WEBHOOK_URL)
+            ? `${webhookFormat(env.DIGEST_WEBHOOK_URL!, env.DIGEST_WEBHOOK_FORMAT)} · team digest only`
+            : undefined,
+          envVars: ["DIGEST_WEBHOOK_URL", "DIGEST_WEBHOOK_FORMAT", "DIGEST_WEBHOOK_NAME"],
+          level: "optional",
+          note: "Optional: post the weekly team digest to a Teams or Slack channel. The format is detected from the URL. Per-owner nudges are never posted to a shared channel — they go by email only.",
         },
       ],
     },
