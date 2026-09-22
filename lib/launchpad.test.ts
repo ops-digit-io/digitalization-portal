@@ -73,10 +73,19 @@ describe("the launchpad for a session", () => {
   });
 
   it("keeps planned and locked as separate facts", () => {
-    const admin = forSession(session("admin"));
-    const traces = byId(admin, "traces");
-    expect(traces.tile.planned).toBeDefined(); // unbuilt
-    expect(traces.locked).toBe(false); // …but an admin would be allowed to open it
+    // Locked is computed from capability alone: an admin sees no lock anywhere,
+    // a session with no roles sees nothing but locks — whether or not a tile is
+    // planned enters neither answer.
+    expect(flat(forSession(session("admin"))).some((t) => t.locked)).toBe(false);
+    expect(flat(forSession(session())).some((t) => !t.locked)).toBe(false);
+  });
+
+  it("routes a built tile at its own page — no tile links to a stand-in", () => {
+    // N1 built the traces tool; the tile it had been standing in for must now
+    // point at the real page and carry no `planned` marker.
+    const traces = byId(forSession(session("admin")), "traces").tile;
+    expect(traces.planned).toBeUndefined();
+    expect(traces.href).toBe("/admin/traces");
   });
 
   it("asks the predicate for exactly the capabilities the tiles declare", () => {

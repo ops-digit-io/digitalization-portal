@@ -42,7 +42,7 @@ two or three; **L** = a new store plus a surface plus its tests.
 
 | N | Deliverable | Size | Depends on | Status |
 |---|---|---|---|---|
-| N1 | Agent run traces, persisted, at `/admin/traces` | M | — | planned |
+| N1 | Agent run traces, persisted, at `/admin/traces` | M | — | **built** |
 | N2 | Approval inbox — the `execute-with-approval` rung becomes operable | L | N1 | planned |
 | N3 | Portal-wide record search behind ⌘K | M | — | planned |
 | N4 | Channel layer — outbound beyond email (Teams / Slack / webhook) | S | — | **built** |
@@ -65,7 +65,7 @@ door, the budget, and the jobs that run whether or not anybody remembers them.
 
 ---
 
-## N1 — Agent run traces, persisted
+## N1 — Agent run traces, persisted — BUILT
 
 **Why now.** `lib/agent/trace.ts` already records everything worth keeping —
 every step, the tools offered, and the tools **withheld with their reason**. But
@@ -99,6 +99,28 @@ unit-tested against a frozen clock.
 **Note.** A trace names the session that ran it because an audit record without
 an actor is not an audit record. That is the boundary of it: no view ranks,
 counts or compares people, and no aggregate is built per user (constraint #6).
+
+**As built.** `lib/agent/trace-store.ts` carries both backends behind one
+interface — KV day-buckets (`traces:d:<date>` + a `traces:days` set, expiring on
+a 30-day window, with an expired day pruned from the set as it is read) and a
+local `.agent-traces/` mirror, the same kv-or-local shape the pending buffer
+proves. `recordTrace()` is fire-and-safe: a failed write returns null and the
+agent turn is unaffected, which is the bargain `recordUsage` already strikes.
+
+Three decisions beyond the plan. **A record id is minted per run**
+(`2026-09-22-134501-a1b2c3`) because `trace.id` is a label that repeats across
+runs; it sorts chronologically as a string, so "newest first" is a reverse sort,
+and it carries its own day, so one record is fetched without scanning. **A cut is
+marked** — a step's detail is capped and a long run truncated, but never
+silently: evidence that looks complete and is not would be worse than none.
+**Ids are validated before they reach the filesystem or KV**, so `?id=../..`
+reads nothing. The page gives withheld tools equal weight to offered ones: "this
+run could not have passed a gate" is the claim the governance model rests on, and
+a trace listing only what an agent did cannot support it. Retention and the
+no-KV state are stated on the page rather than left to be discovered.
+
+The launchpad tile stops being planned and points at the page, which is the
+lifecycle N8 built working as intended.
 
 ---
 

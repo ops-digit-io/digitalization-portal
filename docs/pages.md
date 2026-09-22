@@ -2,7 +2,7 @@
 
 # Pages and the endpoints they call
 
-**54 pages.** Each row lists the `/api` paths referenced by the page and the client
+**55 pages.** Each row lists the `/api` paths referenced by the page and the client
 components beside it. A page with no calls renders from a server component and reads its
 data directly through `lib/` — which is the portal's default, not an omission.
 
@@ -12,6 +12,7 @@ graph LR
   _admin_categories --> _api_categories["/api/categories"]
   _admin_templates(["/admin/templates"])
   _admin_templates --> _api_templates["/api/templates"]
+  _admin_traces(["/admin/traces"])
   _admin_usage(["/admin/usage"])
   _admin_usage --> _api_usage["/api/usage"]
   _ai_framework(["/ai-framework"])
@@ -102,6 +103,7 @@ graph LR
 |---|---|
 | `/admin/categories` | `/api/categories` |
 | `/admin/templates` | `/api/templates` |
+| `/admin/traces` | _server-rendered_ |
 | `/admin/usage` | `/api/usage` |
 | `/ai-framework` | _server-rendered_ |
 | `/analysis` | _server-rendered_ |

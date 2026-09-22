@@ -183,7 +183,7 @@ export const LAUNCHPAD: TileGroup[] = [
       { id: "categories", title: "Categories", subtitle: "Manage plants & domains (admin)", href: "/admin/categories", icon: I.cog, tone: "slate", capability: "all" },
       { id: "poc-templates", title: "PoC Templates", subtitle: "Check & manage template repos (admin)", href: "/admin/templates", icon: I.copy, tone: "slate", capability: "all" },
       { id: "skill-library", title: "Skill Library", subtitle: "Import reference skills (agentskills.io)", href: "/skill-library", icon: I.download, tone: "info", capability: "edit_registry" },
-      { id: "traces", title: "Agent Traces", subtitle: "Replayable AI runs", href: "/assistant", icon: I.gauge, tone: "slate", capability: "all", planned: { milestone: "N1" } },
+      { id: "traces", title: "Agent Traces", subtitle: "Replayable AI runs", href: "/admin/traces", icon: I.gauge, tone: "slate", capability: "all" },
       { id: "digest", title: "Review Digest", subtitle: "Due dates & staleness", href: "/digest", icon: I.bell, tone: "slate", capability: "view_board" },
       { id: "mesh", title: "Context Mesh", subtitle: "How every artifact relates", href: "/mesh", icon: I.mesh, tone: "info", capability: "view_board" },
       { id: "usage", title: "Usage & Cost", subtitle: "AI spend and portal use by tool (admin)", href: "/admin/usage", icon: I.gauge, tone: "info", capability: "all" },
