@@ -43,7 +43,7 @@ two or three; **L** = a new store plus a surface plus its tests.
 | N | Deliverable | Size | Depends on | Status |
 |---|---|---|---|---|
 | N1 | Agent run traces, persisted, at `/admin/traces` | M | — | **built** |
-| N2 | Approval inbox — the `execute-with-approval` rung becomes operable | L | N1 | planned |
+| N2 | Approval inbox — the `execute-with-approval` rung becomes operable | L | N1 | **built** |
 | N3 | Portal-wide record search behind ⌘K | M | — | planned |
 | N4 | Channel layer — outbound beyond email (Teams / Slack / webhook) | S | — | **built** |
 | N5 | Inbound intake channel — a demand can arrive by mail | L | N4 | planned |
@@ -124,7 +124,7 @@ lifecycle N8 built working as intended.
 
 ---
 
-## N2 — Approval inbox
+## N2 — Approval inbox — BUILT
 
 **Why now.** `lib/org/autonomy.ts` defines rung 3 as *"prepares the real action,
 but it waits for your yes"* — and there is nowhere for a prepared action to wait.
@@ -166,6 +166,37 @@ it and when; rejecting it stores the reason and performs nothing. Constructing a
 proposal whose action is a gate or a merge throws, and there is a test that says
 so. A session without `decide_proposal` gets 403 from the decide route, not a
 disabled button alone.
+
+**As built.** The rung stopped being a word: `lib/agent/loop.ts` now asks
+`authorityPolicy(authority).requiresApproval` before running an acting tool and,
+where it holds, calls a `proposeAction` hook instead of `tool.run`. The loop
+still knows nothing about where proposals live — the route passes the hook — so
+it stays testable without a store. **Absent a queue at a rung that requires
+approval, the tool is refused rather than run**: acting without the thing that
+was meant to hold the action back is the one failure this rung exists to
+prevent.
+
+The invariant is INHERITED rather than restated. A proposal names an agent tool,
+and `ToolRegistry.register` already refuses any tool bound to a gate, merge,
+kill, park, handover or `all` capability — so a queue cannot launder one.
+`assertProposable` re-checks it anyway, for the day that first line changes, and
+also refuses a read-only tool: approving one would change nothing that could not
+have happened already.
+
+Three decisions beyond the plan. **Deciding needs two capabilities**, not one:
+`decide_proposal` AND the action's own. Approval runs the tool under the
+approver's session, so it can never be a way to reach further than that person
+could reach themselves (constraint #3) — a triage lead can empty the queue only
+of actions they could have taken. **The queue is two shelves**: pending in a hash
+that never expires, because a decision nobody has taken must not quietly vanish;
+decided in day-buckets on a 180-day window, because that is the evidence a
+promotion gets argued from, and it should be bounded. **An approved action that
+then fails is stored `failed` with its error**, not left pending — the human said
+yes, and that belongs on the record even when what followed did not work.
+
+The new tool took its place in the context mesh (`org → approvals → analyst`,
+with the trace as the basis a decision reads), which the corpus test insisted on:
+no tool may be an island.
 
 ---
 

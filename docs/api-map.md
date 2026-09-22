@@ -2,13 +2,16 @@
 
 # API map
 
-Every HTTP endpoint the portal exposes: **64 routes**, grouped by area.
+Every HTTP endpoint the portal exposes: **65 routes**, grouped by area.
 Generated from `app/api/**/route.ts`, so it cannot drift from the code.
 
 ```mermaid
 graph LR
   subgraph agent["/api/agent"]
     _api_agent["/<br/><i>POST</i>"]
+  end
+  subgraph approvals["/api/approvals"]
+    _api_approvals__id__decide["/[id]/decide<br/><i>POST</i>"]
   end
   subgraph auth["/api/auth"]
     _api_auth_callback["/callback<br/><i>GET</i>"]
@@ -120,6 +123,7 @@ graph LR
 | Route | Methods | Source |
 |---|---|---|
 | `/api/agent` | POST | `app/api/agent/route.ts` |
+| `/api/approvals/[id]/decide` | POST | `app/api/approvals/[id]/decide/route.ts` |
 | `/api/auth/callback` | GET | `app/api/auth/callback/route.ts` |
 | `/api/auth/login` | GET | `app/api/auth/login/route.ts` |
 | `/api/auth/logout` | GET, POST | `app/api/auth/logout/route.ts` |

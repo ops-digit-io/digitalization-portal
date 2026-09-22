@@ -178,6 +178,7 @@ export const LAUNCHPAD: TileGroup[] = [
   {
     category: "Govern & operate",
     tiles: [
+      { id: "approvals", title: "Approvals", subtitle: "Actions an agent prepared, waiting for a human yes", href: "/approvals", icon: I.shield, tone: "warn", capability: "decide_proposal" },
       { id: "docs", title: "Specification", subtitle: "Governance & data model", href: "/docs", icon: I.book, tone: "slate", capability: "view_board" },
       { id: "catalog", title: "Skills & Playbooks", subtitle: "Agent capabilities", href: "/catalog", icon: I.copy, tone: "info", capability: "view_board" },
       { id: "categories", title: "Categories", subtitle: "Manage plants & domains (admin)", href: "/admin/categories", icon: I.cog, tone: "slate", capability: "all" },

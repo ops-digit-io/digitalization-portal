@@ -15,7 +15,7 @@
 
 import { can, type Session } from "../rbac.js";
 import { toolActs, authorityAllowsActing, type ToolRegistry } from "./tools.js";
-import type { AuthorityLevel } from "../org/autonomy.js";
+import { authorityPolicy, type AuthorityLevel } from "../org/autonomy.js";
 import type { ModelMessage, ModelProvider, ToolResultBlock, ToolSpec } from "./provider.js";
 import { TraceRecorder, type Trace } from "./trace.js";
 import { recordUsage } from "../usage-meter.js";
@@ -59,6 +59,17 @@ export interface RunAgentParams {
   traceId: string;
   /** Usage-meter label for the cost overview (e.g. "agent.chat"). */
   feature?: string;
+  /**
+   * Called INSTEAD of running an acting tool when the lane's rung requires a
+   * human yes (`execute-with-approval`). It queues the prepared action and
+   * returns what the model should be told; the loop itself knows nothing about
+   * where proposals live, so it stays testable without a store.
+   *
+   * Absent at a rung that requires approval, the tool is REFUSED rather than
+   * run: acting without the queue that was supposed to hold the action back is
+   * the one failure this rung exists to prevent.
+   */
+  proposeAction?: (req: { tool: string; input: unknown }) => Promise<string>;
 }
 
 export interface RunAgentResult {
@@ -103,6 +114,11 @@ export async function runAgent(params: RunAgentParams): Promise<RunAgentResult> 
     withheld.push({ name, reason });
   }
 
+  // A rung that ACTS but requires approval prepares instead of doing (N2).
+  // `resolveFor` has already withheld acting tools from the rungs that do not
+  // act at all, so this only ever concerns `execute-with-approval`.
+  const needsApproval = authority != null && authorityPolicy(authority).requiresApproval;
+
   const rec = new TraceRecorder({
     id: traceId,
     session: session.user,
@@ -146,6 +162,24 @@ export async function runAgent(params: RunAgentParams): Promise<RunAgentResult> 
         content = `Error: tool "${call.name}" is not available to this session.`;
         failed = true;
         rec.add("error", `tool ${call.name} unavailable`);
+      } else if (needsApproval && toolActs(tool)) {
+        // The rung prepares but does not act (N2). The action is queued for a
+        // human; the model is told so plainly, so it reports a request made
+        // rather than a job done.
+        if (!params.proposeAction) {
+          content = `Error: ${call.name} needs approval in this lane and no approval queue is configured. Nothing was done.`;
+          failed = true;
+          rec.add("error", `tool ${call.name} withheld — no approval queue`);
+        } else {
+          try {
+            content = await params.proposeAction({ tool: call.name, input: call.input });
+            rec.add("note", `proposed ${call.name} for approval`, content);
+          } catch (err) {
+            content = `Error proposing ${call.name}: ${err instanceof Error ? err.message : String(err)}`;
+            failed = true;
+            rec.add("error", `proposing ${call.name} failed`, content);
+          }
+        }
       } else {
         try {
           const out = await tool.run(call.input, { session });

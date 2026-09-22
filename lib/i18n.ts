@@ -228,6 +228,8 @@ const EN: Strings = {
   "theme.toggle": "Toggle theme",
   "lang.label": "Language",
   "tile.soon": "soon",
+  "tile.approvals.title": "Approvals",
+  "tile.approvals.subtitle": "Actions an agent prepared, waiting for a human yes",
   "tile.locked": "no access",
   "tile.planned": "Planned — not built yet.",
 
@@ -505,6 +507,8 @@ const DE: Strings = {
   "theme.toggle": "Design umschalten",
   "lang.label": "Sprache",
   "tile.soon": "bald",
+  "tile.approvals.title": "Freigaben",
+  "tile.approvals.subtitle": "Vom Agenten vorbereitete Aktionen, die auf ein Ja warten",
   "tile.locked": "kein Zugriff",
   "tile.planned": "Geplant — noch nicht gebaut.",
 
@@ -782,6 +786,8 @@ const ZH: Strings = {
   "theme.toggle": "切换主题",
   "lang.label": "语言",
   "tile.soon": "即将推出",
+  "tile.approvals.title": "审批",
+  "tile.approvals.subtitle": "代理已准备、等待人工批准的操作",
   "tile.locked": "无权限",
   "tile.planned": "已列入计划 — 尚未构建。",
 
@@ -1059,6 +1065,8 @@ const FR: Strings = {
   "theme.toggle": "Changer de thème",
   "lang.label": "Langue",
   "tile.soon": "bientôt",
+  "tile.approvals.title": "Approbations",
+  "tile.approvals.subtitle": "Actions préparées par un agent, en attente d'un accord humain",
   "tile.locked": "aucun accès",
   "tile.planned": "Prévu — pas encore développé.",
 
@@ -1336,6 +1344,8 @@ const ES: Strings = {
   "theme.toggle": "Cambiar tema",
   "lang.label": "Idioma",
   "tile.soon": "pronto",
+  "tile.approvals.title": "Aprobaciones",
+  "tile.approvals.subtitle": "Acciones preparadas por un agente, a la espera de un sí humano",
   "tile.locked": "sin acceso",
   "tile.planned": "Planificado: aún no desarrollado.",
 
@@ -1613,6 +1623,8 @@ const SR: Strings = {
   "theme.toggle": "Промени тему",
   "lang.label": "Језик",
   "tile.soon": "ускоро",
+  "tile.approvals.title": "Одобрења",
+  "tile.approvals.subtitle": "Радње које је агент припремио, чекају људско да",
   "tile.locked": "нема приступа",
   "tile.planned": "Планирано — још није направљено.",
 
@@ -1890,6 +1902,8 @@ const HU: Strings = {
   "theme.toggle": "Téma váltása",
   "lang.label": "Nyelv",
   "tile.soon": "hamarosan",
+  "tile.approvals.title": "Jóváhagyások",
+  "tile.approvals.subtitle": "Az ügynök által előkészített műveletek emberi jóváhagyásra várva",
   "tile.locked": "nincs hozzáférés",
   "tile.planned": "Tervezett — még nincs elkészítve.",
 
@@ -2167,6 +2181,8 @@ const RO: Strings = {
   "theme.toggle": "Comută tema",
   "lang.label": "Limbă",
   "tile.soon": "în curând",
+  "tile.approvals.title": "Aprobări",
+  "tile.approvals.subtitle": "Acțiuni pregătite de agent, în așteptarea unui da uman",
   "tile.locked": "fără acces",
   "tile.planned": "Planificat — încă nerealizat.",
 
@@ -2444,6 +2460,8 @@ const PT: Strings = {
   "theme.toggle": "Alternar tema",
   "lang.label": "Idioma",
   "tile.soon": "em breve",
+  "tile.approvals.title": "Aprovações",
+  "tile.approvals.subtitle": "Ações preparadas por um agente, à espera de um sim humano",
   "tile.locked": "sem acesso",
   "tile.planned": "Planeado — ainda não construído.",
 
@@ -2721,6 +2739,8 @@ const SK: Strings = {
   "theme.toggle": "Prepnúť tému",
   "lang.label": "Jazyk",
   "tile.soon": "čoskoro",
+  "tile.approvals.title": "Schválenia",
+  "tile.approvals.subtitle": "Akcie pripravené agentom, čakajúce na ľudské áno",
   "tile.locked": "žiadny prístup",
   "tile.planned": "Plánované — zatiaľ nevytvorené.",
 

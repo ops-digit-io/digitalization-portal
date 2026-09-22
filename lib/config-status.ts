@@ -182,7 +182,7 @@ export function describeConfig(env: Record<string, string | undefined> = process
           detail: has(env.KV_REST_API_URL) && has(env.KV_REST_API_TOKEN) ? "editing enabled" : "seed defaults (read-only)",
           envVars: ["KV_REST_API_URL", "KV_REST_API_TOKEN"],
           level: "recommended",
-          note: "Registry cache, funnel projection, admin-managed categories (plants/domains at /admin/categories), AND durable agent traces (/admin/traces). Without it those fall back to read-only seed defaults and traces are written to an ephemeral local disk.",
+          note: "Registry cache, funnel projection, admin-managed categories (plants/domains at /admin/categories), durable agent traces (/admin/traces) AND the approval queue (/approvals). Without it those fall back to read-only seed defaults, and traces and pending approvals are written to an ephemeral local disk.",
         },
         {
           key: "cron",
