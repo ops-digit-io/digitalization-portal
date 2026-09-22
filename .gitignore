@@ -20,5 +20,11 @@ tsconfig.tsbuildinfo
 # Interim buffer for demands captured before a git host is configured
 .pending-demands/
 
+# Agent run traces written without KV (local mirror of the day-buckets)
+.agent-traces/
+
+# Approval queue written without KV (local mirror; pending decisions live here)
+.agent-approvals/
+
 # Which cases scripts/demo-seed.mjs created, so --clean removes only those
 .demo-seed.json

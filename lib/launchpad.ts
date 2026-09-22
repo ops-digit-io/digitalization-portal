@@ -178,12 +178,13 @@ export const LAUNCHPAD: TileGroup[] = [
   {
     category: "Govern & operate",
     tiles: [
+      { id: "approvals", title: "Approvals", subtitle: "Actions an agent prepared, waiting for a human yes", href: "/approvals", icon: I.shield, tone: "warn", capability: "decide_proposal" },
       { id: "docs", title: "Specification", subtitle: "Governance & data model", href: "/docs", icon: I.book, tone: "slate", capability: "view_board" },
       { id: "catalog", title: "Skills & Playbooks", subtitle: "Agent capabilities", href: "/catalog", icon: I.copy, tone: "info", capability: "view_board" },
       { id: "categories", title: "Categories", subtitle: "Manage plants & domains (admin)", href: "/admin/categories", icon: I.cog, tone: "slate", capability: "all" },
       { id: "poc-templates", title: "PoC Templates", subtitle: "Check & manage template repos (admin)", href: "/admin/templates", icon: I.copy, tone: "slate", capability: "all" },
       { id: "skill-library", title: "Skill Library", subtitle: "Import reference skills (agentskills.io)", href: "/skill-library", icon: I.download, tone: "info", capability: "edit_registry" },
-      { id: "traces", title: "Agent Traces", subtitle: "Replayable AI runs", href: "/assistant", icon: I.gauge, tone: "slate", capability: "all", planned: { milestone: "N1" } },
+      { id: "traces", title: "Agent Traces", subtitle: "Replayable AI runs", href: "/admin/traces", icon: I.gauge, tone: "slate", capability: "all" },
       { id: "digest", title: "Review Digest", subtitle: "Due dates & staleness", href: "/digest", icon: I.bell, tone: "slate", capability: "view_board" },
       { id: "mesh", title: "Context Mesh", subtitle: "How every artifact relates", href: "/mesh", icon: I.mesh, tone: "info", capability: "view_board" },
       { id: "usage", title: "Usage & Cost", subtitle: "AI spend and portal use by tool (admin)", href: "/admin/usage", icon: I.gauge, tone: "info", capability: "all" },

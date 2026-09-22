@@ -42,8 +42,8 @@ two or three; **L** = a new store plus a surface plus its tests.
 
 | N | Deliverable | Size | Depends on | Status |
 |---|---|---|---|---|
-| N1 | Agent run traces, persisted, at `/admin/traces` | M | — | planned |
-| N2 | Approval inbox — the `execute-with-approval` rung becomes operable | L | N1 | planned |
+| N1 | Agent run traces, persisted, at `/admin/traces` | M | — | **built** |
+| N2 | Approval inbox — the `execute-with-approval` rung becomes operable | L | N1 | **built** |
 | N3 | Portal-wide record search behind ⌘K | M | — | planned |
 | N4 | Channel layer — outbound beyond email (Teams / Slack / webhook) | S | — | **built** |
 | N5 | Inbound intake channel — a demand can arrive by mail | L | N4 | planned |
@@ -65,7 +65,7 @@ door, the budget, and the jobs that run whether or not anybody remembers them.
 
 ---
 
-## N1 — Agent run traces, persisted
+## N1 — Agent run traces, persisted — BUILT
 
 **Why now.** `lib/agent/trace.ts` already records everything worth keeping —
 every step, the tools offered, and the tools **withheld with their reason**. But
@@ -100,9 +100,31 @@ unit-tested against a frozen clock.
 an actor is not an audit record. That is the boundary of it: no view ranks,
 counts or compares people, and no aggregate is built per user (constraint #6).
 
+**As built.** `lib/agent/trace-store.ts` carries both backends behind one
+interface — KV day-buckets (`traces:d:<date>` + a `traces:days` set, expiring on
+a 30-day window, with an expired day pruned from the set as it is read) and a
+local `.agent-traces/` mirror, the same kv-or-local shape the pending buffer
+proves. `recordTrace()` is fire-and-safe: a failed write returns null and the
+agent turn is unaffected, which is the bargain `recordUsage` already strikes.
+
+Three decisions beyond the plan. **A record id is minted per run**
+(`2026-09-22-134501-a1b2c3`) because `trace.id` is a label that repeats across
+runs; it sorts chronologically as a string, so "newest first" is a reverse sort,
+and it carries its own day, so one record is fetched without scanning. **A cut is
+marked** — a step's detail is capped and a long run truncated, but never
+silently: evidence that looks complete and is not would be worse than none.
+**Ids are validated before they reach the filesystem or KV**, so `?id=../..`
+reads nothing. The page gives withheld tools equal weight to offered ones: "this
+run could not have passed a gate" is the claim the governance model rests on, and
+a trace listing only what an agent did cannot support it. Retention and the
+no-KV state are stated on the page rather than left to be discovered.
+
+The launchpad tile stops being planned and points at the page, which is the
+lifecycle N8 built working as intended.
+
 ---
 
-## N2 — Approval inbox
+## N2 — Approval inbox — BUILT
 
 **Why now.** `lib/org/autonomy.ts` defines rung 3 as *"prepares the real action,
 but it waits for your yes"* — and there is nowhere for a prepared action to wait.
@@ -144,6 +166,37 @@ it and when; rejecting it stores the reason and performs nothing. Constructing a
 proposal whose action is a gate or a merge throws, and there is a test that says
 so. A session without `decide_proposal` gets 403 from the decide route, not a
 disabled button alone.
+
+**As built.** The rung stopped being a word: `lib/agent/loop.ts` now asks
+`authorityPolicy(authority).requiresApproval` before running an acting tool and,
+where it holds, calls a `proposeAction` hook instead of `tool.run`. The loop
+still knows nothing about where proposals live — the route passes the hook — so
+it stays testable without a store. **Absent a queue at a rung that requires
+approval, the tool is refused rather than run**: acting without the thing that
+was meant to hold the action back is the one failure this rung exists to
+prevent.
+
+The invariant is INHERITED rather than restated. A proposal names an agent tool,
+and `ToolRegistry.register` already refuses any tool bound to a gate, merge,
+kill, park, handover or `all` capability — so a queue cannot launder one.
+`assertProposable` re-checks it anyway, for the day that first line changes, and
+also refuses a read-only tool: approving one would change nothing that could not
+have happened already.
+
+Three decisions beyond the plan. **Deciding needs two capabilities**, not one:
+`decide_proposal` AND the action's own. Approval runs the tool under the
+approver's session, so it can never be a way to reach further than that person
+could reach themselves (constraint #3) — a triage lead can empty the queue only
+of actions they could have taken. **The queue is two shelves**: pending in a hash
+that never expires, because a decision nobody has taken must not quietly vanish;
+decided in day-buckets on a 180-day window, because that is the evidence a
+promotion gets argued from, and it should be bounded. **An approved action that
+then fails is stored `failed` with its error**, not left pending — the human said
+yes, and that belongs on the record even when what followed did not work.
+
+The new tool took its place in the context mesh (`org → approvals → analyst`,
+with the trace as the basis a decision reads), which the corpus test insisted on:
+no tool may be an island.
 
 ---
 

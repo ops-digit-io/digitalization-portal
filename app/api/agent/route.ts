@@ -4,12 +4,16 @@
  * Server-side only: credentials never reach the browser (constraint #7). It runs
  * the agent loop under the session's authority with session-scoped tools, wraps
  * any use-case content as external data, and returns the reply plus a trace
- * summary. Live when ANTHROPIC_API_KEY is set; deterministic offline otherwise.
+ * summary. The full trace is also persisted (N1) and readable at /admin/traces,
+ * so "what did that run do" outlives the response that answered it. Live when
+ * ANTHROPIC_API_KEY is set; deterministic offline otherwise.
  */
 
 import { NextResponse } from "next/server";
 import { can } from "@/lib/rbac";
 import { runAgent } from "@/lib/agent/loop";
+import { recordTrace } from "@/lib/agent/trace-store";
+import { propose } from "@/lib/approvals/service";
 import { resolveProvider } from "@/lib/model-settings";
 import { createDefaultRegistry } from "@/lib/agent/registry";
 import { makeImplementationAnalysisTool } from "@/lib/agent/tools/implementation-analysis";
@@ -140,7 +144,33 @@ export async function POST(req: Request) {
       enabled: agentToolsEnabled(),
       authority,
       ...(toolNames ? { toolNames } : {}),
+      // At a rung that prepares but does not act, an acting tool is queued for a
+      // human instead of run (N2). The loop calls this; it never learns where
+      // proposals live.
+      ...(authority && body.dept && body.lane
+        ? {
+            proposeAction: async ({ tool, input }: { tool: string; input: unknown }) => {
+              const p = await propose({
+                registry,
+                session,
+                dept: body.dept!,
+                lane: body.lane!,
+                authority,
+                tool,
+                input,
+                preview: `${tool} with ${JSON.stringify(input)}`,
+                basis: `Prepared while answering: ${userMessage.slice(0, 300)}`,
+                traceId: `trace-${task}-${body.useCaseId ?? "chat"}`,
+              });
+              return `Queued for approval as ${p.id}. Nothing has happened yet: a human with the authority to run it decides at /approvals.`;
+            },
+          }
+        : {}),
     });
+
+    // Persist the run before answering (N1). Fire-and-safe by construction: a
+    // failed trace write returns null and is never allowed to fail the turn.
+    const traceRecord = await recordTrace(result.trace, { feature: `agent.${task}` });
 
     return NextResponse.json({
       text: result.text,
@@ -149,6 +179,7 @@ export async function POST(req: Request) {
       governedBy: ANALYST_GOVERNED_BY,
       provider: { name: provider.name, live: provider.live },
       trace: {
+        ...(traceRecord ? { recordId: traceRecord } : {}),
         toolsOffered: result.trace.toolsOffered,
         toolsWithheld: result.trace.toolsWithheld,
         steps: result.trace.steps,

@@ -197,3 +197,70 @@ describe("tool order is a property of the tools, not of the import graph", () =>
     expect(reg.all().map((t) => t.name)).toEqual(["alpha", "mike", "zulu"]);
   });
 });
+
+describe("a lane that prepares but does not act (N2)", () => {
+  /** An acting tool the test can watch for unwanted execution. */
+  function actingRegistry(ran: string[]): ToolRegistry {
+    return new ToolRegistry().register({
+      name: "probe",
+      description: "An acting tool for the test to drive.",
+      capability: "view_own",
+      effect: "write",
+      run: () => (ran.push("ran"), "done"),
+    });
+  }
+
+  async function driveLane(
+    authority: "execute-with-approval" | "execute-autonomously",
+    ran: string[],
+    proposeAction?: (req: { tool: string; input: unknown }) => Promise<string>,
+  ) {
+    const provider = new AlwaysCalls("probe");
+    const res = await runAgent({
+      session: anyone,
+      provider,
+      registry: actingRegistry(ran),
+      system: "test",
+      userMessage: "go",
+      toolNames: ["probe"],
+      maxIterations: 2,
+      authority,
+      now: NOW,
+      traceId: "t",
+      ...(proposeAction ? { proposeAction } : {}),
+    });
+    return { res, turns: provider.seen.at(-1)!.messages };
+  }
+
+  it("queues the action instead of running it, and tells the model so", async () => {
+    const ran: string[] = [];
+    const proposed: { tool: string; input: unknown }[] = [];
+    const { res, turns } = await driveLane("execute-with-approval", ran, async (req) => {
+      proposed.push(req);
+      return "Queued for approval as 2026-05-19-000000-abc123.";
+    });
+    expect(ran).toEqual([]); // the whole point: nothing happened
+    expect(proposed.length).toBeGreaterThan(0);
+    expect(proposed.every((p) => p.tool === "probe")).toBe(true);
+    const result = (turns.at(-1)!.content as ToolResultBlock[])[0]!;
+    expect(result.content).toContain("Queued for approval");
+    expect(result.is_error).toBeUndefined(); // a request made is not a failure
+    expect(res.trace.steps.some((s) => s.kind === "note" && s.label.includes("proposed probe"))).toBe(true);
+  });
+
+  it("refuses rather than acts when no queue is wired — failing closed", async () => {
+    const ran: string[] = [];
+    const { turns } = await driveLane("execute-with-approval", ran);
+    expect(ran).toEqual([]);
+    const result = (turns.at(-1)!.content as ToolResultBlock[])[0]!;
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("no approval queue");
+  });
+
+  it("leaves an autonomous rung alone — it acts, which is what it was raised to do", async () => {
+    const ran: string[] = [];
+    const { turns } = await driveLane("execute-autonomously", ran);
+    expect(ran.length).toBeGreaterThan(0); // it acted, which is the rung's point
+    expect((turns.at(-1)!.content as ToolResultBlock[])[0]!.content).toContain("done");
+  });
+});

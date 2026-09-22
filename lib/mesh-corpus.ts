@@ -162,6 +162,13 @@ const TOOL_PIPELINE: readonly [string, string][] = [
   ["categories", "settings"],
   ["settings", "docs"],
   ["traces", "analyst"],
+  // A lane at "execute with approval" prepares an action and the approvals queue
+  // holds it, so the Department OS feeds the inbox. An approved action is what
+  // the analyst was asked for, and the trace is the basis the decision reads —
+  // which is why approvals sits between them rather than off to one side.
+  ["org", "approvals"],
+  ["traces", "approvals"],
+  ["approvals", "analyst"],
 ];
 
 /** Tool→tool "feeds" edges, grouped by the source tool. Pure. */

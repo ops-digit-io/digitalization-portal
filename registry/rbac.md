@@ -14,9 +14,9 @@ playbooks require a second approver (`docs/04-rbac.md §4.5`).
 |---|---|---|---|---|
 | requester | DU-Portal-AllStaff | create_uc, view_own, view_board, draft, comment | — | — |
 | champion | DU-Portal-Champions | create_uc, view_board, view_plant, draft, comment | plant | — |
-| triage | DU-Portal-Triage | view_all, view_board, assign_lane, gate_pass, draft, comment, park, link_uc | — | G1, G2 |
+| triage | DU-Portal-Triage | view_all, view_board, assign_lane, gate_pass, draft, comment, park, link_uc, decide_proposal | — | G1, G2 |
 | reviewer | DU-Portal-Reviewers | view_all, view_board, comment, draft | — | — |
-| portfolio forum | DU-Portal-PortfolioForum | view_all, view_board, gate_pass, park, kill, reprioritize, comment | unscoped | G2, G3, G4, G5, G6, G7 |
+| portfolio forum | DU-Portal-PortfolioForum | view_all, view_board, gate_pass, park, kill, reprioritize, comment, decide_proposal | unscoped | G2, G3, G4, G5, G6, G7 |
 | IT liaison | DU-Portal-IT | view_all, view_board, comment, accept_handover, draft | — | — |
 | admin | DU-Portal-Admins | all | — | G1–G7 |
 
@@ -38,3 +38,4 @@ playbooks require a second approver (`docs/04-rbac.md §4.5`).
 | link_uc | Create relations between use cases |
 | accept_handover | Accept a handover record |
 | reprioritize | Change backlog ranking |
+| decide_proposal | Approve or reject an action an agent has prepared (`/approvals`). Deciding also requires the action's own capability — approval runs it under the approver's authority, never the agent's |

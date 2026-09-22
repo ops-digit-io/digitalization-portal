@@ -35,6 +35,7 @@ export type Capability =
   | "accept_handover"
   | "reprioritize"
   | "edit_registry"
+  | "decide_proposal"
   | "all";
 
 export const CAPABILITIES: readonly Capability[] = [
@@ -53,6 +54,7 @@ export const CAPABILITIES: readonly Capability[] = [
   "accept_handover",
   "reprioritize",
   "edit_registry",
+  "decide_proposal",
   "all",
 ];
 
@@ -103,7 +105,7 @@ export const ROLES: readonly RoleDef[] = [
   {
     id: "triage",
     group: "DU-Portal-Triage",
-    capabilities: ["view_all", "view_board", "assign_lane", "gate_pass", "draft", "comment", "park", "link_uc"],
+    capabilities: ["view_all", "view_board", "assign_lane", "gate_pass", "draft", "comment", "park", "link_uc", "decide_proposal"],
     scope: "unscoped",
     gates: ["G1", "G2"],
   },
@@ -119,7 +121,7 @@ export const ROLES: readonly RoleDef[] = [
     // Absorbs the former gatekeeper's G3–G5 authority. Unscoped by design.
     id: "portfolio_forum",
     group: "DU-Portal-PortfolioForum",
-    capabilities: ["view_all", "view_board", "gate_pass", "park", "kill", "reprioritize", "comment"],
+    capabilities: ["view_all", "view_board", "gate_pass", "park", "kill", "reprioritize", "comment", "decide_proposal"],
     scope: "unscoped",
     gates: ["G2", "G3", "G4", "G5", "G6", "G7"],
   },
